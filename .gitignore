@@ -1,0 +1,19 @@
+# 构建产物
+/build/
+/hyperaudio_module.zip
+
+# 本地参考文件（不提交）
+/ISSUE_授权申请.md
+/发布指引.md
+
+# 编辑器与系统
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+*.swp
+
+# 临时文件
+*.tmp
+*.bak
+~$*

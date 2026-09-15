@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)" />
+  <!-- 注：KernelSU 的 /internal/insets.css 在本设备上不存在（404），
+       故不依赖它，改用 CSS 变量 --status-pad 提供固定顶部留白。 -->
+  <link rel="stylesheet" type="text/css" href="./style.css" />
+  <title>音频模式切换器</title>
+</head>
+
+<body>
+  <div class="app">
+    <header class="hd">
+      <div class="hd-title">
+        <h1>音频模式切换器</h1>
+        <div class="hd-sub" id="sub">正在读取配置…</div>
+      </div>
+      <div class="hd-badge" id="runBadge">—</div>
+    </header>
+
+    <main class="main">
+
+      <!-- ===== 模式切换 ===== -->
+      <section class="card">
+        <div class="card-title">工作模式</div>
+
+        <div class="mode-tabs" id="modeTabs">
+          <button class="mode-tab" id="tab-sound" data-mode="sound">
+            <b>音效模式</b>
+            <small>全局走效果链 · 调音生效</small>
+          </button>
+          <button class="mode-tab" id="tab-fast" data-mode="fast">
+            <b>低延迟模式</b>
+            <small>走 fast track · 延迟最低</small>
+          </button>
+        </div>
+
+        <p class="hint" id="modeDesc"></p>
+        <div id="modeMsg" class="mode-msg" hidden></div>
+      </section>
+
+      <!-- ===== 音效模式说明 ===== -->
+      <section class="card" id="card-sound">
+        <div class="card-title">音效模式说明</div>
+        <p class="hint">
+          音效模式下，音频端口不提供 fast track，所有应用的音频都落入普通混音线程，
+          因此 Dolby 效果链得以生效。
+        </p>
+        <div class="kv"><span>调音来源</span><b id="tuning-src">检测中…</b></div>
+        <div class="kv" id="tuning-ver-row" hidden><span>模块版本</span><b id="tuning-ver">—</b></div>
+      </section>
+
+      <!-- ===== 低延迟设置（仅低延迟模式显示）===== -->
+      <section class="card" id="card-fast" hidden>
+        <div class="card-title">低延迟设置</div>
+
+        <label class="row switch-row">
+          <span>
+            <b>启用守护进程</b>
+            <small>enable：总开关</small>
+          </span>
+          <input type="checkbox" id="f-enable" class="sw" />
+        </label>
+
+        <label class="row switch-row">
+          <span>
+            <b>仅白名单生效</b>
+            <small>only_whitelist：开启后只提升白名单应用的音频线程；关闭则全系统分档处理</small>
+          </span>
+          <input type="checkbox" id="f-only" class="sw" />
+        </label>
+
+        <div class="row">
+          <span>
+            <b>HAL 优先级</b>
+            <small>hal_priority：audiohalservice / FastMixer 等</small>
+          </span>
+          <input type="number" id="f-hal" min="1" max="99" />
+        </div>
+        <div class="row">
+          <span>
+            <b>音频线程优先级</b>
+            <small>audio_priority：App 播放线程（AudioTrack / AAudio）</small>
+          </span>
+          <input type="number" id="f-audio" min="1" max="99" />
+        </div>
+        <div class="row">
+          <span>
+            <b>应用线程优先级</b>
+            <small>app_priority：App 侧相关线程</small>
+          </span>
+          <input type="number" id="f-app" min="1" max="99" />
+        </div>
+      </section>
+
+      <!-- ===== 白名单（仅低延迟模式显示）===== -->
+      <section class="card" id="card-whitelist" hidden>
+        <div class="card-title">
+          白名单
+          <span class="pill" id="wl-count">0 项</span>
+        </div>
+        <p class="hint">
+          白名单内的应用在前台时，其音频线程会被提升为实时优先级（SCHED_FIFO）。
+          包名可在应用详情或 KernelSU 的「应用配置」中查到。
+        </p>
+
+        <div class="add-row">
+          <input type="text" id="f-newpkg" placeholder="输入包名，如 com.xxx.game" autocomplete="off"
+            autocapitalize="off" spellcheck="false" />
+          <button class="btn sm" id="btn-add">添加</button>
+        </div>
+
+        <div id="wl-list" class="list"></div>
+      </section>
+
+    </main>
+
+    <footer class="ft">
+      <button class="btn ghost" id="btn-reload">重新读取</button>
+      <button class="btn primary" id="btn-save">保存并生效</button>
+    </footer>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+  <div class="mask" id="mask" hidden>
+    <div class="spin"></div>
+  </div>
+
+  <script src="./app.js"
+    onerror="document.getElementById('sub').textContent='app.js 加载失败，请检查模块文件完整性';document.getElementById('mask').hidden=true;"></script>
+</body>
+
+</html>

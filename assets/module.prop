@@ -1,0 +1,7 @@
+id=hyperaudio
+name=音频模式切换器
+version=0.4.0
+versionCode=260917
+author=deepseek-flash
+description=通用机型｜音效与低延迟双模式，可在 WebUI 一键切换。音效模式：音频端口不提供 fast track，全部音频落入效果链，Dolby / 按应用调音得以全局生效。低延迟模式：恢复 fast track，并启动 hyper-audio 守护进程把音频线程提升为实时优先级，延迟最低、不卡顿。同附：AAudio MMAP 独占通路、HAL 缓冲周期压缩、蓝牙高清编解码与硬件直通等属性优化；WebUI 支持实时优先级与白名单配置，并可自动检测本机调音来源模块。
+credits=See CREDITS.md（来源与致谢）
