@@ -12,6 +12,7 @@
 MODDIR=${0%/*}
 
 chmod +x "$MODDIR/hyper-audio" 2>/dev/null
+chmod +x "$MODDIR/action.sh" 2>/dev/null
 chmod +x "$MODDIR/bin/mode_switch.sh" 2>/dev/null
 chmod +x "$MODDIR/bin/start_daemon.sh" 2>/dev/null
 
@@ -22,6 +23,11 @@ case "$MODE" in sound|fast) ;; *) MODE=sound ;; esac
 # 应用端口标志
 if [ -x "$MODDIR/bin/mode_switch.sh" ]; then
   sh "$MODDIR/bin/mode_switch.sh" apply "$MODE" >/dev/null 2>&1
+fi
+
+# 模块更新会覆盖 module.prop（丢失「当前模式」前缀），开机时补刷一次
+if [ -f "$MODDIR/bin/mode_switch.sh" ]; then
+  sh "$MODDIR/bin/mode_switch.sh" desc >/dev/null 2>&1
 fi
 
 # 低延迟模式下才需要守护进程

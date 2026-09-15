@@ -23,6 +23,7 @@
 
 MOD=/data/adb/modules/hyperaudio
 MODEFILE=$MOD/mode
+MODPROP=$MOD/module.prop
 PIDFILE=/data/local/tmp/hyperaudio.pid
 DST=/odm/etc/audio/audio_module_config_primary.xml
 SRC=/data/adb/modules/k90pm_audio_plus/Link/odm/etc/audio/audio_module_config_primary.xml
@@ -82,6 +83,48 @@ apply_flags() {
   restorecon "$DST" 2>/dev/null
 }
 
+# 把当前模式写进 module.prop 的 description，供 KernelSU / Magisk 模块列表直接显示。
+# description 是任意文本，管理器把原始字节照原样渲染，所以用一个「当前模式」标记做前缀。
+#
+# 标记文字优先取自 module.prop 自身的 mode.sound / mode.fast 行，这样反复切换
+# 都是读回同一份定义，不会在脚本里另写一份；若标记尚未建立则用下面的默认值。
+# 每次更新都先把已有标记剥掉，避免反复切换后层层叠加。
+# module.prop 不会被挂载进系统分区，因此运行时改写是持久的。
+update_desc() {
+  [ -f "$MODPROP" ] || return 0
+
+  # 标记定义存放于 module.prop 的 mode.* 行
+  MS=$(sed -n 's/^mode\.sound=//p' "$MODPROP" | head -1)
+  MF=$(sed -n 's/^mode\.fast=//p'  "$MODPROP" | head -1)
+  [ -n "$MS" ] || MS='音效模式'
+  [ -n "$MF" ] || MF='低延迟模式'
+
+  M=$(get_mode)
+  if [ "$M" = "fast" ]; then TAG="$MF"; else TAG="$MS"; fi
+
+  # 去掉已有的「【当前模式：…】」前缀（前缀内不含右括号字符）
+  ORIG=$(sed -n 's/^description=//p' "$MODPROP" \
+    | sed 's/^【[^】]*】//')
+
+  TMP=/data/local/tmp/hyperaudio.prop.$$
+  {
+    # 保留 id/name/version/versionCode/author 等，丢掉旧的 description / credits
+    # 以及上一轮的 mode.* 标记行（稍后统一补回）
+    grep -v '^description=' "$MODPROP" | grep -v '^credits=' | grep -v '^mode\.'
+    printf 'description=【当前模式：%s】%s\n' "$TAG" "$ORIG"
+    grep '^credits=' "$MODPROP" 2>/dev/null
+    printf 'mode.sound=%s\n' "$MS"
+    printf 'mode.fast=%s\n'  "$MF"
+  } > "$TMP" 2>/dev/null
+
+  # 只在写入成功且内容合理时替换，避免把 module.prop 写坏
+  if [ -s "$TMP" ] && grep -q '^id=' "$TMP" && grep -q '^description=' "$TMP"; then
+    cat "$TMP" > "$MODPROP"
+    chmod 644 "$MODPROP" 2>/dev/null
+  fi
+  rm -f "$TMP" 2>/dev/null
+}
+
 case "$1" in
   apply)
     M="$2"
@@ -91,12 +134,19 @@ case "$1" in
     apply_flags "$M"
     if [ "$M" = "sound" ]; then stop_daemon; else start_daemon; fi
     killall audioserver 2>/dev/null
+    update_desc
     echo "ok=1"
     echo "mode=$M"
     ;;
 
   current)
     get_mode
+    ;;
+
+  # 只刷新 module.prop 的「当前模式」前缀，不切换模式（供开机与 WebUI 调用）
+  desc)
+    update_desc
+    sed -n 's/^description=//p' "$MODPROP" 2>/dev/null | cut -c1-40
     ;;
 
   status)

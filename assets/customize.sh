@@ -31,7 +31,7 @@ set_permissions() {
   # 脚本也会被抹掉；若只靠 service.sh 开机时 chmod，则 WebUI 的 helper.sh
   # 会因 126 Permission denied 而**完全没有输出**（WebUI 报"helper 无输出"）。
   # 用 [ -f ] 保护，避免文件缺失时 chmod 报错中断安装。
-  for f in $MODPATH/hyper-audio $MODPATH/webui/helper.sh \
+  for f in $MODPATH/hyper-audio $MODPATH/action.sh $MODPATH/webui/helper.sh \
            $MODPATH/bin/mode_switch.sh $MODPATH/bin/start_daemon.sh \
            $MODPATH/bin/detect_tuning.sh $MODPATH/bin/hyperaudio_init.sh; do
     [ -f "$f" ] && chmod 0755 "$f"

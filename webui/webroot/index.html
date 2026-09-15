@@ -20,7 +20,13 @@
         <h1>音频模式切换器</h1>
         <div class="hd-sub" id="sub">正在读取配置…</div>
       </div>
-      <div class="hd-badge" id="runBadge">—</div>
+      <div class="hd-right">
+        <div class="hd-badge" id="runBadge">—</div>
+        <button class="hd-act" id="btn-toggle" type="button" title="一键切换音效 / 低延迟模式">
+          <span class="spin-xs" id="toggleSpin" hidden></span>
+          <span id="toggleLabel">切换模式</span>
+        </button>
+      </div>
     </header>
 
     <main class="main">

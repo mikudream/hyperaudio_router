@@ -40,7 +40,8 @@ var S = {
   tuning: { module: '', name: '', version: '', verified: false, count: 0, loaded: false },
   whitelist: [],
   running: false,
-  daemonOk: true
+  daemonOk: true,
+  switching: false
 };
 
 /* ---------------- 基础工具 ---------------- */
@@ -248,8 +249,8 @@ function renderTuning() {
 
 function renderAll() {
   var isSound = (S.mode === 'sound');
-  $('tab-sound').className = 'mode-tab' + (isSound ? ' active' : '');
-  $('tab-fast').className = 'mode-tab' + (!isSound ? ' active' : '');
+  $('tab-sound').className = 'mode-tab' + (isSound ? ' active' : '') + (S.switching ? ' busy' : '');
+  $('tab-fast').className = 'mode-tab' + (!isSound ? ' active' : '') + (S.switching ? ' busy' : '');
   $('modeDesc').textContent = MODE_TEXT[S.mode];
 
   /* 关键：音效模式下隐藏全部低延迟相关设置 */
@@ -257,17 +258,24 @@ function renderAll() {
   $('card-whitelist').hidden = isSound;
   $('card-sound').hidden = !isSound;
 
+  /* 头部一键切换按钮：文案指向"切换到的目标模式" */
+  var tl = $('toggleLabel');
+  if (tl && !S.switching) tl.textContent = isSound ? '切换到低延迟模式' : '切换到音效模式';
+
   renderTuning();
 
   var b = $('runBadge');
-  if (isSound) {
+  if (S.switching) {
+    b.textContent = '切换中…';
+    b.className = 'hd-badge';
+  } else if (isSound) {
     b.textContent = '音效模式';
     b.className = 'hd-badge on';
   } else if (!S.daemonOk) {
-    b.textContent = '守护进程缺失';
+    b.textContent = '低延迟 · 守护进程缺失';
     b.className = 'hd-badge off';
   } else {
-    b.textContent = S.running ? '守护进程运行中' : '守护进程未运行';
+    b.textContent = S.running ? '低延迟 · 守护进程运行中' : '低延迟 · 守护进程未运行';
     b.className = 'hd-badge ' + (S.running ? 'on' : 'off');
   }
 
@@ -325,27 +333,59 @@ function renderWhitelist() {
 
 /* ---------------- 模式切换 ---------------- */
 
+/* 切换过程中：按钮/标签页显示旋转器并禁用，界面本身保持可见可读。
+ * 不用全屏遮罩——切换要等 audioserver 重启，遮屏反而让人以为卡死。 */
+function setSwitching(on, name) {
+  var label = (name === 'fast' ? '低延迟模式' : '音效模式');
+  var el = $('toggleSpin');
+  if (el) el.hidden = !on;
+  var tl = $('toggleLabel');
+  if (tl) tl.textContent = on ? ('切换到' + label + '…') : ('切换到' + label);
+  var tb = $('btn-toggle');
+  if (tb) tb.disabled = !!on;
+  ['tab-sound', 'tab-fast'].forEach(function (id) {
+    var t = $(id);
+    if (t) {
+      t.disabled = !!on;
+      t.className = 'mode-tab' + (t.dataset.mode === S.mode ? ' active' : '') + (on ? ' busy' : '');
+    }
+  });
+  var m = $('modeMsg');
+  if (m && on) {
+    m.innerHTML = '<span class="spin-xs"></span><span>正在切换到' + label + '，音频服务重启中…</span>';
+    m.hidden = false;
+  }
+}
+
 function switchMode(mode) {
+  if (S.switching) return;
   if (mode === S.mode) { toast('已经是该模式'); return; }
   var name = (mode === 'sound' ? '音效模式' : '低延迟模式');
-  busy(true);
-  $('modeMsg').hidden = true;
+  S.switching = true;
+  setSwitching(true, mode);
   sh(HELPER_CMD + ' setmode ' + mode, 40000)
     .then(function (r) {
       var f = fields(r.out);
-      if (f.indexOf('ok=1') >= 0) {
-        S.mode = mode;
-        $('modeMsg').textContent = '已切换到' + name + '（音频服务已重启）';
-        $('modeMsg').hidden = false;
-        toast('已切换到' + name, 2600);
-        return loadAll();
-      }
-      busy(false);
-      toast('切换失败: ' + (r.out || '无输出'), 5000);
+      if (f.indexOf('ok=1') < 0) throw new Error(r.out || '无输出');
+      S.mode = mode;
+      return loadAll();
+    })
+    .then(function () {
+      S.switching = false;
+      setSwitching(false, mode);
+      $('modeMsg').innerHTML = '';
+      $('modeMsg').textContent = '已切换到' + name + '（音频服务已重启）';
+      $('modeMsg').hidden = false;
+      toast('已切换到' + name, 2600);
+      /* 模式变了，低延迟相关显示项需要重绘 */
+      renderAll();
     })
     .catch(function (e) {
-      busy(false);
-      toast('切换出错: ' + (e && e.message ? e.message : e), 5000);
+      S.switching = false;
+      setSwitching(false, (S.mode === 'sound' ? 'fast' : 'sound'));
+      $('modeMsg').hidden = true;
+      toast('切换失败: ' + (e && e.message ? e.message : e), 5000);
+      renderAll();
     });
 }
 
@@ -411,6 +451,10 @@ function bind() {
   });
   $('btn-reload').addEventListener('click', function () { refresh(); });
   $('btn-save').addEventListener('click', function () { save(); });
+  /* 头部一键切换：在当前模式的反方向之间切换 */
+  $('btn-toggle').addEventListener('click', function () {
+    switchMode(S.mode === 'sound' ? 'fast' : 'sound');
+  });
 }
 
 /* ---------------- 启动 ---------------- */

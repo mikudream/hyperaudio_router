@@ -70,6 +70,7 @@ Rust 守护进程 `hyper-audio`。
 | **移除全部调音载荷** | 删除 Mi17Audio 带来的 42 个文件（约 6.45 MB）：`odm/etc/acdbdata`、`odm/etc/audio`、`odm/etc/dolby`、`system/vendor/etc/audio` |
 | **新增双模式切换** | 「音效模式」摘掉音频端口 FAST 标志，使全部音频落入效果链；「低延迟模式」恢复 FAST 并启动守护进程。新增 `bin/mode_switch.sh`、`bin/hyperaudio_init.sh`，开机按 `mode` 文件自动应用 |
 | **新增 KernelSU WebUI** | `webroot/`（界面）+ `webui/helper.sh`（后端）：模式切换、实时优先级、白名单编辑 |
+| **新增一键切换** | `action.sh`（KernelSU 执行按钮）+ WebUI 右上角按钮；同时把当前模式写进 `module.prop` 的 `description` 前缀，模块列表直接可见 |
 | **新增调音来源检测** | `bin/detect_tuning.sh`：扫描已安装模块并按「路径+文件名」识别调音载荷，判断哪一支在生效；未检测到则显示「官方默认调音」。因耗时较长，改为异步拉取，不阻塞界面 |
 | **去除机型限制** | 删除 Mi17Audio 的 `device_setup()`（按设备代号裁剪配置）与音量键询问逻辑，改为通用机型 |
 | **重命名与重新署名** | 模块 ID 改为 `hyperaudio`，名称改为「音频模式切换器」，版本重定为 `0.4.0` |

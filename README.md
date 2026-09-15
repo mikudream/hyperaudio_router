@@ -40,7 +40,13 @@ HyperOS 的音频链路里存在一对**框架层互斥**：
 
 ### WebUI（KernelSU / APatch 管理器内打开）
 
-- **模式切换**：两个模式按钮，当前模式高亮
+- **模式切换**：两个模式按钮，当前模式高亮；切换期间按钮显示旋转动画并禁用，
+  期间界面保持可见（不遮屏），完成后提示"音频服务已重启"
+- **一键切换**：右上角按钮直接切到另一种模式；顶部徽章常显当前模式
+- **KernelSU 执行按钮**：模块卡片上的「执行」调用 `action.sh`，一键切换模式，
+  并把当前模式写进 `module.prop` 的 `description` 前缀，因此**模块列表里就能看到当前模式**
+  - 前缀形如 `【当前模式：音效模式】…`；标记文案存在 `module.prop` 的 `mode.sound` / `mode.fast` 行
+  - 每次刷新先剥掉旧前缀，反复切换不会层层叠加；开机时 `service.sh` 会补刷一次
 - **参数配置**（仅低延迟模式显示）：守护进程总开关、仅白名单生效开关、三档实时优先级
 - **白名单编辑**（仅低延迟模式显示）：手动输入包名，白名单内的应用在前台时其音频线程会被提升为 `SCHED_FIFO`
   - 注：音效模式下会**隐藏**这些低延迟设置，白名单数据不会丢失
@@ -127,7 +133,8 @@ assets/    本项目维护的文本源码
 webui/     本项目源码：WebUI 与设备端脚本
            webroot/            KernelSU WebUI 界面（index.html / app.js / style.css）
            helper.sh           WebUI 后端（status / tuning / setmode / save）
-           mode_switch.sh      音效 ↔ 低延迟 模式切换
+           action.sh           KernelSU 执行按钮（一键在两种模式间切换）
+           mode_switch.sh      音效 ↔ 低延迟 模式切换（含刷新模块简介）
            start_daemon.sh     守护进程启动器
            detect_tuning.sh    调音来源检测（异步调用，不在关键路径）
            hyperaudio_init.sh  开机初始化

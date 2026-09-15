@@ -114,8 +114,11 @@ EOF
     M="$2"
     case "$M" in sound|fast) ;; *) printf 'error=bad_mode\x1f\n'; exit 0 ;; esac
     if [ -f "$MSW" ]; then
+      # mode_switch.sh 内部会一并刷新 module.prop 的「当前模式」前缀
       $SH "$MSW" apply "$M" >/dev/null 2>&1
     else
+      # mode_switch.sh 缺失（安装不完整）时的兜底：至少让模式文件生效。
+      # 此时无法刷新简介，因为刷新逻辑也在同一个脚本里。
       printf '%s\n' "$M" > "$MODEFILE" 2>/dev/null
       killall audioserver 2>/dev/null
     fi

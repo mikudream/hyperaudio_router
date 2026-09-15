@@ -52,6 +52,9 @@ New-Item -ItemType Directory -Force -Path (Join-Path $stage 'webui')   | Out-Nul
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'bin')     | Out-Null
 Copy-Item (Join-Path $root 'webui\webroot\*') (Join-Path $stage 'webroot') -Force
 foreach ($f in @('helper.sh'))          { Copy-Item (Join-Path $root "webui\$f") (Join-Path $stage 'webui') -Force }
+# action.sh must sit at the module root: the KernelSU / Magisk "action" button
+# always looks for <module>/action.sh
+foreach ($f in @('action.sh'))          { Copy-Item (Join-Path $root "webui\$f") $stage -Force }
 foreach ($f in @('mode_switch.sh','start_daemon.sh','detect_tuning.sh','hyperaudio_init.sh')) {
   Copy-Item (Join-Path $root "webui\$f") (Join-Path $stage 'bin') -Force
 }
