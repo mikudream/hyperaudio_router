@@ -4,9 +4,9 @@
 # 注意：build.ps1 打包时也会把换行规范化为 LF，这里是仓库层面的兜底。
 * text=auto eol=lf
 
-# PowerShell 脚本必须保留 UTF-8 BOM。
-# Windows PowerShell 5.1 在无 BOM 时按系统 ANSI 代码页（简中为 GBK）解析脚本，
-# 脚本里的中文字符串会被读坏，轻则输出乱码、重则直接 ParserError 无法运行。
+# PowerShell 脚本保持纯 ASCII，避免 Windows PowerShell 5.1 按 ANSI 代码页
+# （简中为 GBK）解析无 BOM 脚本时中文乱码甚至 ParserError。
+# 若将来必须写入非 ASCII，请给文件加 UTF-8 BOM，并注意编辑工具可能把它去掉。
 *.ps1 text eol=lf
 
 # 二进制产物不得做任何换行转换

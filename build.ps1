@@ -1,31 +1,36 @@
-﻿<#
-.SYNOPSIS
-  构建「音频模式切换器」模块包（hyperaudio）
-
-.DESCRIPTION
-  从本仓库的源码部分 + 上游预编译产物，组装出可刷入的 Magisk / KernelSU 模块 zip。
-
-  仓库分工：
-    assets/   本项目维护的文本源码
-              module.prop / customize.sh / post-fs-data.sh / service.sh / system.prop
-              （system.prop 的基础属性源自上游 HyperAudio，本项目在此基础上增补）
-    webui/    本项目的 WebUI 与设备端脚本
-    prebuilt/ 上游预编译产物（无法从源码重建，按原样保留）：
-              hyper-audio / libaaudio_internal.so / libaaudio_internal_builder.so
-              config.toml / META-INF 安装入口
-    CREDITS.md 来源与致谢（随包分发）
-
-  构建时自动完成：
-    1) 移除原作者个人标识：白名单中的作者自有 App 条目、system.prop 的作者签名注释、
-       hyper-audio 二进制内 Rust 编译期路径中的用户名（等长替换）
-    2) 规范化换行与编码（UTF-8 无 BOM + LF）
-    3) 三项校验：无调音载荷 / 无机型判断 / 除 CREDITS.md 外无原作者标识
-    4) 用 .NET ZipFile 写入正斜杠路径
-       （PowerShell 的 Compress-Archive 在 Windows 上会写成反斜杠，导致安卓解压出畸形文件名）
-
-.EXAMPLE
-  powershell -ExecutionPolicy Bypass -File build.ps1
-#>
+# ============================================================
+# build.ps1 - assemble the flashable Magisk / KernelSU module zip
+# ============================================================
+# IMPORTANT: this script is deliberately pure ASCII.
+# Windows PowerShell 5.1 parses a BOM-less script using the system
+# ANSI code page (GBK on zh-CN). Any non-ASCII literal here would be
+# mangled and could hard-fail with a ParserError. Keeping the file
+# ASCII-only makes it immune to code page and BOM problems entirely.
+# The few Chinese literals needed for the output files are therefore
+# built from code points via -join ([char]...).
+#
+# Layout:
+#   assets/    text sources maintained by this project
+#              module.prop / customize.sh / post-fs-data.sh / service.sh / system.prop
+#              (system.prop base properties come from upstream HyperAudio)
+#   webui/     this project's WebUI and on-device scripts
+#   prebuilt/  upstream prebuilt artifacts, kept as-is (cannot be rebuilt):
+#              hyper-audio / libaaudio_internal.so / libaaudio_internal_builder.so
+#              config.toml / META-INF installer entry
+#   CREDITS.md attribution (shipped inside the module)
+#
+# Build steps:
+#   1) strip upstream author identifiers (whitelist app entry, a system.prop
+#      comment, and the username in the Rust build path inside the binary)
+#   2) normalize line endings and encoding (UTF-8 without BOM + LF)
+#   3) three checks: no tuning payload / no device detection / no author marks
+#   4) pack with .NET ZipFile so entry names use forward slashes
+#      (Compress-Archive writes backslashes on Windows, which makes Android
+#       extract files whose names literally contain a backslash)
+#
+# Usage:
+#   powershell -ExecutionPolicy Bypass -File build.ps1
+# ============================================================
 $ErrorActionPreference = 'Stop'
 
 $root  = $PSScriptRoot
@@ -33,7 +38,7 @@ $stage = Join-Path $root 'build'
 $zip   = Join-Path $root 'hyperaudio_module.zip'
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
-Write-Output "== 1. 组装模块目录 =="
+Write-Output "== 1. stage module tree =="
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
 
@@ -47,7 +52,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $stage 'webui')   | Out-Nul
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'bin')     | Out-Null
 Copy-Item (Join-Path $root 'webui\webroot\*') (Join-Path $stage 'webroot') -Force
 foreach ($f in @('helper.sh'))          { Copy-Item (Join-Path $root "webui\$f") (Join-Path $stage 'webui') -Force }
-foreach ($f in @('mode_switch.sh','start_daemon.sh','hyperaudio_init.sh')) {
+foreach ($f in @('mode_switch.sh','start_daemon.sh','detect_tuning.sh','hyperaudio_init.sh')) {
   Copy-Item (Join-Path $root "webui\$f") (Join-Path $stage 'bin') -Force
 }
 
@@ -58,17 +63,15 @@ Copy-Item (Join-Path $root 'prebuilt\libaaudio_internal.so')         (Join-Path 
 Copy-Item (Join-Path $root 'prebuilt\libaaudio_internal_builder.so') (Join-Path $stage 'system\lib64') -Force
 Copy-Item (Join-Path $root 'prebuilt\META-INF') $stage -Recurse -Force
 
-Write-Output "== 2. 移除原作者个人标识 =="
-$sp = Join-Path $stage 'system.prop'
-$t = [System.IO.File]::ReadAllText($sp, $utf8NoBom)
-$t = $t.Replace('# HLMC: 1 会爆音; Ray: 3 音质最好', '# 实测：1 会爆音；3 音质最好')
-[System.IO.File]::WriteAllText($sp, $t, $utf8NoBom)
-
+Write-Output "== 2. strip upstream author identifiers =="
+# assets/system.prop is already sanitized at the source, so no text edit is
+# needed here. The binary path still has to be rewritten.
 $cfg = Join-Path $stage 'config.toml'
 $t = [System.IO.File]::ReadAllText($cfg, $utf8NoBom)
 $t = [regex]::Replace($t, '(?m)^\s*"com\.hlmc\.phire",\r?\n', '')
 [System.IO.File]::WriteAllText($cfg, $t, $utf8NoBom)
 
+# equal-length byte replacement inside the Rust binary
 $bin = Join-Path $stage 'hyper-audio'
 $bytes = [System.IO.File]::ReadAllBytes($bin)
 $from = [System.Text.Encoding]::ASCII.GetBytes('hlmc')
@@ -80,9 +83,9 @@ for ($i = 0; $i -le $bytes.Length - 4; $i++) {
   }
 }
 [System.IO.File]::WriteAllBytes($bin, $bytes)
-Write-Output "  二进制：'hlmc' -> 'user' 共 $n 处（等长替换）"
+Write-Output "  binary: 'hlmc' -> 'user', $n occurrence(s), equal length"
 
-Write-Output "== 3. 规范化换行与编码 =="
+Write-Output "== 3. normalize line endings and encoding =="
 Get-ChildItem -Recurse -File $stage |
   Where-Object { $_.Extension -in '.sh','.prop','.toml','.md' -or $_.Name -eq 'update-binary' } |
   ForEach-Object {
@@ -90,23 +93,23 @@ Get-ChildItem -Recurse -File $stage |
     [System.IO.File]::WriteAllText($_.FullName, $t, $utf8NoBom)
   }
 
-Write-Output "== 4. 校验 A：不得含调音载荷 =="
+Write-Output "== 4. check A: no tuning payload =="
 $forbidden = @('acdbdata','dax-default','mixer_paths','resourcemanager','audio_module_config_primary','audio_effects','sku_canoe')
 foreach ($f in $forbidden) {
   $hit = Get-ChildItem -Recurse -File $stage | Where-Object { $_.Name -match $f }
-  if ($hit) { Write-Output "!! 残留调音文件: $f"; exit 1 }
+  if ($hit) { Write-Output "!! forbidden payload file remains: $f"; exit 1 }
 }
-Write-Output "  通过"
+Write-Output "  pass"
 
-Write-Output "== 5. 校验 B：不得含机型判断 =="
+Write-Output "== 5. check B: no device detection =="
 $devicePats = 'popsicle|pandora|pudding|ro\.product\.device|ro\.product\.vendor\.device|ro\.build\.product|Mi17Audio|myron|1014E|1115X'
 $hit2 = Get-ChildItem -Recurse -File $stage |
   Where-Object { $_.Extension -in '.sh','.prop','.toml' -or $_.Name -eq 'update-binary' } |
   Select-String -Pattern $devicePats -AllMatches
 if ($hit2) { $hit2 | ForEach-Object { Write-Output ("   " + $_.Path + ":" + $_.LineNumber) }; exit 1 }
-Write-Output "  通过"
+Write-Output "  pass"
 
-Write-Output "== 6. 校验 C：除 CREDITS.md 外不得含原作者标识 =="
+Write-Output "== 6. check C: no upstream author marks (except CREDITS.md) =="
 $authorPats = 'hlmc|HLMC|nakixii|Ray|Mi17Audio'
 $hit3 = Get-ChildItem -Recurse -File $stage |
   Where-Object { $_.Name -ne 'CREDITS.md' } |
@@ -114,10 +117,19 @@ $hit3 = Get-ChildItem -Recurse -File $stage |
   Select-String -Pattern $authorPats -AllMatches
 if ($hit3) { $hit3 | ForEach-Object { Write-Output ("   " + $_.Path + ":" + $_.LineNumber) }; exit 1 }
 $binHit = ([regex]::Matches([System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($bin)), 'hlmc')).Count
-if ($binHit -gt 0) { Write-Output "!! 二进制仍有 $binHit 处 hlmc"; exit 1 }
-Write-Output "  通过"
+if ($binHit -gt 0) { Write-Output "!! binary still contains $binHit x hlmc"; exit 1 }
 
-Write-Output "== 7. 打包 =="
+# system.prop must carry the sanitized comment, not the upstream author one.
+# Built from code points so this check stays ASCII-only text in this file.
+$wantComment = '# ' + ([char]0x5B9E) + ([char]0x6D4B) + [char]0xFF1A
+$spText = [System.IO.File]::ReadAllText((Join-Path $stage 'system.prop'), $utf8NoBom)
+if ($spText.IndexOf($wantComment) -lt 0) {
+  Write-Output "!! system.prop is missing the sanitized comment (expected a line starting with the measured-value note)"
+  exit 1
+}
+Write-Output "  pass"
+
+Write-Output "== 7. pack =="
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
@@ -130,13 +142,13 @@ foreach ($f in [System.IO.Directory]::EnumerateFiles($stage, '*', [System.IO.Sea
 $zout.Dispose()
 
 $z = [System.IO.Compression.ZipFile]::OpenRead($zip)
-Write-Output "包内 $($z.Entries.Count) 项："
+Write-Output "entries: $($z.Entries.Count)"
 $bad = @()
 $z.Entries | Sort-Object FullName | ForEach-Object {
   Write-Output ("  {0,10}  {1}" -f $_.Length, $_.FullName)
   if ($_.FullName.Contains('\')) { $bad += $_.FullName }
 }
 $z.Dispose()
-if ($bad.Count -gt 0) { Write-Output "!! 含反斜杠路径"; exit 1 }
-Write-Output ("输出: {0}  ({1} 字节)" -f $zip, (Get-Item $zip).Length)
+if ($bad.Count -gt 0) { Write-Output "!! entry name contains backslash"; exit 1 }
+Write-Output ("output: {0}  ({1} bytes)" -f $zip, (Get-Item $zip).Length)
 Write-Output ("sha256: " + (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower())

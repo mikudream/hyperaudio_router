@@ -25,9 +25,19 @@ var SEP = '\u001f';
 var SH = '/system/bin/sh';
 var HELPER_CMD = SH + ' ' + HELPER;
 
+/* 默认值：DOMContentLoaded 时立刻用它渲染一遍，不等后端返回 */
+var DEFAULT_CONFIG = {
+  enable: 'true',
+  only_whitelist: 'false',
+  audio_priority: '16',
+  hal_priority: '20',
+  app_priority: '15'
+};
+
 var S = {
   mode: 'sound',
   config: { enable: 'true', only_whitelist: 'false', audio_priority: '16', hal_priority: '20', app_priority: '15' },
+  tuning: { module: '', name: '', version: '', verified: false, count: 0, loaded: false },
   whitelist: [],
   running: false,
   daemonOk: true
@@ -133,10 +143,46 @@ function parseStatus(out) {
   S.whitelist = wl;
 }
 
+/* 解析 helper tuning 命令输出：<目录名>|<显示名>|<版本>|<校验通过>|<命中模块数> */
+function parseTuning(out) {
+  var f = fields(out);
+  var line = f[0] || '';
+  var t = line.split('|');
+  S.tuning = {
+    module: t[0] || 'none',
+    name: t[1] || '',
+    version: t[2] || '',
+    verified: (t[3] === '1'),
+    count: parseInt(t[4], 10) || 0,
+    loaded: true
+  };
+}
+
 /* ---------------- 读取 ---------------- */
 
+/* 调音来源：异步拉取，不阻塞主界面。
+ * 失败不清屏、不弹错——它只是附加信息；保留"检测中…"或已有结果即可。 */
+function loadTuning() {
+  S.tuning.loaded = false;
+  renderTuning();
+  return sh(HELPER_CMD + ' tuning', 60000)
+    .then(function (r) {
+      if (!r.out) throw new Error('无输出');
+      parseTuning(r.out);
+    })
+    .catch(function () {
+      S.tuning = { module: 'none', name: '官方默认调音', version: '', verified: false, count: 0, loaded: true };
+    })
+    .then(function () {
+      renderTuning();
+    });
+}
+
+/* 主流程：先用默认值立即渲染，再等后端返回后覆盖。
+ * 这样打开 WebUI 不再是一屏空白 + 转圈到底。 */
 function loadAll() {
-  busy(true);
+  busy(false);
+  renderAll();
   $('sub').textContent = '正在读取配置…';
   return sh(HELPER_CMD + ' status')
     .then(function (r) {
@@ -145,14 +191,19 @@ function loadAll() {
       }
       parseStatus(r.out);
       renderAll();
-      busy(false);
     })
     .catch(function (e) {
-      busy(false);
       var m = (e && e.message ? e.message : String(e));
       toast('出错: ' + m, 6000);
       $('sub').textContent = '读取失败：' + m;
     });
+}
+
+/* status 到手后再去拉调音来源（串行，避免与其争抢进程启动开销） */
+function refresh() {
+  return loadAll().then(function () {
+    return loadTuning();
+  });
 }
 
 /* ---------------- 渲染 ---------------- */
@@ -161,6 +212,39 @@ var MODE_TEXT = {
   sound: '音效模式：所有应用音频都经过效果链，Dolby 调音生效（按应用档案也生效）。走普通混音线程，可能出现音频卡顿。',
   fast: '低延迟模式：应用走 fast track（FastMixer），延迟最低、不卡顿，但效果链被绕过，音效调音不生效。'
 };
+
+/* 渲染"调音来源"。
+ * 检测耗时较长（要遍历全部已安装模块），因此由 loadTuning() 异步拉取后再渲染；
+ * 在结果回来之前显示"检测中…"，未检测到任何第三方调音则视为官方默认调音。 */
+function renderTuning() {
+  var t = S.tuning || {};
+  var srcEl = $('tuning-src');
+  var verRow = $('tuning-ver-row');
+  if (!srcEl) return;
+
+  if (!t.loaded) { srcEl.textContent = '检测中…'; return; }
+
+  if (!t.module || t.module === 'none') {
+    srcEl.textContent = '官方默认调音';
+    srcEl.title = '未检测到第三方调音模块，使用设备出厂调音';
+    if (verRow) verRow.hidden = true;
+    return;
+  }
+  srcEl.textContent = t.name || t.module;
+  srcEl.title = t.module || '';
+  if (verRow) {
+    if (t.version) {
+      verRow.hidden = false;
+      $('tuning-ver').textContent = t.version + (t.verified ? '' : '（未校验生效）');
+    } else {
+      verRow.hidden = true;
+    }
+  }
+  /* 多支调音模块：提示可能存在挂载覆盖，需人工确认谁在生效 */
+  if (t.count > 1) {
+    toast('检测到 ' + t.count + ' 支调音模块，可能互相覆盖：' + t.name, 8000);
+  }
+}
 
 function renderAll() {
   var isSound = (S.mode === 'sound');
@@ -172,6 +256,8 @@ function renderAll() {
   $('card-fast').hidden = isSound;
   $('card-whitelist').hidden = isSound;
   $('card-sound').hidden = !isSound;
+
+  renderTuning();
 
   var b = $('runBadge');
   if (isSound) {
@@ -323,7 +409,7 @@ function bind() {
   $('f-newpkg').addEventListener('keydown', function (e) {
     if (e.key === 'Enter' || e.keyCode === 13) { e.preventDefault(); addPkg(); }
   });
-  $('btn-reload').addEventListener('click', function () { loadAll(); });
+  $('btn-reload').addEventListener('click', function () { refresh(); });
   $('btn-save').addEventListener('click', function () { save(); });
 }
 
@@ -339,5 +425,5 @@ document.addEventListener('DOMContentLoaded', function () {
     return;
   }
   bind();
-  loadAll();
+  refresh();
 });

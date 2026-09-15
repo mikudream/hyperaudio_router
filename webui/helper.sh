@@ -17,6 +17,7 @@ MOD=/data/adb/modules/hyperaudio
 CONF=$MOD/config.toml
 MODEFILE=$MOD/mode
 MSW=$MOD/bin/mode_switch.sh
+DETECT=$MOD/bin/detect_tuning.sh
 DAEMON=$MOD/hyper-audio
 TMP=/data/local/tmp/hyperaudio_webui
 # 解释器绝对路径。
@@ -86,6 +87,26 @@ EOF
       if [ -x "$DAEMON" ]; then v_dok=1; else v_dok=0; fi
       printf 'daemon_ok=%s\n' "$v_dok"
     } | flat
+    printf '\n'
+    ;;
+
+  # 调音来源：单独一条命令，供前端在 status 渲染完成后再异步拉取。
+  # 检测要遍历全部已安装模块，耗时远高于 status，不能放进关键路径。
+  # 输出单行 | 分隔：<目录名>|<显示名>|<版本>|<0|1 校验通过>|<命中模块数>
+  # 注意显示名可能含空格与逗号（多模块时形如 "2个调音模块:a,b"），
+  # 所以按 " name=" 与 " version=" 这对标记切分，不能用 [^ ]*。
+  tuning)
+    if [ -f "$DETECT" ]; then
+      L=$($SH "$DETECT" 2>/dev/null | head -1)
+    else
+      L="module=none name=官方默认调音 version= verified=0 count=0"
+    fi
+    M=$(echo "$L" | sed -n 's/.*module=\([^ ]*\).*/\1/p')
+    N=$(echo "$L" | sed -n 's/.*name=\(.*\) version=.*/\1/p')
+    V=$(echo "$L" | sed -n 's/.*version=\(.*\) verified=.*/\1/p')
+    F=$(echo "$L" | sed -n 's/.*verified=\([0-9]*\).*/\1/p')
+    C=$(echo "$L" | sed -n 's/.*count=\([0-9]*\).*/\1/p')
+    printf '%s|%s|%s|%s|%s' "${M:-none}" "${N:-官方默认调音}" "${V:-}" "${F:-0}" "${C:-0}"
     printf '\n'
     ;;
 

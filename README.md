@@ -44,9 +44,15 @@ HyperOS 的音频链路里存在一对**框架层互斥**：
 - **参数配置**（仅低延迟模式显示）：守护进程总开关、仅白名单生效开关、三档实时优先级
 - **白名单编辑**（仅低延迟模式显示）：手动输入包名，白名单内的应用在前台时其音频线程会被提升为 `SCHED_FIFO`
   - 注：音效模式下会**隐藏**这些低延迟设置，白名单数据不会丢失
-
-> 早期版本还带「调音来源检测」，因每次打开 WebUI 都要遍历全部已安装模块并做 md5 比对，
-> 实测拖慢加载（检测单项约占 `status` 耗时的 78%），已移除。
+- **调音来源**：显示当前生效的第三方调音模块名与版本；**未检测到则显示「官方默认调音」**
+  - 检测遍历全部已安装模块，耗时较长，因此界面**先用默认值立即渲染**，
+    调音来源在 `status` 返回后**再异步拉取填充**（不阻塞主界面）
+  - 命中判定按「路径 + 文件名」两个条件：位于 `dolby` / `audio` / `acdbdata` 目录下，
+    或直接位于 `*/etc/` 下，且文件名符合 `dax-*` `dax_default*` `mixer_paths*` `acdb*`
+    `audio_effects_config.*` `audio_module_config_*` `resourcemanager*`
+  - 排除属路由/音量策略而非调音的文件：`audio_policy_configuration.xml`、
+    `audio_policy_engine_*`、`*volume*`、`audio_lowpower_app_list.xml`
+  - 命中多支调音模块时会列出全部目录名并提示可能互相覆盖
 
 ### 音频优化（属性层）
 
@@ -120,9 +126,10 @@ assets/    本项目维护的文本源码
            module.prop / customize.sh / post-fs-data.sh / service.sh / system.prop
 webui/     本项目源码：WebUI 与设备端脚本
            webroot/            KernelSU WebUI 界面（index.html / app.js / style.css）
-           helper.sh           WebUI 后端（status / setmode / save）
+           helper.sh           WebUI 后端（status / tuning / setmode / save）
            mode_switch.sh      音效 ↔ 低延迟 模式切换
            start_daemon.sh     守护进程启动器
+           detect_tuning.sh    调音来源检测（异步调用，不在关键路径）
            hyperaudio_init.sh  开机初始化
 prebuilt/  上游预编译产物（无法从源码重建，按原样保留，见 CREDITS.md）
 CREDITS.md 来源与致谢（随模块包分发）
