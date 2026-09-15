@@ -7,6 +7,10 @@
  *   1) ksu.exec(cmd) 同步返回字符串
  *   2) ksu.exec 只回传 stdout 的【最后一行】，且不支持 shell 重定向
  *      → 后端 helper.sh 把所有输出用 \x1f 压成单行，前端按 \x1f 拆分
+ *   3) 不能裸执行模块内的 .sh：安装时 customize.sh 的 set_perm_recursive
+ *      会把文件权限统一设为 0644（无执行位），裸执行得到
+ *      126 Permission denied、stdout 为空（前端会报"helper 无输出"）
+ *      → 一律用 /system/bin/sh 显式解释执行，不依赖执行位
  *
  * 模式：
  *   sound 音效模式（默认）：全局走效果链，调音生效；隐藏低延迟设置
@@ -17,13 +21,17 @@ var MOD_DIR = '/data/adb/modules/hyperaudio';
 var TMP_DIR = '/data/local/tmp/hyperaudio_webui';
 var HELPER = MOD_DIR + '/webui/helper.sh';
 var SEP = '\u001f';
+/* 解释器绝对路径：不依赖 $PATH，也不依赖脚本的执行位 */
+var SH = '/system/bin/sh';
+var HELPER_CMD = SH + ' ' + HELPER;
 
 var S = {
   mode: 'sound',
   config: { enable: 'true', only_whitelist: 'false', audio_priority: '16', hal_priority: '20', app_priority: '15' },
   tuning: { module: '', name: '', version: '', verified: false },
   whitelist: [],
-  running: false
+  running: false,
+  daemonOk: true
 };
 
 /* ---------------- 基础工具 ---------------- */
@@ -90,7 +98,9 @@ function exec(cmd, timeoutMs) {
   });
 }
 
-/* 直接调用脚本（helper 输出单行、无特殊字符）；需管道时用 sh -c "..." */
+/* 执行命令：内容为"安全字符"时直接执行，否则用 sh -c 包一层
+ * 注意：不能裸执行模块内的 .sh（安装后是 0644 无执行位），
+ *       调用方需自行带上 /system/bin/sh */
 function sh(cmd, timeoutMs) {
   if (/^[A-Za-z0-9_\/.:%=\- ]+$/.test(cmd)) return exec(cmd, timeoutMs);
   return exec('sh -c "' + String(cmd).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"', timeoutMs);
@@ -118,6 +128,7 @@ function parseStatus(out) {
     if (k === 'error') throw new Error('配置读取失败: ' + v);
     if (k === 'mode') { S.mode = (v === 'fast' ? 'fast' : 'sound'); return; }
     if (k === 'running') { S.running = (v === '1'); return; }
+    if (k === 'daemon_ok') { S.daemonOk = (v === '1'); return; }
     /* 调音来源：<目录名>|<显示名>|<版本>|<校验通过> */
     if (k === 'tuning') {
       var t = v.split('|');
@@ -139,9 +150,11 @@ function parseStatus(out) {
 function loadAll() {
   busy(true);
   $('sub').textContent = '正在读取配置…';
-  return sh(HELPER + ' status')
+  return sh(HELPER_CMD + ' status')
     .then(function (r) {
-      if (!r.out) throw new Error('helper 无输出');
+      if (!r.out) {
+        throw new Error('helper 无输出。请确认模块已完整安装，或执行：' + HELPER_CMD + ' status');
+      }
       parseStatus(r.out);
       renderAll();
       busy(false);
@@ -201,6 +214,9 @@ function renderAll() {
   if (isSound) {
     b.textContent = '音效模式';
     b.className = 'hd-badge on';
+  } else if (!S.daemonOk) {
+    b.textContent = '守护进程缺失';
+    b.className = 'hd-badge off';
   } else {
     b.textContent = S.running ? '守护进程运行中' : '守护进程未运行';
     b.className = 'hd-badge ' + (S.running ? 'on' : 'off');
@@ -265,7 +281,7 @@ function switchMode(mode) {
   var name = (mode === 'sound' ? '音效模式' : '低延迟模式');
   busy(true);
   $('modeMsg').hidden = true;
-  sh(HELPER + ' setmode ' + mode, 40000)
+  sh(HELPER_CMD + ' setmode ' + mode, 40000)
     .then(function (r) {
       var f = fields(r.out);
       if (f.indexOf('ok=1') >= 0) {
@@ -306,7 +322,7 @@ function save() {
   busy(true);
   var cmd = 'mkdir -p ' + TMP_DIR +
     ' && printf "%s" ' + q(b64) + ' | base64 -d > ' + TMP_DIR + '/in.json' +
-    ' && sh ' + HELPER + ' save ' + TMP_DIR + '/in.json';
+    ' && ' + HELPER_CMD + ' save ' + TMP_DIR + '/in.json';
   sh(cmd, 30000)
     .then(function (r) {
       var f = fields(r.out);

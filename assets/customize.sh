@@ -23,7 +23,19 @@ SKIPUNZIP=0
 # ============================================================
 
 set_permissions() {
+  # 先统一：目录 0755、文件 0644
   set_perm_recursive $MODPATH 0 0 0755 0644
+
+  # 再补回可执行位。
+  # 安装器的 set_perm_recursive 会把文件一律设为 0644，连 zip 里带执行位的
+  # 脚本也会被抹掉；若只靠 service.sh 开机时 chmod，则 WebUI 的 helper.sh
+  # 会因 126 Permission denied 而**完全没有输出**（WebUI 报"helper 无输出"）。
+  # 用 [ -f ] 保护，避免文件缺失时 chmod 报错中断安装。
+  for f in $MODPATH/hyper-audio $MODPATH/webui/helper.sh \
+           $MODPATH/bin/mode_switch.sh $MODPATH/bin/start_daemon.sh \
+           $MODPATH/bin/detect_tuning.sh $MODPATH/bin/hyperaudio_init.sh; do
+    [ -f "$f" ] && chmod 0755 "$f"
+  done
 }
 
 replace_targets() {

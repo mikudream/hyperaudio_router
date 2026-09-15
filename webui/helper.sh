@@ -18,7 +18,14 @@ CONF=$MOD/config.toml
 MODEFILE=$MOD/mode
 MSW=$MOD/bin/mode_switch.sh
 DETECT=$MOD/bin/detect_tuning.sh
+DAEMON=$MOD/hyper-audio
 TMP=/data/local/tmp/hyperaudio_webui
+# 解释器绝对路径。
+# 安装时 customize.sh 的 set_perm_recursive 会把文件权限统一设为 0644（无执行
+# 位），所以**不能**用 [ -x ] 判断 .sh 是否可用、也不能裸执行 .sh；否则要么
+# 得到 126 Permission denied、要么静默走 fallback 分支（WebUI 会表现为
+# "helper 无输出" 或"未检测到调音模块"）。
+SH=/system/bin/sh
 mkdir -p "$TMP" 2>/dev/null
 
 getk() { sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\(.*\)/\1/p" "$CONF" 2>/dev/null | head -1; }
@@ -32,8 +39,8 @@ getmode() {
 # 输出单个 | 分隔的字段，避免与 status 的其它字段混淆：
 #   <模块目录名>|<显示名>|<版本>|<0|1 是否校验通过>
 tuning_info() {
-  if [ -x "$DETECT" ]; then
-    L=$(sh "$DETECT" 2>/dev/null | head -1)
+  if [ -f "$DETECT" ]; then
+    L=$($SH "$DETECT" 2>/dev/null | head -1)
   else
     L="module=none name=未检测到调音模块 version= verified=0"
   fi
@@ -61,6 +68,8 @@ case "$1" in
       printf 'whitelist_end\n'
       # 用 pidof 判断（pgrep -f 在本设备上对已运行进程匹配不稳定）
       if [ -n "$(pidof hyper-audio 2>/dev/null)" ]; then printf 'running=1\n'; else printf 'running=0\n'; fi
+      # 二进制是否就位（含执行位）；缺失时低延迟模式无法启动守护进程
+      if [ -x "$DAEMON" ]; then printf 'daemon_ok=1\n'; else printf 'daemon_ok=0\n'; fi
     } | flat
     printf '\n'
     ;;
@@ -68,8 +77,8 @@ case "$1" in
   setmode)
     M="$2"
     case "$M" in sound|fast) ;; *) printf 'error=bad_mode\x1f\n'; exit 0 ;; esac
-    if [ -x "$MSW" ]; then
-      sh "$MSW" apply "$M" >/dev/null 2>&1
+    if [ -f "$MSW" ]; then
+      $SH "$MSW" apply "$M" >/dev/null 2>&1
     else
       printf '%s\n' "$M" > "$MODEFILE" 2>/dev/null
       killall audioserver 2>/dev/null
@@ -107,9 +116,16 @@ case "$1" in
     save_kv app_priority   "$v_pp"
 
     # 重建 whitelist 段
+    # 渲染用 awk 一次拼成，不用 shell while 循环：循环里 `wc -l` 与实际行数
+    # 在末行无换行时会错位，导致**丢掉最后一项**。
     sed -n 's/.*"whitelist"[[:space:]]*:[[:space:]]*\[\([^]]*\)\].*/\1/p' "$IN" \
-      | tr ',' '\n' | sed -n 's/^[[:space:]]*"\([^"]*\)".*/\1/p' | sed '/^$/d' > "$TMP/wl.raw"
-    sed -e '$a\' "$TMP/wl.raw" > "$TMP/wl.txt"
+      | tr ',' '\n' | sed -n 's/^[[:space:]]*"\([^"]*\)".*/\1/p' | sed '/^$/d' > "$TMP/wl.txt"
+    render_whitelist() {
+      # 逐项拼出 TOML 数组：项间用逗号，最后一项不加逗号
+      printf 'whitelist = [\n'
+      awk '{ if (NR > 1) printf ",\n"; printf "    \"%s\"", $0 } END { if (NR > 0) printf "\n" }' "$TMP/wl.txt"
+      printf ']\n'
+    }
 
     start=$(grep -n '^[[:space:]]*whitelist[[:space:]]*=' "$CONF" 2>/dev/null | head -1 | cut -d: -f1)
     [ -n "$start" ] || { printf 'error=whitelist_block_not_found\x1f\n'; exit 0; }
@@ -124,9 +140,7 @@ case "$1" in
 
     {
       cat "$B1"
-      printf 'whitelist = [\n'
-      sed 's/^/    "/; s/$/",/' "$TMP/wl.txt"
-      printf ']\n'
+      render_whitelist
       cat "$B2"
     } > "$TMP/out.toml"
     printf '\n' >> "$TMP/out.toml"
@@ -137,7 +151,7 @@ case "$1" in
       # 低延迟模式下的参数变更需要重启守护进程才能生效
       M=$(getmode)
       if [ "$M" = "fast" ] && [ -n "$(pidof hyper-audio 2>/dev/null)" ]; then
-        pkill -f "$MOD/hyper-audio" 2>/dev/null
+        pkill -f "$DAEMON" 2>/dev/null
         sleep 1
         cd "$MOD" && setsid ./hyper-audio >> /data/local/tmp/hyper-audio.log 2>&1 < /dev/null &
       fi
