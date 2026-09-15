@@ -38,32 +38,19 @@ set_permissions() {
   done
 }
 
-replace_targets() {
-  for path in $1; do
-    for file in $2; do
-      if [ -f "/$path/$file" ]; then
-        mkdir -p "$MODPATH/$path"
-        touch "$MODPATH/$path/$file"
-        ui_print "- Replacing: /$path/$file"
-      fi
-    done
-  done
-}
-
-remove_files() {
-  # 用 0 字节占位遮蔽下列系统库，解除小米音频中间层对音频客户端、
-  # AudioFlinger、audio policy 的接管
-  replace_targets \
-    "system/lib64 system/system_ext/lib64 system/vendor/lib64 odm/vendor/lib64" \
-    "libaudioclientimpl.so libaudioflingerimpl.so libaudiopolicyserviceimpl.so libmiaudiopolymanager.so"
-
-  # 遮蔽低功耗应用清单，避免音频被低功耗策略降载
-  replace_targets \
-    "system/etc/audio system/system_ext/etc/audio system/vendor/etc/audio odm/etc/audio" \
-    "audio_lowpower_app_list.xml"
-}
-
-remove_files
+# ── 不再遮蔽任何系统音频库（重要）────────────────────────────
+# 这里原本会往模块里写 0 字节占位来遮蔽以下文件：
+#   system/system_ext/lib64/libaudioclientimpl.so
+#   system/system_ext/lib64/libaudioflingerimpl.so
+#   system/system_ext/lib64/libaudiopolicyserviceimpl.so
+#   odm/vendor/lib64/libmiaudiopolymanager.so
+#   .../audio_lowpower_app_list.xml
+#
+# 实测结论（与 bin/hyperaudio_init.sh 的说明一致）：挖空这些 *impl.so 只会
+# 让音频实现层失效，对"阻止应用拿到 ULL 通路"没有任何帮助，反而造成严重后果：
+#   · 音效模式：effect chain 所在的混音通路整个哑掉 —— 调音全无，且部分音频无声
+#   · 低延迟模式：fast track 走另一条通路，仍有声，但调音完全失效
+# 也就是说，遮蔽它们既达不到低延迟目的，又把调音一起废掉了，故彻底移除。
 set_permissions
 ui_print " "
 ui_print "- 音频模式切换器（通用机型）已安装"
