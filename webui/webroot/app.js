@@ -129,14 +129,15 @@ function parseStatus(out) {
     if (k === 'mode') { S.mode = (v === 'fast' ? 'fast' : 'sound'); return; }
     if (k === 'running') { S.running = (v === '1'); return; }
     if (k === 'daemon_ok') { S.daemonOk = (v === '1'); return; }
-    /* 调音来源：<目录名>|<显示名>|<版本>|<校验通过> */
+    /* 调音来源：<目录名>|<显示名>|<版本>|<校验通过>|<命中模块数> */
     if (k === 'tuning') {
       var t = v.split('|');
       S.tuning = {
         module: t[0] || '',
         name: t[1] || '',
         version: t[2] || '',
-        verified: (t[3] === '1')
+        verified: (t[3] === '1'),
+        count: parseInt(t[4], 10) || 0
       };
       return;
     }
@@ -187,6 +188,7 @@ function renderTuning() {
     return;
   }
   srcEl.textContent = t.name || t.module;
+  srcEl.title = t.module || '';
   if (verRow) {
     if (t.version) {
       verRow.hidden = false;
@@ -194,6 +196,10 @@ function renderTuning() {
     } else {
       verRow.hidden = true;
     }
+  }
+  /* 多支调音模块：提示可能存在挂载覆盖，需人工确认谁在生效 */
+  if (t.count > 1) {
+    toast('检测到 ' + t.count + ' 支调音模块，可能互相覆盖：' + t.name, 8000);
   }
 }
 

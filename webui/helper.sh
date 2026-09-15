@@ -36,19 +36,23 @@ getmode() {
 }
 
 # 调音来源（扫描已安装模块 + md5 校验）
-# 输出单个 | 分隔的字段，避免与 status 的其它字段混淆：
-#   <模块目录名>|<显示名>|<版本>|<0|1 是否校验通过>
+# detect_tuning.sh 输出：module=<目录> name=<显示名> version=<版本> verified=0|1 count=N
+# 本函数转成 | 分隔字段，避免与 status 的其它字段混淆：
+#   <模块目录名>|<显示名>|<版本>|<0|1 是否校验通过>|<命中模块数>
+# 注意 name 里可能含空格和逗号（多模块时形如 "2个调音模块:a,b"），
+# 所以按 " name=" 与 " version=" 这对标记切分，不能用 [^ ]*。
 tuning_info() {
   if [ -f "$DETECT" ]; then
     L=$($SH "$DETECT" 2>/dev/null | head -1)
   else
-    L="module=none name=未检测到调音模块 version= verified=0"
+    L="module=none name=未检测到调音模块 version= verified=0 count=0"
   fi
   M=$(echo "$L" | sed -n 's/.*module=\([^ ]*\).*/\1/p')
   N=$(echo "$L" | sed -n 's/.*name=\(.*\) version=.*/\1/p')
   V=$(echo "$L" | sed -n 's/.*version=\(.*\) verified=.*/\1/p')
   F=$(echo "$L" | sed -n 's/.*verified=\([0-9]*\).*/\1/p')
-  printf '%s|%s|%s|%s' "${M:-none}" "${N:-未检测到调音模块}" "${V:-}" "${F:-0}"
+  C=$(echo "$L" | sed -n 's/.*count=\([0-9]*\).*/\1/p')
+  printf '%s|%s|%s|%s|%s' "${M:-none}" "${N:-未检测到调音模块}" "${V:-}" "${F:-0}" "${C:-0}"
 }
 
 case "$1" in
