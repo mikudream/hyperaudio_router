@@ -47,7 +47,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $stage 'webui')   | Out-Nul
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'bin')     | Out-Null
 Copy-Item (Join-Path $root 'webui\webroot\*') (Join-Path $stage 'webroot') -Force
 foreach ($f in @('helper.sh'))          { Copy-Item (Join-Path $root "webui\$f") (Join-Path $stage 'webui') -Force }
-foreach ($f in @('mode_switch.sh','start_daemon.sh','detect_tuning.sh','hyperaudio_init.sh')) {
+foreach ($f in @('mode_switch.sh','start_daemon.sh','hyperaudio_init.sh')) {
   Copy-Item (Join-Path $root "webui\$f") (Join-Path $stage 'bin') -Force
 }
 

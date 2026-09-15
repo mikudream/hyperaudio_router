@@ -33,7 +33,7 @@ set_permissions() {
   # 用 [ -f ] 保护，避免文件缺失时 chmod 报错中断安装。
   for f in $MODPATH/hyper-audio $MODPATH/webui/helper.sh \
            $MODPATH/bin/mode_switch.sh $MODPATH/bin/start_daemon.sh \
-           $MODPATH/bin/detect_tuning.sh $MODPATH/bin/hyperaudio_init.sh; do
+           $MODPATH/bin/hyperaudio_init.sh; do
     [ -f "$f" ] && chmod 0755 "$f"
   done
 }

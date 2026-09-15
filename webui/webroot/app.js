@@ -28,7 +28,6 @@ var HELPER_CMD = SH + ' ' + HELPER;
 var S = {
   mode: 'sound',
   config: { enable: 'true', only_whitelist: 'false', audio_priority: '16', hal_priority: '20', app_priority: '15' },
-  tuning: { module: '', name: '', version: '', verified: false },
   whitelist: [],
   running: false,
   daemonOk: true
@@ -129,18 +128,6 @@ function parseStatus(out) {
     if (k === 'mode') { S.mode = (v === 'fast' ? 'fast' : 'sound'); return; }
     if (k === 'running') { S.running = (v === '1'); return; }
     if (k === 'daemon_ok') { S.daemonOk = (v === '1'); return; }
-    /* 调音来源：<目录名>|<显示名>|<版本>|<校验通过>|<命中模块数> */
-    if (k === 'tuning') {
-      var t = v.split('|');
-      S.tuning = {
-        module: t[0] || '',
-        name: t[1] || '',
-        version: t[2] || '',
-        verified: (t[3] === '1'),
-        count: parseInt(t[4], 10) || 0
-      };
-      return;
-    }
     S.config[k] = v;
   });
   S.whitelist = wl;
@@ -175,34 +162,6 @@ var MODE_TEXT = {
   fast: '低延迟模式：应用走 fast track（FastMixer），延迟最低、不卡顿，但效果链被绕过，音效调音不生效。'
 };
 
-/* 渲染"调音来源"（扫描本机已安装模块后检测得到） */
-function renderTuning() {
-  var t = S.tuning || {};
-  var srcEl = $('tuning-src');
-  var verRow = $('tuning-ver-row');
-  if (!srcEl) return;
-
-  if (!t.module || t.module === 'none') {
-    srcEl.textContent = '未检测到调音模块';
-    if (verRow) verRow.hidden = true;
-    return;
-  }
-  srcEl.textContent = t.name || t.module;
-  srcEl.title = t.module || '';
-  if (verRow) {
-    if (t.version) {
-      verRow.hidden = false;
-      $('tuning-ver').textContent = t.version + (t.verified ? '' : '（未校验生效）');
-    } else {
-      verRow.hidden = true;
-    }
-  }
-  /* 多支调音模块：提示可能存在挂载覆盖，需人工确认谁在生效 */
-  if (t.count > 1) {
-    toast('检测到 ' + t.count + ' 支调音模块，可能互相覆盖：' + t.name, 8000);
-  }
-}
-
 function renderAll() {
   var isSound = (S.mode === 'sound');
   $('tab-sound').className = 'mode-tab' + (isSound ? ' active' : '');
@@ -213,8 +172,6 @@ function renderAll() {
   $('card-fast').hidden = isSound;
   $('card-whitelist').hidden = isSound;
   $('card-sound').hidden = !isSound;
-
-  renderTuning();
 
   var b = $('runBadge');
   if (isSound) {

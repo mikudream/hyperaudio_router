@@ -17,7 +17,6 @@ MOD=/data/adb/modules/hyperaudio
 CONF=$MOD/config.toml
 MODEFILE=$MOD/mode
 MSW=$MOD/bin/mode_switch.sh
-DETECT=$MOD/bin/detect_tuning.sh
 DAEMON=$MOD/hyper-audio
 TMP=/data/local/tmp/hyperaudio_webui
 # 解释器绝对路径。
@@ -35,45 +34,57 @@ getmode() {
   case "$M" in sound|fast) echo "$M" ;; *) echo sound ;; esac
 }
 
-# 调音来源（扫描已安装模块 + md5 校验）
-# detect_tuning.sh 输出：module=<目录> name=<显示名> version=<版本> verified=0|1 count=N
-# 本函数转成 | 分隔字段，避免与 status 的其它字段混淆：
-#   <模块目录名>|<显示名>|<版本>|<0|1 是否校验通过>|<命中模块数>
-# 注意 name 里可能含空格和逗号（多模块时形如 "2个调音模块:a,b"），
-# 所以按 " name=" 与 " version=" 这对标记切分，不能用 [^ ]*。
-tuning_info() {
-  if [ -f "$DETECT" ]; then
-    L=$($SH "$DETECT" 2>/dev/null | head -1)
-  else
-    L="module=none name=未检测到调音模块 version= verified=0 count=0"
-  fi
-  M=$(echo "$L" | sed -n 's/.*module=\([^ ]*\).*/\1/p')
-  N=$(echo "$L" | sed -n 's/.*name=\(.*\) version=.*/\1/p')
-  V=$(echo "$L" | sed -n 's/.*version=\(.*\) verified=.*/\1/p')
-  F=$(echo "$L" | sed -n 's/.*verified=\([0-9]*\).*/\1/p')
-  C=$(echo "$L" | sed -n 's/.*count=\([0-9]*\).*/\1/p')
-  printf '%s|%s|%s|%s|%s' "${M:-none}" "${N:-未检测到调音模块}" "${V:-}" "${F:-0}" "${C:-0}"
+# 性能说明：本设备每次启动一个进程固定约 70ms（空脚本 42ms），
+# 所以 status 里绝不能用多次 `$(...)` 各起一个进程——6 个参数分开取就是 6 次
+# sed，仅此一项就要 400ms+。下面用一次 sed 输出全部 kv，再由 read 就地拆解。
+status_kv() {
+  sed -n -e 's/^[[:space:]]*enable[[:space:]]*=[[:space:]]*/enable=/p' \
+         -e 's/^[[:space:]]*only_whitelist[[:space:]]*=[[:space:]]*/only_whitelist=/p' \
+         -e 's/^[[:space:]]*audio_priority[[:space:]]*=[[:space:]]*/audio_priority=/p' \
+         -e 's/^[[:space:]]*hal_priority[[:space:]]*=[[:space:]]*/hal_priority=/p' \
+         -e 's/^[[:space:]]*app_priority[[:space:]]*=[[:space:]]*/app_priority=/p' \
+         "$CONF" 2>/dev/null
 }
 
 case "$1" in
   status)
     [ -f "$CONF" ] || { printf 'error=config_not_found\x1f\n'; exit 0; }
     {
-      printf 'mode=%s\n'           "$(getmode)"
-      printf 'enable=%s\n'         "$(getk enable)"
-      printf 'only_whitelist=%s\n' "$(getk only_whitelist)"
-      printf 'audio_priority=%s\n' "$(getk audio_priority)"
-      printf 'hal_priority=%s\n'   "$(getk hal_priority)"
-      printf 'app_priority=%s\n'   "$(getk app_priority)"
-      # 调音来源：<目录名>|<显示名>|<版本>|<校验通过>
-      printf 'tuning=%s\n' "$(tuning_info)"
+      printf 'mode=%s\n' "$(getmode)"
+
+      # 一次 sed 取回全部参数，就地填默认值后再输出
+      v_enable=""; v_only=""; v_ap=""; v_hp=""; v_pp=""
+      while IFS= read -r line; do
+        case "$line" in
+          enable=*)         v_enable="${line#enable=}" ;;
+          only_whitelist=*) v_only="${line#only_whitelist=}" ;;
+          audio_priority=*) v_ap="${line#audio_priority=}" ;;
+          hal_priority=*)   v_hp="${line#hal_priority=}" ;;
+          app_priority=*)   v_pp="${line#app_priority=}" ;;
+        esac
+      done <<EOF
+$(status_kv)
+EOF
+      [ -n "$v_enable" ] || v_enable=false
+      [ -n "$v_only" ]   || v_only=false
+      [ -n "$v_ap" ]     || v_ap=16
+      [ -n "$v_hp" ]     || v_hp=20
+      [ -n "$v_pp" ]     || v_pp=15
+      printf 'enable=%s\n'         "$v_enable"
+      printf 'only_whitelist=%s\n' "$v_only"
+      printf 'audio_priority=%s\n' "$v_ap"
+      printf 'hal_priority=%s\n'   "$v_hp"
+      printf 'app_priority=%s\n'   "$v_pp"
+
       printf 'whitelist_begin\n'
       sed -n '/^[[:space:]]*whitelist[[:space:]]*=/,/\]/p' "$CONF" 2>/dev/null | grep -o '"[^"]*"' | tr -d '"'
       printf 'whitelist_end\n'
-      # 用 pidof 判断（pgrep -f 在本设备上对已运行进程匹配不稳定）
-      if [ -n "$(pidof hyper-audio 2>/dev/null)" ]; then printf 'running=1\n'; else printf 'running=0\n'; fi
+      # 守护进程状态：一次读取判断，避免多起进程
+      if [ -n "$(pidof hyper-audio 2>/dev/null)" ]; then v_run=1; else v_run=0; fi
+      printf 'running=%s\n' "$v_run"
       # 二进制是否就位（含执行位）；缺失时低延迟模式无法启动守护进程
-      if [ -x "$DAEMON" ]; then printf 'daemon_ok=1\n'; else printf 'daemon_ok=0\n'; fi
+      if [ -x "$DAEMON" ]; then v_dok=1; else v_dok=0; fi
+      printf 'daemon_ok=%s\n' "$v_dok"
     } | flat
     printf '\n'
     ;;
