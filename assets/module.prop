@@ -1,7 +1,7 @@
 id=hyperaudio
 name=音频模式切换器
-version=0.4.4
-versionCode=260921
+version=0.4.5
+versionCode=260922
 author=deepseek-flash
 description=【当前模式：音效模式】音效 / 低延迟双模式一键切换：音效模式全局走效果链让调音生效，低延迟模式走 fast track 不卡顿。
 credits=See CREDITS.md（来源与致谢）

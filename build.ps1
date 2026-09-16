@@ -110,7 +110,9 @@ Write-Output "== 4. check A: expected file layout only, and no tuning payload ==
 # A1) deny-list by file name. NOTE: this alone is bypassable -- a file with an
 # unexpected extension (e.g. webroot/extra.xml) would slip through, which was
 # reproduced in review. So the allow-list below is the real gate.
-$forbidden = @('acdbdata','dax-default','mixer_paths','resourcemanager','audio_module_config_primary','audio_effects','sku_canoe','volume_curve','audio_policy_engine')
+# NOTE: this list is generic on purpose. It previously said 'sku_canoe' (one
+# specific platform); 'sku_' covers every platform's tuning payload instead.
+$forbidden = @('acdbdata','dax-default','mixer_paths','resourcemanager','audio_module_config_primary','audio_effects','sku_','volume_curve','audio_policy_engine')
 foreach ($f in $forbidden) {
   $hit = Get-ChildItem -Recurse -File $stage | Where-Object { $_.Name -match $f }
   if ($hit) { Write-Output "!! forbidden payload file remains: $f"; exit 1 }

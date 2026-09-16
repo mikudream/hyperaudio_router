@@ -12,9 +12,10 @@
 #     · 启动 hyper-audio 守护进程，并给音频线程提 RT 优先级
 #
 # 实现要点：
-#   改的是 k90 调音模块提供的 audio_module_config_primary.xml（模块源文件，
-#   位于可写的 f2fs 上），改完重新 bind mount 到 /odm 生效。
+#   改的是外部调音模块提供的 audio_module_config_primary.xml（模块内的源文件，
+#   位于可写的模块目录里），改完重新 bind mount 到 /odm 生效。
 #   /odm 本身只读，无法直接在其上 sed -i。
+#   源文件位置由 detect_src() 按文件名自动探测，不绑定任何具体机型 / 模块名。
 #
 # 用法: sh mode_switch.sh apply <sound|fast>
 #       sh mode_switch.sh current
@@ -26,9 +27,7 @@ MODEFILE=$MOD/mode
 MODPROP=$MOD/module.prop
 PIDFILE=/data/local/tmp/hyperaudio.pid
 DST=/odm/etc/audio/audio_module_config_primary.xml
-# 端口配置由外部调音模块提供。原先硬编码 k90pm_audio_plus，与"通用机型"矛盾：
-# 换一支调音模块（或改名）就会静默失效。改为自动探测：先按已知名尝试，再在
-# 所有模块里找第一个提供 audio_module_config_primary.xml 的。
+# 端口配置由外部调音模块提供，运行时由 detect_src() 自动探测，不硬编码模块名。
 SRC=""
 DAEMON=$MOD/hyper-audio
 STARTER=$MOD/bin/start_daemon.sh
@@ -51,19 +50,31 @@ get_mode() {
   case "$M" in sound|fast) echo "$M" ;; *) echo sound ;; esac
 }
 
-# 找到提供 audio_module_config_primary.xml 的调音模块源文件
+# 找到提供 audio_module_config_primary.xml 的调音模块源文件。
+# 完全按文件名探测，不引用任何具体机型的模块名 —— 任何调音模块，只要把该文件
+# 放在下面几种布局之一，都能被找到。
+#
+# 注意：这里【不能】用 set -f 关掉通配符展开 —— 那样 glob 会保持字面量，
+# 下面的 -f 判定永远为假（实测踩过）。反过来，不同 shell 对"glob 无匹配"的
+# 行为也不同（有的保持字面量、有的展开为空），所以用前缀判定区分：
+# 只有真正展开成 /data/... 的才算候选路径。
 detect_src() {
   [ -n "$SRC" ] && [ -f "$SRC" ] && return 0
-  _k=/data/adb/modules/k90pm_audio_plus/Link/odm/etc/audio/audio_module_config_primary.xml
-  [ -f "$_k" ] && { SRC="$_k"; return 0; }
-  # 兜底：在已装模块里搜第一个匹配。关掉 glob，未匹配时模式保持字面量，
-  # 于是 -f 判定为假，不会误取。
-  set -f
-  for _c in /data/adb/modules/*/Link/odm/etc/audio/audio_module_config_primary.xml \
-            /data/adb/modules/*/odm/etc/audio/audio_module_config_primary.xml; do
-    [ -f "$_c" ] && { SRC="$_c"; set +f; return 0; }
+  for _c in \
+    /data/adb/modules/*/Link/odm/etc/audio/audio_module_config_primary.xml \
+    /data/adb/modules/*/Link/vendor/etc/audio/audio_module_config_primary.xml \
+    /data/adb/modules/*/odm/etc/audio/audio_module_config_primary.xml \
+    /data/adb/modules/*/vendor/etc/audio/audio_module_config_primary.xml \
+    /data/adb/modules/*/system/vendor/etc/audio/audio_module_config_primary.xml \
+  ; do
+    case "$_c" in
+      *'*') continue ;;                          # 仍含通配符 => 未展开，跳过
+      /data/adb/modules/*) [ -f "$_c" ] || continue ;;
+      *) continue ;;
+    esac
+    SRC="$_c"
+    return 0
   done
-  set +f
   return 1
 }
 

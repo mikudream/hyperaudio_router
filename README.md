@@ -3,7 +3,7 @@
 > 通用机型的 HyperOS 音频模块：**在「音效」与「低延迟」两种工作模式间一键切换**，
 > 附带 KernelSU WebUI 可视化配置。
 
-[![模块版本](https://img.shields.io/badge/version-0.4.4-blue)]()
+[![模块版本](https://img.shields.io/badge/version-0.4.5-blue)]()
 [![适配](https://img.shields.io/badge/机型-通用-green)]()
 [![管理器](https://img.shields.io/badge/KernelSU%20%7C%20APatch%20%7C%20Magisk-WebUI-orange)]()
 
