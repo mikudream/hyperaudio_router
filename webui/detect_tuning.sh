@@ -26,20 +26,38 @@ PAYLOAD_PAT='(dolby|audio|acdbdata)/.*(dax-|dax_default|mixer_paths|acdb|audio_e
 
 # 探测单个模块：命中输出 HIT（仅存在）/ HITV（且已生效），未命中输出空
 probe_module() {
-  d="$1"
+  # 去掉尾斜杠：否则拼出的搜索路径含 "//"，而 find 会把路径归一化，
+  # 于是 ${f#$d/} 剥离失败、rel 变成绝对路径、生效路径又拼回模块自身，
+  # md5 成了自比较 —— 结果是【任何】模块都被判成"已生效"（曾实测复现）。
+  d="${1%/}"
   DIRS=""
-  for p in "$d/Link/odm/etc" "$d/Link/vendor/etc" "$d/odm/etc" "$d/vendor/etc" \
-           "$d/system/etc" "$d/system/vendor/etc" "$d/system_ext/etc"; do
+  for p in "$d/Link/odm/etc" "$d/Link/vendor/etc" "$d/Link/system/etc" \
+           "$d/odm/etc" "$d/vendor/etc" "$d/system/etc" "$d/system/vendor/etc" \
+           "$d/system_ext/etc"; do
     [ -d "$p" ] && DIRS="$DIRS $p"
   done
   [ -n "$DIRS" ] || { echo ""; return 0; }
 
-  # DIRS 需要按空格分词展开
-  for f in $(find $DIRS -type f 2>/dev/null); do
+  # 过滤交给 find 自己做（-path 定位目录、-name 匹配文件名），
+  # 避免对每个文件都起一个 echo|grep 进程（每进程约 70ms）。
+  CANDS=$(find $DIRS -type f \
+      \( -path '*/dolby/*' -o -path '*/audio/*' -o -path '*/acdbdata/*' \
+         -name 'dax-*' -o -name 'dax_default*' -o -name 'mixer_paths*' \
+         -o -name 'acdb*' -o -name 'audio_effects_config.*' \
+         -o -name 'audio_module_config_*' -o -name 'resourcemanager*' \) 2>/dev/null)
+
+  # 显式排除：这些属于路由/音量策略，不是调音载荷
+  CANDS=$(echo "$CANDS" | grep -vE 'audio_policy_configuration|audio_policy_engine|volume|audio_lowpower_app_list')
+
+  for f in $CANDS; do
     rel="${f#$d/}"
+    # 双保险：rel 必须是相对路径，否则说明处理有误，跳过以免自比较
+    case "$rel" in /*|"") continue ;; esac
     echo "$rel" | grep -Eq "$PAYLOAD_PAT" || continue
 
     eff="/${rel#Link/}"
+    # eff 必须落在模块之外，否则又是自比较
+    case "$eff" in "$d"/*) echo HIT; return 0 ;; esac
     if [ -f "$eff" ]; then
       a=$(md5sum "$f" 2>/dev/null | awk '{print $1}')
       b=$(md5sum "$eff" 2>/dev/null | awk '{print $1}')

@@ -157,8 +157,28 @@ EOF
     # 重建 whitelist 段
     # 渲染用 awk 一次拼成，不用 shell while 循环：循环里 `wc -l` 与实际行数
     # 在末行无换行时会错位，导致**丢掉最后一项**。
-    sed -n 's/.*"whitelist"[[:space:]]*:[[:space:]]*\[\([^]]*\)\].*/\1/p' "$IN" \
-      | tr ',' '\n' | sed -n 's/^[[:space:]]*"\([^"]*\)".*/\1/p' | sed '/^$/d' > "$TMP/wl.txt"
+    WLRAW=$(sed -n 's/.*"whitelist"[[:space:]]*:[[:space:]]*\[\([^]]*\)\].*/\1/p' "$IN")
+    echo "$WLRAW" | tr ',' '\n' | sed -n 's/^[[:space:]]*"\([^"]*\)".*/\1/p' | sed '/^$/d' > "$TMP/wl.txt"
+
+    # 安全守卫（重要）：只要输入里【有】whitelist 这个键，就允许整体替换
+    # （包括用户主动清空成空数组这种合法操作）。但如果键在、抽取结果却为空
+    # 且原始文本里确实有内容，说明解析失败（JSON 损坏 / 前后端不一致），
+    # 此时照常渲染会写出空数组、把用户白名单静默清空却仍回 ok=1 —— 宁可整体
+    # 失败也不清空。
+    # 注意：不能用 grep -q '"[^"]' 去判断"有内容"——whitelist 后的 `[` 会让它
+    # 误判为有内容。改用 wc -c 判断原始文本长度。
+    if grep -q '"whitelist"' "$IN" 2>/dev/null; then
+      RAWBYTES=$(printf '%s' "$WLRAW" | tr -d '[:space:]' | wc -c | tr -d ' ')
+      if [ "${RAWBYTES:-0}" -gt 0 ] && [ ! -s "$TMP/wl.txt" ]; then
+        printf 'error=whitelist_parse_failed\x1f\n'
+        exit 0
+      fi
+    else
+      # 输入里没有 whitelist 键：保留配置文件里现有的白名单，不要清空
+      sed -n '/^[[:space:]]*whitelist[[:space:]]*=/,/\]/p' "$CONF" 2>/dev/null \
+        | grep -o '"[^"]*"' | tr -d '"' > "$TMP/wl.txt"
+    fi
+
     render_whitelist() {
       # 逐项拼出 TOML 数组：项间用逗号，最后一项不加逗号
       printf 'whitelist = [\n'

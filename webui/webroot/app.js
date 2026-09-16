@@ -58,6 +58,16 @@ function toast(msg, ms) {
 
 function busy(on) { $('mask').hidden = !on; }
 
+/* 把「真正耗时的工作」推迟到下一个宏任务再执行。
+ *
+ * 本设备上 ksu.exec(cmd) 是【同步】调用，会阻塞主线程约 500ms（要起 shell 进程）。
+ * 如果在设置忙态/旋转器之后立刻调用它，设置与阻塞处在同一个宏任务里，
+ * 浏览器要到任务结束才会绘制 —— 结果是忙态、旋转器、徽章全都来不及显示，
+ * 界面表现为"卡一下然后直接跳到终态"。先用 setTimeout 让出一轮，
+ * 忙态就有机会被绘制出来。
+ * 注：这里必须用 function + var（ES5），不能用箭头函数。 */
+function defer(fn) { setTimeout(fn, 0); }
+
 function q(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; }
 
 var __execSeq = 0;
@@ -180,29 +190,41 @@ function loadTuning() {
 }
 
 /* 主流程：先用默认值立即渲染，再等后端返回后覆盖。
- * 这样打开 WebUI 不再是一屏空白 + 转圈到底。 */
+ * 这样打开 WebUI 不再是一屏空白 + 转圈到底。
+ * 注意：exec 是同步阻塞的，必须用 defer 让出一轮，否则这里的
+ * "先渲染默认值 + 正在读取配置…" 也会来不及绘制（见 defer 注释）。 */
 function loadAll() {
   busy(false);
   renderAll();
   $('sub').textContent = '正在读取配置…';
-  return sh(HELPER_CMD + ' status')
-    .then(function (r) {
-      if (!r.out) {
-        throw new Error('helper 无输出。请确认模块已完整安装，或执行：' + HELPER_CMD + ' status');
-      }
-      parseStatus(r.out);
-      renderAll();
-    })
-    .catch(function (e) {
-      var m = (e && e.message ? e.message : String(e));
-      toast('出错: ' + m, 6000);
-      $('sub').textContent = '读取失败：' + m;
+  return new Promise(function (resolve) {
+    defer(function () {
+      sh(HELPER_CMD + ' status')
+        .then(function (r) {
+          if (!r.out) {
+            throw new Error('helper 无输出。请确认模块已完整安装，或执行：' + HELPER_CMD + ' status');
+          }
+          parseStatus(r.out);
+          renderAll();
+          resolve(true);
+        })
+        .catch(function (e) {
+          var m = (e && e.message ? e.message : String(e));
+          toast('出错: ' + m, 6000);
+          $('sub').textContent = '读取失败：' + m;
+          /* 失败时把界面重绘回已知状态，避免残留半截数据（见 parseStatus 的说明） */
+          renderAll();
+          resolve(false);
+        });
     });
+  });
 }
 
-/* status 到手后再去拉调音来源（串行，避免与其争抢进程启动开销） */
+/* status 到手且成功后再去拉调音来源（串行，避免与其争抢进程启动开销）。
+ * status 失败就不必再白等一次阻塞了。 */
 function refresh() {
-  return loadAll().then(function () {
+  return loadAll().then(function (ok) {
+    if (ok === false) return;
     return loadTuning();
   });
 }
@@ -363,30 +385,33 @@ function switchMode(mode) {
   var name = (mode === 'sound' ? '音效模式' : '低延迟模式');
   S.switching = true;
   setSwitching(true, mode);
-  sh(HELPER_CMD + ' setmode ' + mode, 40000)
-    .then(function (r) {
-      var f = fields(r.out);
-      if (f.indexOf('ok=1') < 0) throw new Error(r.out || '无输出');
-      S.mode = mode;
-      return loadAll();
-    })
-    .then(function () {
-      S.switching = false;
-      setSwitching(false, mode);
-      $('modeMsg').innerHTML = '';
-      $('modeMsg').textContent = '已切换到' + name + '（音频服务已重启）';
-      $('modeMsg').hidden = false;
-      toast('已切换到' + name, 2600);
-      /* 模式变了，低延迟相关显示项需要重绘 */
-      renderAll();
-    })
-    .catch(function (e) {
-      S.switching = false;
-      setSwitching(false, (S.mode === 'sound' ? 'fast' : 'sound'));
-      $('modeMsg').hidden = true;
-      toast('切换失败: ' + (e && e.message ? e.message : e), 5000);
-      renderAll();
-    });
+  /* 让出一轮宏任务，先把这个忙态画出来，再发起会阻塞的 exec */
+  defer(function () {
+    sh(HELPER_CMD + ' setmode ' + mode, 40000)
+      .then(function (r) {
+        var f = fields(r.out);
+        if (f.indexOf('ok=1') < 0) throw new Error(r.out || '无输出');
+        S.mode = mode;
+        return loadAll();
+      })
+      .then(function () {
+        S.switching = false;
+        setSwitching(false, mode);
+        $('modeMsg').innerHTML = '';
+        $('modeMsg').textContent = '已切换到' + name + '（音频服务已重启）';
+        $('modeMsg').hidden = false;
+        toast('已切换到' + name, 2600);
+        /* 模式变了，低延迟相关显示项需要重绘 */
+        renderAll();
+      })
+      .catch(function (e) {
+        S.switching = false;
+        setSwitching(false, (S.mode === 'sound' ? 'fast' : 'sound'));
+        $('modeMsg').hidden = true;
+        toast('切换失败: ' + (e && e.message ? e.message : e), 5000);
+        renderAll();
+      });
+  });
 }
 
 /* ---------------- 保存（低延迟模式参数）---------------- */
@@ -412,20 +437,23 @@ function save() {
   var cmd = 'mkdir -p ' + TMP_DIR +
     ' && printf "%s" ' + q(b64) + ' | base64 -d > ' + TMP_DIR + '/in.json' +
     ' && ' + HELPER_CMD + ' save ' + TMP_DIR + '/in.json';
-  sh(cmd, 30000)
-    .then(function (r) {
-      var f = fields(r.out);
-      busy(false);
-      if (f.indexOf('ok=1') >= 0) {
-        toast('已保存', 2400);
-        return loadAll();
-      }
-      toast('保存失败: ' + (r.out || '无输出'), 5000);
-    })
-    .catch(function (e) {
-      busy(false);
-      toast('保存出错: ' + (e && e.message ? e.message : e), 5000);
-    });
+  /* 先让遮罩画出来，再发起阻塞的 exec（见 defer 注释） */
+  defer(function () {
+    sh(cmd, 30000)
+      .then(function (r) {
+        var f = fields(r.out);
+        busy(false);
+        if (f.indexOf('ok=1') >= 0) {
+          toast('已保存', 2400);
+          return loadAll();
+        }
+        toast('保存失败: ' + (r.out || '无输出'), 5000);
+      })
+      .catch(function (e) {
+        busy(false);
+        toast('保存出错: ' + (e && e.message ? e.message : e), 5000);
+      });
+  });
 }
 
 /* ---------------- 事件 ---------------- */

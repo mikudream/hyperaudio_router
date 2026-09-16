@@ -44,7 +44,7 @@ Rust 守护进程 `hyper-audio`。
 | 继承内容 | 证据 |
 |---|---|
 | **`system.prop` 的 32 条属性全部** | 当前模块的 55 条属性中，HyperAudio 的 32 条**100% 被包含**；其中仅 2 条取值不同（`aaudio.hw_burst_min_usec` 2000→1000、`aaudio.mmap_exclusive_policy` 2→3），其余完全一致 |
-| **4 个音频策略库的遮蔽逻辑** | `customize.sh` 的 `remove_files()` 与 HyperAudio 逐字相同（相同的遍历路径、相同 4 个库名、相同的 `audio_lowpower_app_list.xml` 遮蔽） |
+| **4 个音频策略库的遮蔽逻辑（已移除）** | `customize.sh` 的 `remove_files()` 曾与 HyperAudio 逐字相同（相同的遍历路径、相同 4 个库名、相同的 `audio_lowpower_app_list.xml` 遮蔽）。**本项目已将其彻底删除**：实测该遮蔽会让音频实现层失效，音效模式下效果链通路整个哑掉（调音全无、部分音频无声），低延迟模式仍有声但调音同样失效 |
 | **`odm` 兜底挂载的守卫写法** | `[ -d "$MODPATH/odm" ] \|\| exit 0` 与 HyperAudio 完全一致（Mi17Audio 原文没有这一行） |
 | **线程提权的设计思路** | HyperAudio 的 `service.sh` 用 `chrt -p $tid -f 10` 提升 `FastMixer` / `Audio.*Out_.*` / `AAudio_.*` 等线程；本项目沿用同一思路，由 `hyper-audio` 二进制与 `bin/mode_switch.sh` 实现 |
 
@@ -73,7 +73,7 @@ Rust 守护进程 `hyper-audio`。
 | **新增一键切换** | `action.sh`（KernelSU 执行按钮）+ WebUI 右上角按钮；同时把当前模式写进 `module.prop` 的 `description` 前缀，模块列表直接可见 |
 | **新增调音来源检测** | `bin/detect_tuning.sh`：扫描已安装模块并按「路径+文件名」识别调音载荷，判断哪一支在生效；未检测到则显示「官方默认调音」。因耗时较长，改为异步拉取，不阻塞界面 |
 | **去除机型限制** | 删除 Mi17Audio 的 `device_setup()`（按设备代号裁剪配置）与音量键询问逻辑，改为通用机型 |
-| **重命名与重新署名** | 模块 ID 改为 `hyperaudio`，名称改为「音频模式切换器」，版本重定为 `0.4.0` |
+| **重命名与重新署名** | 模块 ID 改为 `hyperaudio`，名称改为「音频模式切换器」，版本从 `0.4.0` 起（当前见 `module.prop`） |
 
 ---
 

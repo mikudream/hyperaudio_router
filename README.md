@@ -3,7 +3,7 @@
 > 通用机型的 HyperOS 音频模块：**在「音效」与「低延迟」两种工作模式间一键切换**，
 > 附带 KernelSU WebUI 可视化配置。
 
-[![模块版本](https://img.shields.io/badge/version-0.4.0-blue)]()
+[![模块版本](https://img.shields.io/badge/version-0.4.3-blue)]()
 [![适配](https://img.shields.io/badge/机型-通用-green)]()
 [![管理器](https://img.shields.io/badge/KernelSU%20%7C%20APatch%20%7C%20Magisk-WebUI-orange)]()
 
@@ -69,7 +69,10 @@ HyperOS 的音频链路里存在一对**框架层互斥**：
 | 蓝牙 | aptX Adaptive / LDAC / LHDC / LC3（LE Audio）编解码解锁、AAC 帧控调整 |
 | 硬件直通 | `offload.passthrough`、各 PCM 位深 offload、24/32bit/float 输出 |
 | 通路库 | `libaaudio_internal*.so`（HyperOS AAudio MMAP 实现） |
-| 中间层退让 | 0 字节占位遮蔽 4 个音频策略库 + 低功耗应用清单 |
+
+> 早期版本还包含「遮蔽 4 个音频策略库 + 低功耗清单」的做法，**现已彻底移除**：
+> 实测遮蔽 `*impl.so` 会让音频实现层失效 —— 音效模式下调音全无、部分音频无声，
+> 低延迟模式仍有声但调音同样失效。详见 `assets/customize.sh` 中的说明。
 
 ---
 
@@ -164,7 +167,8 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 并由同一作者的 [Mi17Audio](https://github.com/2278535805/Mi17Audio) v0.3.4 扩展而来：
 
 - 继承自 **HyperAudio**：`system.prop` 全部 32 条基础属性（100% 包含，仅 2 条取值微调）、
-  4 个音频策略库的遮蔽逻辑、`odm` 兜底挂载的守卫写法、线程提权的设计思路
+  `odm` 兜底挂载的守卫写法、线程提权的设计思路
+  （其"遮蔽 4 个音频策略库"的做法本项目**已移除**，见上方说明）
 - 继承自 **Mi17Audio**：`hyper-audio` 守护进程、`libaaudio_internal*.so`、`META-INF` 安装入口、
   蓝牙与 offload 等补充属性
 

@@ -38,6 +38,13 @@ $stage = Join-Path $root 'build'
 $zip   = Join-Path $root 'hyperaudio_module.zip'
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
+# Remove any previous package BEFORE validating. The zip is gitignored, so a
+# stale one is invisible to `git status` and easy to mistake for this build's
+# output. Deleting it first guarantees the invariant "a failed build produces
+# no artifact" -- previously the delete happened in step 7, so an aborted build
+# left the previous package in place (reproduced in review).
+if (Test-Path $zip) { Remove-Item $zip -Force }
+
 Write-Output "== 1. stage module tree =="
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
@@ -90,37 +97,86 @@ Write-Output "  binary: 'hlmc' -> 'user', $n occurrence(s), equal length"
 
 Write-Output "== 3. normalize line endings and encoding =="
 Get-ChildItem -Recurse -File $stage |
-  Where-Object { $_.Extension -in '.sh','.prop','.toml','.md' -or $_.Name -eq 'update-binary' } |
+  Where-Object { $_.Extension -in '.sh','.prop','.toml','.md' -or $_.Name -in 'update-binary','updater-script' } |
   ForEach-Object {
     $t = [System.IO.File]::ReadAllText($_.FullName, $utf8NoBom) -replace "`r`n", "`n"
     [System.IO.File]::WriteAllText($_.FullName, $t, $utf8NoBom)
   }
 
-Write-Output "== 4. check A: no tuning payload =="
-$forbidden = @('acdbdata','dax-default','mixer_paths','resourcemanager','audio_module_config_primary','audio_effects','sku_canoe')
+Write-Output "== 4. check A: expected file layout only, and no tuning payload =="
+# A1) deny-list by file name. NOTE: this alone is bypassable -- a file with an
+# unexpected extension (e.g. webroot/extra.xml) would slip through, which was
+# reproduced in review. So the allow-list below is the real gate.
+$forbidden = @('acdbdata','dax-default','mixer_paths','resourcemanager','audio_module_config_primary','audio_effects','sku_canoe','volume_curve','audio_policy_engine')
 foreach ($f in $forbidden) {
   $hit = Get-ChildItem -Recurse -File $stage | Where-Object { $_.Name -match $f }
   if ($hit) { Write-Output "!! forbidden payload file remains: $f"; exit 1 }
 }
-Write-Output "  pass"
+
+# A2) every staged file must match the known-good layout. Anything unexpected
+# aborts the build, so extra/.xml/.json payloads or stray notes cannot ship.
+$allowed = @(
+  '^module\.prop$','^customize\.sh$','^post-fs-data\.sh$','^service\.sh$','^system\.prop$','^action\.sh$',
+  '^CREDITS\.md$','^config\.toml$','^hyper-audio$',
+  '^META-INF/com/google/android/update-binary$','^META-INF/com/google/android/updater-script$',
+  '^bin/(mode_switch|start_daemon|detect_tuning|hyperaudio_init)\.sh$',
+  '^system/lib64/libaaudio_internal(_builder)?\.so$',
+  '^webui/helper\.sh$',
+  '^webroot/(index\.html|app\.js|style\.css)$'
+)
+$unknown = @()
+foreach ($f in [System.IO.Directory]::EnumerateFiles($stage, '*', [System.IO.SearchOption]::AllDirectories)) {
+  $rel = $f.Substring($stage.Length).TrimStart('\','/').Replace('\','/')
+  $ok = $false
+  foreach ($pat in $allowed) { if ($rel -match $pat) { $ok = $true; break } }
+  if (-not $ok) { $unknown += $rel }
+}
+if ($unknown.Count -gt 0) {
+  Write-Output "!! staged file is not in the expected layout (refusing to ship):"
+  $unknown | ForEach-Object { Write-Output ("   " + $_) }
+  exit 1
+}
+Write-Output ("  pass (" + ([System.IO.Directory]::EnumerateFiles($stage, '*', [System.IO.SearchOption]::AllDirectories) | Measure-Object).Count + " files, all expected)")
+
 
 Write-Output "== 5. check B: no device detection =="
 $devicePats = 'popsicle|pandora|pudding|ro\.product\.device|ro\.product\.vendor\.device|ro\.build\.product|Mi17Audio|myron|1014E|1115X'
 $hit2 = Get-ChildItem -Recurse -File $stage |
-  Where-Object { $_.Extension -in '.sh','.prop','.toml' -or $_.Name -eq 'update-binary' } |
+  Where-Object { $_.Extension -in '.sh','.prop','.toml' -or $_.Name -in 'update-binary','updater-script' } |
   Select-String -Pattern $devicePats -AllMatches
-if ($hit2) { $hit2 | ForEach-Object { Write-Output ("   " + $_.Path + ":" + $_.LineNumber) }; exit 1 }
+if ($hit2) {
+  Write-Output "!! device-detection string found:"
+  $hit2 | ForEach-Object { Write-Output ("   " + $_.Path + ":" + $_.LineNumber + "  " + $_.Line.Trim()) }
+  exit 1
+}
 Write-Output "  pass"
 
 Write-Output "== 6. check C: no upstream author marks (except CREDITS.md) =="
-$authorPats = 'hlmc|HLMC|nakixii|Ray|Mi17Audio'
+# 'Ray' must be matched as a whole word with its author context: a bare,
+# case-insensitive 'Ray' also hits benign words like "array" (verified in review),
+# which would fail the build for no reason.
+$authorPats = 'hlmc|HLMC|nakixii|Mi17Audio|\bRay\b'
 $hit3 = Get-ChildItem -Recurse -File $stage |
   Where-Object { $_.Name -ne 'CREDITS.md' } |
-  Where-Object { $_.Extension -in '.sh','.prop','.toml','.md','.html','.js','.css' -or $_.Name -eq 'update-binary' } |
-  Select-String -Pattern $authorPats -AllMatches
-if ($hit3) { $hit3 | ForEach-Object { Write-Output ("   " + $_.Path + ":" + $_.LineNumber) }; exit 1 }
-$binHit = ([regex]::Matches([System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($bin)), 'hlmc')).Count
-if ($binHit -gt 0) { Write-Output "!! binary still contains $binHit x hlmc"; exit 1 }
+  Where-Object { $_.Extension -in '.sh','.prop','.toml','.md','.html','.js','.css' -or $_.Name -in 'update-binary','updater-script' } |
+  Select-String -Pattern $authorPats -CaseSensitive -AllMatches
+if ($hit3) {
+  Write-Output "!! upstream author mark found:"
+  $hit3 | ForEach-Object { Write-Output ("   " + $_.Path + ":" + $_.LineNumber + "  " + $_.Line.Trim()) }
+  exit 1
+}
+
+# binaries: scan hyper-audio and the .so payloads as bytes, case-insensitively
+$binPats = @('hlmc', 'nakixii', 'Mi17Audio')
+$binFiles = @($bin) + @(Get-ChildItem -Recurse -File $stage -Filter '*.so' | ForEach-Object { $_.FullName })
+foreach ($bf in $binFiles) {
+  $txt = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($bf)).ToLower()
+  foreach ($p in $binPats) {
+    $n = ([regex]::Matches($txt, [regex]::Escape($p.ToLower()))).Count
+    if ($n -gt 0) { Write-Output "!! binary still contains $n x '$p': $bf"; exit 1 }
+  }
+}
+Write-Output "  pass (text + binaries)"
 
 # system.prop must carry the sanitized comment, not the upstream author one.
 # Built from code points so this check stays ASCII-only text in this file.

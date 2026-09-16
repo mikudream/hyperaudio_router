@@ -3,8 +3,6 @@ SKIPUNZIP=0
 # ============================================================
 # 音频模式切换器（hyperaudio）
 # ============================================================
-# 通用机型，无任何机型判断。
-#
 # 作用：
 #   1) 注入低延迟音频属性（system.prop）：AAudio MMAP 独占通路、
 #      HAL 缓冲周期压缩、蓝牙高清编解码与硬件直通、位深与音效开关等
@@ -15,8 +13,14 @@ SKIPUNZIP=0
 #                          按 config.toml 的白名单与优先级把音频线程提升为
 #                          SCHED_FIFO 实时优先级，降低延迟抖动
 #   3) 替换 libaaudio_internal*.so，启用 HyperOS 的 AAudio MMAP 通路实现
-#   4) remove_files()：用 0 字节占位遮蔽小米音频中间层实现库与低功耗清单，
-#      解除其对音频客户端 / AudioFlinger / audio policy 的接管
+#
+# 注意：本模块【不再】对任何系统音频库做遮蔽。早期版本会用 0 字节占位遮蔽
+# libaudio{client,flinger,policyservice}impl.so，实测这只会让音频实现层失效：
+# 音效模式下效果链通路整个哑掉（调音全无、部分音频无声），低延迟模式虽仍有声
+# 但调音同样失效。详见下方 set_permissions 上方的说明。
+#
+# 机型适配：本模块自身不含机型判断；但音效模式依赖外部调音模块提供
+# audio_module_config_primary.xml（见 bin/mode_switch.sh 的 SRC）。
 #
 # 不含任何音效调音内容：无 ACDB 声学校准、无 Dolby DAX 调音、无 mixer 通路
 # 与音量曲线改动，因此可与其他调音模块并存。
