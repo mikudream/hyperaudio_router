@@ -3,7 +3,7 @@
 > 通用机型的 HyperOS 音频模块：**在「音效」与「低延迟」两种工作模式间一键切换**，
 > 附带 KernelSU WebUI 可视化配置。
 
-[![模块版本](https://img.shields.io/badge/version-0.4.3-blue)]()
+[![模块版本](https://img.shields.io/badge/version-0.4.4-blue)]()
 [![适配](https://img.shields.io/badge/机型-通用-green)]()
 [![管理器](https://img.shields.io/badge/KernelSU%20%7C%20APatch%20%7C%20Magisk-WebUI-orange)]()
 
@@ -91,7 +91,12 @@ HyperOS 的音频链路里存在一对**框架层互斥**：
 
 ### 卸载
 
-在模块管理器中卸载即可。模块不修改任何系统分区文件，卸载后由管理器撤销挂载。
+在模块管理器中卸载即可。模块不修改任何系统分区文件。
+
+由于音效模式会用 `mount --bind` 覆盖 `/odm/etc/audio/audio_module_config_primary.xml`，
+而运行时建立的挂载**不由管理器管理**，本模块附带 `uninstall.sh`：卸载时会停止守护进程、
+把端口 FAST 标志还原、摘掉该挂载并清理 `/data/local/tmp` 下的临时文件。
+仍建议**卸载后重启一次**，以彻底清除本次开机建立的所有挂载。
 
 ---
 
@@ -137,13 +142,13 @@ webui/     本项目源码：WebUI 与设备端脚本
            webroot/            KernelSU WebUI 界面（index.html / app.js / style.css）
            helper.sh           WebUI 后端（status / tuning / setmode / save）
            action.sh           KernelSU 执行按钮（一键在两种模式间切换）
-           mode_switch.sh      音效 ↔ 低延迟 模式切换（含刷新模块简介）
+           uninstall.sh        卸载清理（停守护进程 / 还原端口标志 / 清临时文件）
+           mode_switch.sh      音效 ↔ 低延迟 模式切换（端口补丁 + 简介刷新 + 守护进程）
            start_daemon.sh     守护进程启动器
            detect_tuning.sh    调音来源检测（异步调用，不在关键路径）
-           hyperaudio_init.sh  开机初始化
 prebuilt/  上游预编译产物（无法从源码重建，按原样保留，见 CREDITS.md）
 CREDITS.md 来源与致谢（随模块包分发）
-build.ps1  构建脚本：组装 + 清理作者标识 + 三项校验 + 打包
+build.ps1  构建脚本：组装 + 清理作者标识 + 校验 + 打包（产物逐字节可复现）
 ```
 
 ### 构建
@@ -153,11 +158,18 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 # 输出 hyperaudio_module.zip
 ```
 
-构建脚本会自动执行三项校验，任一不通过即拒绝出包：
+构建脚本会在打包前执行下列校验，任一不通过即拒绝出包：
 
-1. **校验 A**：不得含调音载荷（ACDB / Dolby DAX / mixer / 音量曲线 等）
-2. **校验 B**：不得含机型判断
-3. **校验 C**：除 `CREDITS.md` 外不得含原作者个人标识（含二进制）
+1. **文件布局白名单**：staged 目录内出现任何未预期的文件即失败。
+   （原先只按文件扩展名做内容检查，放一个 `webroot/extra.xml` 就能把机型代号、
+   作者标识、调音载荷关键词原样打进包里 —— 已实测复现并修掉。）
+2. **不得含调音载荷**：ACDB / Dolby DAX / mixer / resourcemanager / 音量曲线 等
+3. **不得含机型判断**
+4. **除 `CREDITS.md` 外不得含原作者个人标识**：文本与二进制（`hyper-audio`、`*.so`）都扫
+5. **`system.prop` 必须是净化后的版本**（含特定注释、且不含上游署名注释）
+
+构建产物**逐字节可复现**：zip 条目时间戳已固定，同样内容两次构建哈希相同。
+校验失败时**不会留下任何产物**（旧包在构建开始时即被删除）。
 
 ---
 

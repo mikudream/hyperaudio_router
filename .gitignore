@@ -3,6 +3,8 @@
 /hyperaudio_module.zip
 
 # 本地参考文件（不提交）
+# 注意：这里按文件名忽略，改名后就会被 git add . 提交（发布指引里教的正是
+# git add .），所以本地草稿请保持这两个名字，或改用 *.local.md 之类的模式。
 /ISSUE_授权申请.md
 /发布指引.md
 
@@ -11,9 +13,14 @@
 .idea/
 Thumbs.db
 desktop.ini
+.DS_Store
 *.swp
 
 # 临时文件
 *.tmp
 *.bak
+*.orig
+*.rej
 ~$*
+*.zip
+!prebuilt/**/*.zip

@@ -36,7 +36,10 @@ $ErrorActionPreference = 'Stop'
 $root  = $PSScriptRoot
 $stage = Join-Path $root 'build'
 $zip   = Join-Path $root 'hyperaudio_module.zip'
-$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+# Strict decoder (throwOnInvalidBytes): a GBK-encoded file dropped into assets/
+# would otherwise be silently decoded to U+FFFD replacement characters and ship
+# as mojibake. Better to fail loudly.
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false, $true)
 
 # Remove any previous package BEFORE validating. The zip is gitignored, so a
 # stale one is invisible to `git status` and easy to mistake for this build's
@@ -59,10 +62,10 @@ New-Item -ItemType Directory -Force -Path (Join-Path $stage 'webui')   | Out-Nul
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'bin')     | Out-Null
 Copy-Item (Join-Path $root 'webui\webroot\*') (Join-Path $stage 'webroot') -Force
 foreach ($f in @('helper.sh'))          { Copy-Item (Join-Path $root "webui\$f") (Join-Path $stage 'webui') -Force }
-# action.sh must sit at the module root: the KernelSU / Magisk "action" button
-# always looks for <module>/action.sh
-foreach ($f in @('action.sh'))          { Copy-Item (Join-Path $root "webui\$f") $stage -Force }
-foreach ($f in @('mode_switch.sh','start_daemon.sh','detect_tuning.sh','hyperaudio_init.sh')) {
+# action.sh / uninstall.sh must sit at the module root: the KernelSU / Magisk
+# "action" button and the uninstall hook both look for them there.
+foreach ($f in @('action.sh','uninstall.sh')) { Copy-Item (Join-Path $root "webui\$f") $stage -Force }
+foreach ($f in @('mode_switch.sh','start_daemon.sh','detect_tuning.sh')) {
   Copy-Item (Join-Path $root "webui\$f") (Join-Path $stage 'bin') -Force
 }
 
@@ -116,10 +119,10 @@ foreach ($f in $forbidden) {
 # A2) every staged file must match the known-good layout. Anything unexpected
 # aborts the build, so extra/.xml/.json payloads or stray notes cannot ship.
 $allowed = @(
-  '^module\.prop$','^customize\.sh$','^post-fs-data\.sh$','^service\.sh$','^system\.prop$','^action\.sh$',
+  '^module\.prop$','^customize\.sh$','^post-fs-data\.sh$','^service\.sh$','^system\.prop$','^action\.sh$','^uninstall\.sh$',
   '^CREDITS\.md$','^config\.toml$','^hyper-audio$',
   '^META-INF/com/google/android/update-binary$','^META-INF/com/google/android/updater-script$',
-  '^bin/(mode_switch|start_daemon|detect_tuning|hyperaudio_init)\.sh$',
+  '^bin/(mode_switch|start_daemon|detect_tuning)\.sh$',
   '^system/lib64/libaaudio_internal(_builder)?\.so$',
   '^webui/helper\.sh$',
   '^webroot/(index\.html|app\.js|style\.css)$'
@@ -178,27 +181,52 @@ foreach ($bf in $binFiles) {
 }
 Write-Output "  pass (text + binaries)"
 
-# system.prop must carry the sanitized comment, not the upstream author one.
-# Built from code points so this check stays ASCII-only text in this file.
+# system.prop must carry the sanitized comment AND must NOT carry the upstream
+# author's comment. The previous version only asserted presence of the sanitized
+# one, so a file that kept the upstream signature alongside it would still pass.
+# Literals are built from code points to keep this file ASCII-only.
 $wantComment = '# ' + ([char]0x5B9E) + ([char]0x6D4B) + [char]0xFF1A
+$banComment  = '# HLMC: '
 $spText = [System.IO.File]::ReadAllText((Join-Path $stage 'system.prop'), $utf8NoBom)
 if ($spText.IndexOf($wantComment) -lt 0) {
   Write-Output "!! system.prop is missing the sanitized comment (expected a line starting with the measured-value note)"
   exit 1
 }
+if ($spText.IndexOf($banComment) -ge 0 -or $spText.IndexOf('nakixii') -ge 0) {
+  Write-Output "!! system.prop still carries the upstream author comment/signature"
+  exit 1
+}
 Write-Output "  pass"
 
 Write-Output "== 7. pack =="
-if (Test-Path $zip) { Remove-Item $zip -Force }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
-$zout = [System.IO.Compression.ZipFile]::Open($zip, [System.IO.Compression.ZipArchiveMode]::Create)
-foreach ($f in [System.IO.Directory]::EnumerateFiles($stage, '*', [System.IO.SearchOption]::AllDirectories)) {
-  $rel = $f.Substring($stage.Length).TrimStart('\','/').Replace('\','/')
-  $entry = $zout.CreateEntry($rel, [System.IO.Compression.CompressionLevel]::Optimal)
-  $es = $entry.Open(); $fs = [System.IO.File]::OpenRead($f); $fs.CopyTo($es); $fs.Dispose(); $es.Dispose()
+
+# Fixed entry timestamp so the package is byte-for-byte reproducible: by default
+# each entry carries the source file's mtime, so two builds from identical
+# content produced different zip hashes (observed in review). 2009-01-01 is the
+# conventional value used by Android/Java zip tooling.
+$fixedTime = New-Object System.DateTimeOffset(2009, 1, 1, 0, 0, 0, [System.TimeSpan]::Zero)
+$zout = $null
+$packOk = $false
+try {
+  $zout = [System.IO.Compression.ZipFile]::Open($zip, [System.IO.Compression.ZipArchiveMode]::Create)
+  foreach ($f in [System.IO.Directory]::EnumerateFiles($stage, '*', [System.IO.SearchOption]::AllDirectories)) {
+    $rel = $f.Substring($stage.Length).TrimStart('\','/').Replace('\','/')
+    $entry = $zout.CreateEntry($rel, [System.IO.Compression.CompressionLevel]::Optimal)
+    $entry.LastWriteTime = $fixedTime
+    $es = $entry.Open(); $fs = [System.IO.File]::OpenRead($f); $fs.CopyTo($es); $fs.Dispose(); $es.Dispose()
+  }
+  $packOk = $true
+} catch {
+  Write-Output ("!! packing failed: " + $_.Exception.Message)
+} finally {
+  # Always release the file handle; on failure remove the half-written package so
+  # it can never be mistaken for a complete build.
+  if ($zout) { $zout.Dispose() }
+  if (-not $packOk -and (Test-Path $zip)) { Remove-Item $zip -Force }
 }
-$zout.Dispose()
+if (-not $packOk) { exit 1 }
 
 $z = [System.IO.Compression.ZipFile]::OpenRead($zip)
 Write-Output "entries: $($z.Entries.Count)"

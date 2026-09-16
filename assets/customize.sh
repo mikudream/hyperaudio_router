@@ -35,9 +35,10 @@ set_permissions() {
   # 脚本也会被抹掉；若只靠 service.sh 开机时 chmod，则 WebUI 的 helper.sh
   # 会因 126 Permission denied 而**完全没有输出**（WebUI 报"helper 无输出"）。
   # 用 [ -f ] 保护，避免文件缺失时 chmod 报错中断安装。
-  for f in $MODPATH/hyper-audio $MODPATH/action.sh $MODPATH/webui/helper.sh \
+  for f in $MODPATH/hyper-audio $MODPATH/action.sh $MODPATH/uninstall.sh \
+           $MODPATH/webui/helper.sh \
            $MODPATH/bin/mode_switch.sh $MODPATH/bin/start_daemon.sh \
-           $MODPATH/bin/detect_tuning.sh $MODPATH/bin/hyperaudio_init.sh; do
+           $MODPATH/bin/detect_tuning.sh; do
     [ -f "$f" ] && chmod 0755 "$f"
   done
 }
@@ -50,7 +51,7 @@ set_permissions() {
 #   odm/vendor/lib64/libmiaudiopolymanager.so
 #   .../audio_lowpower_app_list.xml
 #
-# 实测结论（与 bin/hyperaudio_init.sh 的说明一致）：挖空这些 *impl.so 只会
+# 实测结论：挖空这些 *impl.so 只会
 # 让音频实现层失效，对"阻止应用拿到 ULL 通路"没有任何帮助，反而造成严重后果：
 #   · 音效模式：effect chain 所在的混音通路整个哑掉 —— 调音全无，且部分音频无声
 #   · 低延迟模式：fast track 走另一条通路，仍有声，但调音完全失效

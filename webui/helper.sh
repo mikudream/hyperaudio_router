@@ -26,12 +26,42 @@ TMP=/data/local/tmp/hyperaudio_webui
 # 得到 126 Permission denied、要么静默走 fallback 分支（WebUI 会表现为
 # "helper 无输出" 或"未检测到调音模块"）。
 SH=/system/bin/sh
+CR=$(printf '\r')          # 真正的 CR 字节，供内建模式匹配使用
 mkdir -p "$TMP" 2>/dev/null
 
 getk() { sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\(.*\)/\1/p" "$CONF" 2>/dev/null | head -1; }
 flat() { tr '\n' '\037'; }
+
+# 用 shell 内建 read + 参数展开读取，避免 cat/tr/命令替换各起一个进程。
+# 本设备每个进程约 70ms，而 getmode 在 status/setmode/save 每条命令里都会调用。
+# read 读取时默认 IFS 会去掉行首尾的空白，这里再兜底剥掉空白/制表符/CR，
+# 使其行为与原先的 `tr -d ' \r\n'` 等价（包括前导空行、空格包裹等畸形输入）。
 getmode() {
-  M=$(cat "$MODEFILE" 2>/dev/null | tr -d ' \r\n')
+  M=""
+  if [ -f "$MODEFILE" ]; then
+    # 读到第一行非空内容为止（read/mv 均为内建，不起进程）
+    while IFS= read -r L || [ -n "$L" ]; do
+      M=$L
+      case "$M" in *[!\ ]*) break ;; esac
+      M=""
+    done < "$MODEFILE" 2>/dev/null
+  fi
+  while :; do
+    case "$M" in
+      ' '*)  M=${M#?} ;;
+      '	'*)  M=${M#?} ;;
+      "$CR"*) M=${M#?} ;;
+      *) break ;;
+    esac
+  done
+  while :; do
+    case "$M" in
+      *' ')  M=${M%?} ;;
+      *'	')  M=${M%?} ;;
+      *"$CR") M=${M%?} ;;
+      *) break ;;
+    esac
+  done
   case "$M" in sound|fast) echo "$M" ;; *) echo sound ;; esac
 }
 
@@ -83,8 +113,9 @@ EOF
       # 守护进程状态：一次读取判断，避免多起进程
       if [ -n "$(pidof hyper-audio 2>/dev/null)" ]; then v_run=1; else v_run=0; fi
       printf 'running=%s\n' "$v_run"
-      # 二进制是否就位（含执行位）；缺失时低延迟模式无法启动守护进程
-      if [ -x "$DAEMON" ]; then v_dok=1; else v_dok=0; fi
+      # 二进制是否就位；用 -f 而非 -x —— 安装时 set_perm_recursive 会把文件设为
+      # 0644，用 -x 会假报"守护进程缺失"（service.sh 的 chmod 未必已跑到）
+      if [ -f "$DAEMON" ]; then v_dok=1; else v_dok=0; fi
       printf 'daemon_ok=%s\n' "$v_dok"
     } | flat
     printf '\n'
@@ -99,30 +130,61 @@ EOF
     if [ -f "$DETECT" ]; then
       L=$($SH "$DETECT" 2>/dev/null | head -1)
     else
-      L="module=none name=官方默认调音 version= verified=0 count=0"
+      L=""
     fi
-    M=$(echo "$L" | sed -n 's/.*module=\([^ ]*\).*/\1/p')
-    N=$(echo "$L" | sed -n 's/.*name=\(.*\) version=.*/\1/p')
-    V=$(echo "$L" | sed -n 's/.*version=\(.*\) verified=.*/\1/p')
-    F=$(echo "$L" | sed -n 's/.*verified=\([0-9]*\).*/\1/p')
-    C=$(echo "$L" | sed -n 's/.*count=\([0-9]*\).*/\1/p')
-    printf '%s|%s|%s|%s|%s' "${M:-none}" "${N:-官方默认调音}" "${V:-}" "${F:-0}" "${C:-0}"
+    # 检测脚本缺失、或存在但输出为空时，统一回落到默认文案。
+    # 注意：必须在这里兜底而不是依赖 awk —— awk 收到空输入时不会有任何记录，
+    # 其 main 规则根本不执行，printf 也就不会发生（会让前端收到空输出）。
+    [ -n "$L" ] || L="module=none name=官方默认调音 version= verified=0 count=0"
+    # 一次 awk 拆出全部字段：原先每个字段各跑一次 `echo|sed`，5 个字段就是
+    # 10 个进程（约 700ms）。这里把整行作为 awk 的输入，只起 1 个进程。
+    # 字段顺序与 detect_tuning.sh 的输出严格一致，可安全按标记前缀切分。
+    printf '%s' "$L" | awk '{
+      m=""; n=""; v=""; f=""; c=""
+      s=$0
+      if (match(s, /module=[^ ]*/))   m=substr(s, RSTART+7,  RLENGTH-7)
+      if (match(s, /name=.* version=/)) { n=substr(s, RSTART+5, RLENGTH-14) }
+      if (match(s, /version=.* verified=/)) { v=substr(s, RSTART+8, RLENGTH-18) }
+      if (match(s, /verified=[0-9]+/)) f=substr(s, RSTART+9, RLENGTH-9)
+      if (match(s, /count=[0-9]+/))    c=substr(s, RSTART+6, RLENGTH-6)
+      if (m == "") m = "none"
+      if (n == "") n = "官方默认调音"
+      if (f == "") f = "0"
+      if (c == "") c = "0"
+      printf "%s|%s|%s|%s|%s", m, n, v, f, c
+    }'
     printf '\n'
     ;;
 
   setmode)
     M="$2"
     case "$M" in sound|fast) ;; *) printf 'error=bad_mode\x1f\n'; exit 0 ;; esac
-    if [ -f "$MSW" ]; then
-      # mode_switch.sh 内部会一并刷新 module.prop 的「当前模式」前缀
-      $SH "$MSW" apply "$M" >/dev/null 2>&1
-    else
-      # mode_switch.sh 缺失（安装不完整）时的兜底：至少让模式文件生效。
-      # 此时无法刷新简介，因为刷新逻辑也在同一个脚本里。
-      printf '%s\n' "$M" > "$MODEFILE" 2>/dev/null
-      killall audioserver 2>/dev/null
+
+    if [ ! -f "$MSW" ]; then
+      # 安装不完整的兜底。原先这里只写模式文件、不打端口补丁、不起守护进程，
+      # 却仍回 ok=1 —— 界面会显示"已切换到低延迟模式"，而实际什么都没做。
+      # 现在如实回错，不静默降级。
+      printf 'error=mode_switch_missing\x1f\n'
+      exit 0
     fi
-    printf 'ok=1\x1fmode=%s\x1f\n' "$(getmode)"
+
+    # apply 失败（缺调音模块 / sed 复核不过 / mount 失败）必须如实上报，
+    # 并把失败原因透传给界面，而不是一律 ok=1。
+    OUT=$($SH "$MSW" apply "$M" 2>&1)
+    RC=$?
+    if [ "$RC" -ne 0 ] || ! printf '%s' "$OUT" | grep -q '^ok=1'; then
+      REASON=$(printf '%s' "$OUT" | grep -m1 '^error=' | cut -d= -f2-)
+      [ -n "$REASON" ] || REASON=apply_failed
+      printf 'error=%s\x1f\n' "$REASON"
+      exit 0
+    fi
+
+    # 端口已切但守护进程没起来时，把警告一并回传
+    if printf '%s' "$OUT" | grep -q '^warn=daemon_not_running'; then
+      printf 'ok=1\x1fmode=%s\x1fwarn=daemon_not_running\x1f\n' "$(getmode)"
+    else
+      printf 'ok=1\x1fmode=%s\x1f\n' "$(getmode)"
+    fi
     ;;
 
   save)

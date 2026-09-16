@@ -26,14 +26,45 @@ MODEFILE=$MOD/mode
 MODPROP=$MOD/module.prop
 PIDFILE=/data/local/tmp/hyperaudio.pid
 DST=/odm/etc/audio/audio_module_config_primary.xml
-SRC=/data/adb/modules/k90pm_audio_plus/Link/odm/etc/audio/audio_module_config_primary.xml
+# 端口配置由外部调音模块提供。原先硬编码 k90pm_audio_plus，与"通用机型"矛盾：
+# 换一支调音模块（或改名）就会静默失效。改为自动探测：先按已知名尝试，再在
+# 所有模块里找第一个提供 audio_module_config_primary.xml 的。
+SRC=""
 DAEMON=$MOD/hyper-audio
 STARTER=$MOD/bin/start_daemon.sh
 LOG=/data/local/tmp/hyper-audio.log
 
+CR=$(printf '\r')
+SH=/system/bin/sh
+
 get_mode() {
-  M=$(cat "$MODEFILE" 2>/dev/null | tr -d ' \r\n')
+  M=""
+  if [ -f "$MODEFILE" ]; then
+    while IFS= read -r L || [ -n "$L" ]; do
+      M=$L
+      case "$M" in *[!\ ]*) break ;; esac
+      M=""
+    done < "$MODEFILE" 2>/dev/null
+  fi
+  while :; do case "$M" in ' '*) M=${M#?} ;; *) break ;; esac; done
+  while :; do case "$M" in *' ') M=${M%?} ;; *"$CR") M=${M%?} ;; *) break ;; esac; done
   case "$M" in sound|fast) echo "$M" ;; *) echo sound ;; esac
+}
+
+# 找到提供 audio_module_config_primary.xml 的调音模块源文件
+detect_src() {
+  [ -n "$SRC" ] && [ -f "$SRC" ] && return 0
+  _k=/data/adb/modules/k90pm_audio_plus/Link/odm/etc/audio/audio_module_config_primary.xml
+  [ -f "$_k" ] && { SRC="$_k"; return 0; }
+  # 兜底：在已装模块里搜第一个匹配。关掉 glob，未匹配时模式保持字面量，
+  # 于是 -f 判定为假，不会误取。
+  set -f
+  for _c in /data/adb/modules/*/Link/odm/etc/audio/audio_module_config_primary.xml \
+            /data/adb/modules/*/odm/etc/audio/audio_module_config_primary.xml; do
+    [ -f "$_c" ] && { SRC="$_c"; set +f; return 0; }
+  done
+  set +f
+  return 1
 }
 
 # 守护进程是否在运行：pidof 最可靠（pgrep -f 与 PID 文件在本设备上都不稳）
@@ -41,20 +72,23 @@ daemon_running() {
   [ -n "$(pidof hyper-audio 2>/dev/null)" ]
 }
 
+# 启动守护进程；返回真实结果（原先无条件 return 0，失败也会被当成功）
 start_daemon() {
   daemon_running && return 0
   # 用独立启动器 + setsid：确保守护进程完全脱离本脚本，
   # 否则本脚本退出（或 killall audioserver）时会把同会话的子进程一起带走。
-  if [ -x "$STARTER" ]; then
-    setsid sh "$STARTER" >/dev/null 2>&1 < /dev/null
+  # 用 -f 而非 -x：安装后脚本可能没有执行位（见 helper.sh 的说明）。
+  if [ -f "$STARTER" ]; then
+    setsid $SH "$STARTER" >/dev/null 2>&1 < /dev/null
   else
-    [ -x "$DAEMON" ] || return 1
-    cd "$MOD" && setsid ./hyper-audio >> "$LOG" 2>&1 < /dev/null &
+    [ -f "$DAEMON" ] || return 1
+    chmod +x "$DAEMON" 2>/dev/null
+    ( cd "$MOD" && setsid ./hyper-audio >> "$LOG" 2>&1 < /dev/null & )
   fi
   sleep 1
   P=$(pidof hyper-audio 2>/dev/null | awk '{print $1}')
   [ -n "$P" ] && printf '%s\n' "$P" > "$PIDFILE"
-  return 0
+  daemon_running
 }
 
 stop_daemon() {
@@ -67,20 +101,62 @@ stop_daemon() {
 
 apply_flags() {
   M="$1"
-  [ -f "$SRC" ] || { echo "warn=config_missing"; return 0; }
+  detect_src || { echo "error=no_tuning_config"; return 1; }
+  [ -f "$SRC" ] || { echo "error=no_tuning_config"; return 1; }
+  [ -f "$DST" ] || { echo "error=target_missing"; return 1; }
+
+  BAK=/data/local/tmp/amcp.before_switch
+  cp -f "$SRC" "$BAK" 2>/dev/null || { echo "error=backup_failed"; return 1; }
 
   if [ "$M" = "sound" ]; then
     sed -i 's|\(<mixPort name="low_latency_out" role="source" flags="\)FAST PRIMARY">|\1PRIMARY">|' "$SRC"
+    s1=$?
     sed -i 's|\(<mixPort name="raw_out" role="source" flags="\)FAST RAW">|\1RAW">|' "$SRC"
+    s2=$?
+    WANT="PRIMARY"
   else
     sed -i 's|\(<mixPort name="low_latency_out" role="source" flags="\)PRIMARY">|\1FAST PRIMARY">|' "$SRC"
+    s1=$?
     sed -i 's|\(<mixPort name="raw_out" role="source" flags="\)RAW">|\1FAST RAW">|' "$SRC"
+    s2=$?
+    WANT="FAST PRIMARY"
   fi
   chmod 644 "$SRC" 2>/dev/null
 
+  # sed 本身失败即回滚（原先完全不检查返回码，补丁失败也报成功）
+  if [ "$s1" != "0" ] || [ "$s2" != "0" ]; then
+    cp -f "$BAK" "$SRC" 2>/dev/null
+    echo "error=sed_failed"
+    return 1
+  fi
+
+  # 复核目标标志。若关键 mixPort 根本不存在，则无法判断 —— 这时按"未验证但继续"
+  # 处理并明确告知（UNVERIFIED），而不是谎报成功。
+  UNVERIFIED=0
+  if grep -q 'mixPort name="low_latency_out"' "$SRC" 2>/dev/null; then
+    if grep -q "mixPort name=\"low_latency_out\"[^>]*flags=\"$WANT\"" "$SRC" 2>/dev/null; then
+      :
+    else
+      cp -f "$BAK" "$SRC" 2>/dev/null
+      echo "error=flag_patch_failed"
+      return 1
+    fi
+  else
+    UNVERIFIED=1
+  fi
+
+  # 重新 bind mount 到 /odm
   umount "$DST" 2>/dev/null
-  mount --bind "$SRC" "$DST" 2>/dev/null
+  if ! mount --bind "$SRC" "$DST" 2>/dev/null; then
+    # 挂载失败：此时 /odm 上原本由调音模块建立的挂载已被 umount 摘掉，
+    # 必须尽力恢复，否则 audioserver 重启后可能直接没声音。
+    mount --bind "$BAK" "$DST" 2>/dev/null || mount --bind "$SRC" "$DST" 2>/dev/null
+    echo "error=mount_failed"
+    return 1
+  fi
   restorecon "$DST" 2>/dev/null
+  rm -f "$BAK" 2>/dev/null
+  return 0
 }
 
 # 把当前模式写进 module.prop 的 description，供 KernelSU / Magisk 模块列表直接显示。
@@ -129,14 +205,41 @@ case "$1" in
   apply)
     M="$2"
     case "$M" in sound|fast) ;; *) echo "error=bad_mode"; exit 1 ;; esac
+
+    # 先打补丁 / 挂载。只有成功后才写 mode 文件 —— 否则会出现
+    # "mode 文件已改成目标值、但端口标志没变"的不一致状态
+    # （开机逻辑以 mode 文件为准，界面与实际就会互相矛盾）。
+    # 注意：不能写成 `ERR=$(f); if [ $? ... ]` —— 那样 $? 取的是赋值语句的结果。
+    UNVERIFIED=0
+    OUT=/data/local/tmp/ms.out
+    apply_flags "$M" > "$OUT" 2>&1
+    RC=$?
+    if [ "$RC" -ne 0 ]; then
+      # apply_flags 已把 SRC 回滚到切换前的内容
+      cat "$OUT" 2>/dev/null
+      rm -f "$OUT"
+      exit 1
+    fi
+    rm -f "$OUT"
+
     printf '%s\n' "$M" > "$MODEFILE" 2>/dev/null
     chmod 644 "$MODEFILE" 2>/dev/null
-    apply_flags "$M"
-    if [ "$M" = "sound" ]; then stop_daemon; else start_daemon; fi
+
+    DAEMON_OK=1
+    if [ "$M" = "sound" ]; then
+      stop_daemon
+    else
+      start_daemon || DAEMON_OK=0
+    fi
     killall audioserver 2>/dev/null
     update_desc
+
     echo "ok=1"
     echo "mode=$M"
+    # 让调用方能区分"完全成功"与"端口已切但守护进程没起来"
+    [ "$DAEMON_OK" = "1" ] || echo "warn=daemon_not_running"
+    [ "$UNVERIFIED" = "1" ] || echo "verified=1"
+    exit 0
     ;;
 
   current)
