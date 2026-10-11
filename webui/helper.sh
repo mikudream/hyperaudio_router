@@ -248,18 +248,6 @@ EOF
         printf '%s = %s\n' "$k" "$v" >> "$CONF"
       fi
     }
-    v_enable=$(sed -n 's/.*"enable"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$IN" | head -1)
-    v_only=$(sed -n   's/.*"only_whitelist"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$IN" | head -1)
-    v_ap=$(sed -n     's/.*"audio_priority"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$IN" | head -1)
-    v_hp=$(sed -n     's/.*"hal_priority"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$IN" | head -1)
-    v_pp=$(sed -n     's/.*"app_priority"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$IN" | head -1)
-
-    save_kv enable         "$v_enable"
-    save_kv only_whitelist "$v_only"
-    save_kv audio_priority "$v_ap"
-    save_kv hal_priority   "$v_hp"
-    save_kv app_priority   "$v_pp"
-
     # 重建 whitelist 段
     # 渲染用 awk 一次拼成，不用 shell while 循环：循环里 `wc -l` 与实际行数
     # 在末行无换行时会错位，导致**丢掉最后一项**。
@@ -285,6 +273,43 @@ EOF
         | grep -o '"[^"]*"' | tr -d '"' > "$TMP/wl.txt"
     fi
 
+    v_enable=$(sed -n 's/.*"enable"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$IN" | head -1)
+    v_only=$(sed -n   's/.*"only_whitelist"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$IN" | head -1)
+    v_ap=$(sed -n     's/.*"audio_priority"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$IN" | head -1)
+    v_hp=$(sed -n     's/.*"hal_priority"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$IN" | head -1)
+    v_pp=$(sed -n     's/.*"app_priority"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$IN" | head -1)
+
+    # ── 严格校验（配置一律当数据，不做"缺了就跳过"的静默降级）──────────
+    # 原先 save_kv 遇到空值就 return，于是畸形输入会**部分写入**：例如只有
+    # enable 一项没解析出来时，其余项照写、配置文件进入半新半旧的不一致状态。
+    # 现在先在内存里全量校验，任何一项不过就整体拒绝，绝不写出部分结果。
+    _bad=""
+    case "$v_enable" in true|false) ;; *) _bad="enable" ;; esac
+    case "$v_only"   in true|false) ;; *) _bad="${_bad}${_bad:+ }only_whitelist" ;; esac
+    for _p in "$v_ap" "$v_hp" "$v_pp"; do
+      case "$_p" in
+        ''|*[!0-9]*|0*) _bad="${_bad}${_bad:+ }priority" ;;
+        *) [ "${#_p}" -le 2 ] && [ "$_p" -ge 1 ] && [ "$_p" -le 99 ] || _bad="${_bad}${_bad:+ }priority" ;;
+      esac
+    done
+    # 白名单项必须是包名形态；含空格/分号/$() 等一律拒绝（这些值会被写进
+    # TOML 并由守护进程读取，宁可拒绝也不写入可疑内容）
+    if [ -s "$TMP/wl.txt" ]; then
+      if grep -qvE '^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+$' "$TMP/wl.txt"; then
+        _bad="${_bad}${_bad:+ }whitelist_entry"
+      fi
+    fi
+    if [ -n "$_bad" ]; then
+      printf 'error=invalid_value_%s\x1f\n' "$(printf '%s' "$_bad" | tr ' ' '_')"
+      exit 0
+    fi
+
+    save_kv enable         "$v_enable"
+    save_kv only_whitelist "$v_only"
+    save_kv audio_priority "$v_ap"
+    save_kv hal_priority   "$v_hp"
+    save_kv app_priority   "$v_pp"
+
     render_whitelist() {
       # 逐项拼出 TOML 数组：项间用逗号，最后一项不加逗号
       printf 'whitelist = [\n'
@@ -301,24 +326,34 @@ EOF
 
     B1="$TMP/b1"; B2="$TMP/b2"
     if [ "$start" -gt 1 ]; then head -n $((start - 1)) "$CONF" > "$B1"; else : > "$B1"; fi
-    if [ "$end" -lt "$total" ]; then tail -n +$((end + 1)) "$CONF" > "$B2"; else : > "$B2"; fi
+    # 白名单段之后的内容：去掉末尾空行再写回，否则每次保存都会多出一个空行，
+    # 反复保存会让配置文件持续增长（实测：连存 3 次就多出 3 个空行）。
+    if [ "$end" -lt "$total" ]; then
+      tail -n +$((end + 1)) "$CONF" | awk '{ if ($0 ~ /^[[:space:]]*$/) { n++; next } while (n > 0) { print ""; n-- } print }' > "$B2"
+    else
+      : > "$B2"
+    fi
 
     {
       cat "$B1"
       render_whitelist
       cat "$B2"
     } > "$TMP/out.toml"
-    printf '\n' >> "$TMP/out.toml"
 
     if [ -s "$TMP/out.toml" ] && grep -q '^whitelist' "$TMP/out.toml"; then
       cp -f "$TMP/out.toml" "$CONF"
       chmod 644 "$CONF" 2>/dev/null
-      # 低延迟模式下的参数变更需要重启守护进程才能生效
+      # 低延迟模式下的参数变更需要重启守护进程才能生效。
+      # 注意：不能用 pkill -f "$DAEMON" —— 进程 cmdline 是 "./hyper-audio"，
+      # 与绝对路径不匹配，实测永远杀不掉；改用 pidof + 启动器。
       M=$(getmode)
       if [ "$M" = "fast" ] && [ -n "$(pidof hyper-audio 2>/dev/null)" ]; then
-        pkill -f "$DAEMON" 2>/dev/null
+        for _p in $(pidof hyper-audio 2>/dev/null); do kill "$_p" 2>/dev/null; done
+        rm -f /data/local/tmp/hyperaudio.pid 2>/dev/null
         sleep 1
-        cd "$MOD" && setsid ./hyper-audio >> /data/local/tmp/hyper-audio.log 2>&1 < /dev/null &
+        if [ -f "$MOD/bin/start_daemon.sh" ]; then
+          setsid $SH "$MOD/bin/start_daemon.sh" >/dev/null 2>&1 < /dev/null
+        fi
       fi
       printf 'ok=1\x1f\n'
     else

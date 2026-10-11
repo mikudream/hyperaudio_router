@@ -147,8 +147,11 @@ webui/     本项目源码：WebUI 与设备端脚本
            patch_ports.awk     有界 XML 编辑器（只改两个端口的 flags，异常一律 fail-closed）
            start_daemon.sh     守护进程启动器
            detect_tuning.sh    调音来源检测（异步调用，不在关键路径）
-tests/     主机侧测试（不随包分发）
-           test_patch_ports.sh   patch_ports.awk 的行为与 fail-closed 用例
+tests/     主机侧测试（不随包分发，用 `sh tests/run.sh` 跑）
+           run.sh                       测试入口
+           test_patch_ports.sh          patch_ports.awk 改写与 fail-closed 用例（16 项）
+           test_save_validation.sh      save 的严格校验（非法输入必须整体拒绝）
+           test_save_no_accumulation.sh 反复保存不应让配置文件增长
 prebuilt/  上游预编译产物（无法从源码重建，按原样保留，见 CREDITS.md）
 CREDITS.md 来源与致谢（随模块包分发）
 build.ps1  构建脚本：组装 + 清理作者标识 + 校验 + 打包（产物逐字节可复现）

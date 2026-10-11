@@ -1,7 +1,7 @@
 #!/system/bin/sh
 # patch_ports.awk 的行为测试（有界编辑器：正常改、异常一律 fail-closed）
 SH=/system/bin/sh
-AWK=$1
+AWK=${1:-$(dirname "$0")/../webui/patch_ports.awk}
 T=/data/local/tmp/pt
 rm -rf "$T"; mkdir -p "$T"
 
