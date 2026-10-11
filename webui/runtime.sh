@@ -37,19 +37,26 @@
 #       sh runtime.sh boot             # 开机调用（含护栏）
 # ============================================================
 
+# 路径。HA_MOD / HA_TMP / HA_SOURCE_DIR / HA_MOUNTINFO 只是为了让主机侧测试
+# 能把整棵树重定向到临时目录，真机上不设这些变量，取值与原来完全一致。
 MOD=${HA_MOD:-/data/adb/modules/hyperaudio}
 STATE=$MOD/state
 MODEFILE=$MOD/mode
 MODPROP=$MOD/module.prop
-PIDFILE=/data/local/tmp/hyperaudio.pid
+TMP=${HA_TMP:-/data/local/tmp}
+PIDFILE=$TMP/hyperaudio.pid
 DAEMON=$MOD/hyper-audio
 STARTER=$MOD/bin/start_daemon.sh
 PATCHER=$MOD/bin/patch_ports.awk
-LOG=/data/local/tmp/hyper-audio.log
-SH=/system/bin/sh
+LOG=$TMP/hyper-audio.log
+RUNTIME_LOG=$TMP/hyperaudio-runtime.log
+SH=${HA_SH:-/system/bin/sh}
+MOUNTINFO=${HA_MOUNTINFO:-/proc/self/mountinfo}
+BOOT_ID_FILE=${HA_BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}
+SOURCE_DIR=${HA_SOURCE_DIR:-/data/adb/modules}
 CR=$(printf '\r')
 
-log() { printf '[%s] %s\n' "$(date '+%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> /data/local/tmp/hyperaudio-runtime.log 2>/dev/null; }
+log() { printf '[%s] %s\n' "$(date '+%m-%d %H:%M:%S' 2>/dev/null)" "$*" >> "$RUNTIME_LOG" 2>/dev/null; }
 err() { echo "error=$*"; log "ERROR $*"; return 1; }
 
 # ---------------- 基础读取 ----------------
@@ -85,15 +92,15 @@ applied_value() { cat "$STATE/applied" 2>/dev/null | tr -d ' \r\n'; }
 detect_src() {
   [ -n "$SRC" ] && [ -f "$SRC" ] && return 0
   for _c in \
-    /data/adb/modules/*/Link/odm/etc/audio/audio_module_config_primary.xml \
-    /data/adb/modules/*/Link/vendor/etc/audio/audio_module_config_primary.xml \
-    /data/adb/modules/*/odm/etc/audio/audio_module_config_primary.xml \
-    /data/adb/modules/*/vendor/etc/audio/audio_module_config_primary.xml \
-    /data/adb/modules/*/system/vendor/etc/audio/audio_module_config_primary.xml \
+    $SOURCE_DIR/*/Link/odm/etc/audio/audio_module_config_primary.xml \
+    $SOURCE_DIR/*/Link/vendor/etc/audio/audio_module_config_primary.xml \
+    $SOURCE_DIR/*/odm/etc/audio/audio_module_config_primary.xml \
+    $SOURCE_DIR/*/vendor/etc/audio/audio_module_config_primary.xml \
+    $SOURCE_DIR/*/system/vendor/etc/audio/audio_module_config_primary.xml \
   ; do
     case "$_c" in
       *'*') continue ;;
-      /data/adb/modules/*) [ -f "$_c" ] || continue ;;
+      $SOURCE_DIR/*) [ -f "$_c" ] || continue ;;
       *) continue ;;
     esac
     SRC="$_c"
@@ -105,35 +112,84 @@ detect_src() {
 # 从源路径推导设备上的生效路径：
 #   <mod>/Link/odm/etc/... -> /odm/etc/...
 #   <mod>/odm/etc/...      -> /odm/etc/...
-# 即：剥掉 <mod>/ 前缀与可选的 Link/ 前缀，再补上 / 。
+# 即：剥掉源根目录（默认 /data/adb/modules，可用 HA_SOURCE_DIR 重定向）
+# 与模块目录名，再剥掉可选的 Link/，最后补上 / 。
+#
+# 注意这里剥的是 $SOURCE_DIR 而不是 $MOD —— 探测出来的源文件位于**别的**
+# 模块目录下，用 $MOD 去剥在真机上恰好也能匹配上（因为两者同属
+# /data/adb/modules 子树），但那是巧合；主机侧注入测试就会暴露成
+# cannot_derive_target。
 derive_target() {
-  _r=${1#$MOD/}
+  _r=${1#$SOURCE_DIR/}
+  _r=${_r#*/}
   _r=${_r#Link/}
   case "$_r" in
-    odm/*|vendor/*|system/*) TARGET="/$_r"; return 0 ;;
+    odm/*|vendor/*|system/*)
+      # HA_TARGET_BASE 只为主机侧测试把绝对目标根重定向到临时目录；
+      # 真机不设，取值就是空串，TARGET 与原来的 "/$_r" 完全一致。
+      TARGET="${HA_TARGET_BASE:-}/$_r"
+      return 0 ;;
     *) return 1 ;;
   esac
 }
 
 # ---------------- 挂载所有权（证据，而非标记） ----------------
 
-# 目标是否挂着**我们的**层：dev:ino 与 active.xml 相同
+# 目标是否挂着**我们的**层。判据（按可靠性排序）：
+#   1) dev:ino 与 state/active.xml 相同 —— 内容级证据
+#   2) 退路：如果拿不到 dev:ino（某些 toybox/f2fs 组合下 stat 可能不给），
+#      再看 mountinfo 里该挂载是否确实覆盖了目标，且目标内容与 active.xml 一致
 mount_is_ours() {
+  # 测试钩子：主机侧无法建立真实的 bind mount，dev:ino 证据也不成立。
+  # 生产环境不设这两个变量，全部走下面的真实判据。
+  # 见 tests/test_runtime_state_machine.sh。
+  case "${HA_RT_OURS_TEST:-}" in
+    yes) return 0 ;;
+    no)  return 1 ;;
+  esac
+
   [ -f "$TARGET" ] || return 1
   [ -f "$STATE/active.xml" ] || return 1
+
+  # 比对对象：真机就是目标文件本身；HA_RT_TARGET_STAT 仅在测试里指向一个
+  # 被挂载系统调用覆盖过的路径（bind mount 会产生这一层）。
+  _t=${HA_RT_TARGET_STAT:-$TARGET}
   _a=$(stat -c '%d:%i' "$STATE/active.xml" 2>/dev/null)
-  _b=$(stat -c '%d:%i' "$TARGET" 2>/dev/null)
-  [ -n "$_a" ] && [ "$_a" = "$_b" ]
+  _b=$(stat -c '%d:%i' "$_t" 2>/dev/null)
+  if [ -n "$_a" ] && [ "$_a" = "$_b" ]; then return 0; fi
+
+  # 退路只在确实挂着、且字节一致时才认，避免把"恰好同内容"当成我们的层
+  target_mounted || return 1
+  cmp -s "$STATE/active.xml" "$TARGET" 2>/dev/null
 }
 
 # 目标当前是否挂载着（任意来源）
 target_mounted() {
-  [ -r /proc/self/mountinfo ] || return 1
-  awk -v t="$TARGET" '$5==t {found=1; exit} END{exit !found}' /proc/self/mountinfo 2>/dev/null
+  [ -r "$MOUNTINFO" ] || return 1
+  awk -v t="$TARGET" '$5==t {found=1; exit} END{exit !found}' "$MOUNTINFO" 2>/dev/null
 }
 
-# 摘掉我们的层。原先必须先确认这层是我们的，避免摘掉别人的挂载。
+# 启动时把 TARGET 解析出来（TARGET 原先只在 apply_mode 里推导）。
+resolve_target() {
+  if [ -f "$STATE/target" ]; then
+    TARGET=$(head -1 "$STATE/target" 2>/dev/null | tr -d ' \r\n')
+    [ -n "$TARGET" ] && return 0
+  fi
+  # 回退：按调音模块源文件重新推导，这样"只有 state 丢了"的情况也能收尾
+  SRC=""
+  detect_src || { TARGET=""; return 1; }
+  derive_target "$SRC" || { TARGET=""; return 1; }
+  return 0
+}
+
+# 摘掉我们的层。必须先确认这层是我们的，避免摘掉别人的挂载。
+#
+# 注意：这里**不能**在 TARGET 为空时就直接 return 0。原先就是这么写的，而
+# TARGET 只在 apply_mode 里推导 —— 于是 recover（以及走 recover 的卸载清理）
+# 在"当前模式是 fast"时压根不会去摘挂载，却照样报 ok=1。主机侧注入测试
+# 定位到了这一点（test 9）。
 remove_our_mount() {
+  resolve_target
   [ -n "$TARGET" ] || return 0
   target_mounted || { rm -f "$STATE/owned" 2>/dev/null; return 0; }
   if mount_is_ours; then
@@ -256,6 +312,7 @@ restart_audio_only_if_needed() {
 # 摘掉我们的挂载、删掉快照/标记。不碰任何第三方文件。
 native_cleanup() {
   _fail=0
+  resolve_target
   remove_our_mount || _fail=1
   rm -f "$STATE/active.xml" "$STATE/candidate.xml" "$STATE/patch-error.txt" 2>/dev/null
   rm -f "$STATE/owned" 2>/dev/null
@@ -441,12 +498,18 @@ guard_reason() {
 
 boot_run() {
   mkdir -p "$STATE" 2>/dev/null
-  BOOT_ID=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
-  [ -n "$BOOT_ID" ] || { err cannot_read_boot_id; return 1; }
+  BOOT_ID=$(cat "$BOOT_ID_FILE" 2>/dev/null)
+  # 兜底：极少数环境读不到 boot_id（文件缺失/权限）。用固定值总比整个开机
+  # 逻辑罢工好 —— 去重语义会弱化成"只跑一次"，但仍能应用模式。
+  [ -n "$BOOT_ID" ] || BOOT_ID=unknown-boot
+  log "boot_run: boot_id=$BOOT_ID"
 
   # 去重：同一次启动只执行一次
   if [ "$(boot_current)" = "$BOOT_ID" ]; then
     log "boot handler already ran for this boot"
+    # 明确回一行：调用方（service.sh / 诊断）需要能区分"已跑过"和"跑失败了"
+    echo "already_ran=1"
+    echo "mode=$(get_mode)"
     return 0
   fi
   set_boot_current "$BOOT_ID"
@@ -491,6 +554,7 @@ boot_run() {
 
 recover() {
   mkdir -p "$STATE" 2>/dev/null
+  resolve_target
   stop_daemon
   native_cleanup || { err recover_incomplete_reboot_required; return 1; }
   set_mode_file fast
