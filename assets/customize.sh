@@ -20,7 +20,7 @@ SKIPUNZIP=0
 # 但调音同样失效。详见下方 set_permissions 上方的说明。
 #
 # 机型适配：本模块自身不含机型判断；但音效模式依赖外部调音模块提供
-# audio_module_config_primary.xml（见 bin/mode_switch.sh 的 SRC）。
+# audio_module_config_primary.xml（见 bin/runtime.sh 的 detect_src）。
 #
 # 不含任何音效调音内容：无 ACDB 声学校准、无 Dolby DAX 调音、无 mixer 通路
 # 与音量曲线改动，因此可与其他调音模块并存。
@@ -37,10 +37,14 @@ set_permissions() {
   # 用 [ -f ] 保护，避免文件缺失时 chmod 报错中断安装。
   for f in $MODPATH/hyper-audio $MODPATH/action.sh $MODPATH/uninstall.sh \
            $MODPATH/webui/helper.sh \
-           $MODPATH/bin/mode_switch.sh $MODPATH/bin/start_daemon.sh \
+           $MODPATH/bin/runtime.sh $MODPATH/bin/start_daemon.sh \
            $MODPATH/bin/detect_tuning.sh; do
     [ -f "$f" ] && chmod 0755 "$f"
   done
+
+  # patch_ports.awk 由 awk 读取（不需要执行位），但显式设一遍 0644，
+  # 避免不同管理器对 zip 内权限的处理差异。
+  [ -f "$MODPATH/bin/patch_ports.awk" ] && chmod 0644 "$MODPATH/bin/patch_ports.awk"
 }
 
 # ── 不再遮蔽任何系统音频库（重要）────────────────────────────
@@ -57,6 +61,59 @@ set_permissions() {
 #   · 低延迟模式：fast track 走另一条通路，仍有声，但调音完全失效
 # 也就是说，遮蔽它们既达不到低延迟目的，又把调音一起废掉了，故彻底移除。
 set_permissions
+
+# ── 原地清理旧版（<=0.4.5）留下的东西 ─────────────────────────
+# 旧版是"直接改调音模块源文件再 bind"的，两者都会残留到重启：
+#   · 内核里的 bind mount 不会因为覆盖安装而消失，而它指向的正是被改过的源文件
+#   · 源文件本身的 FAST 标志已被旧版 sed 摘掉
+# 这里就地撤掉：先修好源文件，再摘掉旧版那一层，使 /odm 立刻回到原始配置。
+# 判据保守：只在"两个端口都缺 FAST"时认定为旧版遗留。
+_cleanup_old_overlay() {
+  _mounted=""
+  for _c in /data/adb/modules/*/Link/odm/etc/audio/audio_module_config_primary.xml \
+            /data/adb/modules/*/odm/etc/audio/audio_module_config_primary.xml; do
+    case "$_c" in *'*') continue ;; esac
+    [ -f "$_c" ] || continue
+    _low=$(sed -n 's/.*<mixPort name="low_latency_out"[^>]*flags="\([^"]*\)".*/\1/p' "$_c" 2>/dev/null | head -1)
+    _raw=$(sed -n 's/.*<mixPort name="raw_out"[^>]*flags="\([^"]*\)".*/\1/p' "$_c" 2>/dev/null | head -1)
+    [ -n "$_low" ] && [ -n "$_raw" ] || continue
+    _need=0
+    case "$_low" in *FAST*) ;; *) _need=1 ;; esac
+    case "$_raw" in *FAST*) ;; *) _need=1 ;; esac
+    if [ "$_need" = "1" ]; then
+      sed -i 's|\(<mixPort name="low_latency_out" role="source" flags="\)PRIMARY">|\1FAST PRIMARY">|' "$_c" 2>/dev/null
+      sed -i 's|\(<mixPort name="raw_out" role="source" flags="\)RAW">|\1FAST RAW">|' "$_c" 2>/dev/null
+      chmod 644 "$_c" 2>/dev/null
+      ui_print "- 已修复旧版遗留在调音模块源文件上的端口标志"
+    fi
+    # 找到对应的生效路径并摘掉旧版的层
+    # /data/adb/modules/<mod>/Link/odm/etc/... -> /odm/etc/...
+    _r=${_c#/data/adb/modules/}
+    _r=${_r#*/}
+    _r=${_r#Link/}
+    case "$_r" in
+      odm/*|vendor/*|system/*) _dst="/$_r" ;;
+      *) continue ;;
+    esac
+    if [ -f "$_dst" ]; then
+      # 只有能**明确证明**这一层是旧版建立的才摘：目标是挂载点，且其内容与
+      # 调音模块源文件不同（= 旧版改过）。任何一环拿不到证据就保持不动 ——
+      # 宁可留到重启，也不误摘调音模块自己建立的层。
+      _is_mnt=0
+      if [ -r /proc/self/mountinfo ] && awk -v t="$_dst" '$5==t{found=1} END{exit !found}' /proc/self/mountinfo 2>/dev/null; then
+        _is_mnt=1
+      fi
+      if [ "$_is_mnt" = "1" ] && cmp -s "$_dst" "$_c" 2>/dev/null; then
+        _is_mnt=0   # 内容与源一致 => 是调音模块自己的层，不动
+      fi
+      if [ "$_is_mnt" = "1" ]; then
+        umount "$_dst" 2>/dev/null && ui_print "- 已撤销旧版建立的音频配置层（$_dst）"
+      fi
+    fi
+  done
+}
+_cleanup_old_overlay
+
 ui_print " "
 ui_print "- 音频模式切换器（通用机型）已安装"
 ui_print "- 模块 ID：hyperaudio"

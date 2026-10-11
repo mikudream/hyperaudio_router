@@ -9,6 +9,7 @@
 #
 # 命令：
 #   status              单行：mode=..\x1fenable=..\x1f...\x1fwhitelist_begin\x1f<包名>...\x1fwhitelist_end\x1frunning=0|1
+#                             另有 applied / pending / boot_guard / overlay，供前端显示恢复状态
 #   setmode <sound|fast>  切换音效/低延迟模式，单行：ok=1\x1fmode=sound
 #   save                单行：ok=1 | error=xxx
 # ============================================================
@@ -16,7 +17,12 @@
 MOD=/data/adb/modules/hyperaudio
 CONF=$MOD/config.toml
 MODEFILE=$MOD/mode
-MSW=$MOD/bin/mode_switch.sh
+STATE=$MOD/state
+# 模式状态机。0.4.5 里叫 mode_switch.sh，现在改名为 runtime.sh
+# （改副本再 bind + 事务 + 开机护栏 + 回滚）。保留旧名的回退只是为了
+# 让"只更新了部分文件"的中间状态也能工作。
+MSW=$MOD/bin/runtime.sh
+[ -f "$MSW" ] || MSW=$MOD/bin/mode_switch.sh
 DETECT=$MOD/bin/detect_tuning.sh
 DAEMON=$MOD/hyper-audio
 TMP=/data/local/tmp/hyperaudio_webui
@@ -110,6 +116,31 @@ EOF
       printf 'whitelist_begin\n'
       sed -n '/^[[:space:]]*whitelist[[:space:]]*=/,/\]/p' "$CONF" 2>/dev/null | grep -o '"[^"]*"' | tr -d '"'
       printf 'whitelist_end\n'
+
+      # 事务 / 护栏 / 挂载状态：供前端显示"需要恢复"之类提示。
+      # 全部用 -f 与内建读，不额外起进程。
+      printf 'applied=%s\n' "$(cat "$STATE/applied" 2>/dev/null | tr -d ' \r\n')"
+      if [ -f "$STATE/pending" ]; then printf 'pending=1\n'; else printf 'pending=0\n'; fi
+      if [ -f "$STATE/boot.failure" ]; then
+        printf 'boot_guard=%s\n' "$(head -1 "$STATE/boot.failure" 2>/dev/null | tr -d ' \r\n')"
+      else
+        printf 'boot_guard=none\n'
+      fi
+      # 挂载归属：ours=我们叠的层；conflict=被别的模块替换；none=无
+      if [ -f "$STATE/active.xml" ] && [ -f "$STATE/target" ]; then
+        _tg=$(cat "$STATE/target" 2>/dev/null | tr -d ' \r\n')
+        if [ -f "$_tg" ]; then
+          _a=$(stat -c '%d:%i' "$STATE/active.xml" 2>/dev/null)
+          _b=$(stat -c '%d:%i' "$_tg" 2>/dev/null)
+          if [ -n "$_a" ] && [ "$_a" = "$_b" ]; then printf 'overlay=ours\n'
+          else printf 'overlay=conflict\n'; fi
+        else
+          printf 'overlay=none\n'
+        fi
+      else
+        printf 'overlay=none\n'
+      fi
+
       # 守护进程状态：一次读取判断，避免多起进程
       if [ -n "$(pidof hyper-audio 2>/dev/null)" ]; then v_run=1; else v_run=0; fi
       printf 'running=%s\n' "$v_run"
@@ -168,7 +199,7 @@ EOF
       exit 0
     fi
 
-    # apply 失败（缺调音模块 / sed 复核不过 / mount 失败）必须如实上报，
+    # apply 失败（缺调音模块 / 端口改写被拒 / 挂载失败 / 回滚）必须如实上报，
     # 并把失败原因透传给界面，而不是一律 ok=1。
     OUT=$($SH "$MSW" apply "$M" 2>&1)
     RC=$?
@@ -185,6 +216,19 @@ EOF
     else
       printf 'ok=1\x1fmode=%s\x1f\n' "$(getmode)"
     fi
+    ;;
+
+  # 撤销一切改动，回到系统原始状态（含摘掉我们的挂载、清掉事务/护栏）
+  recover)
+    OUT=$($SH "$MSW" recover 2>&1)
+    RC=$?
+    if [ "$RC" -ne 0 ] || ! printf '%s' "$OUT" | grep -q '^ok=1'; then
+      REASON=$(printf '%s' "$OUT" | grep -m1 '^error=' | cut -d= -f2-)
+      [ -n "$REASON" ] || REASON=recover_failed
+      printf 'error=%s\x1f\n' "$REASON"
+      exit 0
+    fi
+    printf 'ok=1\x1fmode=%s\x1f\n' "$(getmode)"
     ;;
 
   save)

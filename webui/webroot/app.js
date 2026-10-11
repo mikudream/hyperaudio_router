@@ -41,7 +41,13 @@ var S = {
   whitelist: [],
   running: false,
   daemonOk: true,
-  switching: false
+  switching: false,
+  /* 事务 / 开机护栏 / 挂载归属：由 helper status 的 applied / pending /
+   * boot_guard / overlay 提供，用于提示"需要恢复"。 */
+  applied: '',
+  pending: false,
+  bootGuard: 'none',
+  overlay: 'none'
 };
 
 /* ---------------- 基础工具 ---------------- */
@@ -149,6 +155,10 @@ function parseStatus(out) {
     if (k === 'mode') { S.mode = (v === 'fast' ? 'fast' : 'sound'); return; }
     if (k === 'running') { S.running = (v === '1'); return; }
     if (k === 'daemon_ok') { S.daemonOk = (v === '1'); return; }
+    if (k === 'applied') { S.applied = v; return; }
+    if (k === 'pending') { S.pending = (v === '1'); return; }
+    if (k === 'boot_guard') { S.bootGuard = v; return; }
+    if (k === 'overlay') { S.overlay = v; return; }
     S.config[k] = v;
   });
   S.whitelist = wl;
@@ -285,6 +295,7 @@ function renderAll() {
   if (tl && !S.switching) tl.textContent = isSound ? '切换到低延迟模式' : '切换到音效模式';
 
   renderTuning();
+  renderRecovery();
 
   var b = $('runBadge');
   if (S.switching) {
@@ -311,6 +322,31 @@ function renderAll() {
   $('f-app').value = S.config.app_priority;
 
   renderWhitelist();
+}
+
+/* 恢复提示。
+ *
+ * 触发条件（任一）：
+ *   · pending=1      —— 上次切换没走完（可能中途被杀/重启），事务未收尾
+ *   · bootGuard≠none —— 开机护栏已生效：上次应用失败，本次已强制回到原始配置
+ *   · overlay=conflict —— 我们叠加的那层被别的模块替换了，本模块拒绝强行动手
+ *
+ * 这几种情况都不会自动重试（避免反复失败），所以必须让用户看得见、能主动恢复。 */
+function renderRecovery() {
+  var card = $('card-recover');
+  if (!card) return;
+  var why = [];
+  if (S.pending) why.push('上次模式切换没有正常结束');
+  if (S.bootGuard && S.bootGuard !== 'none') {
+    why.push('上次应用失败，已临时回到系统原始配置（原因：' + S.bootGuard + '）');
+  }
+  if (S.overlay === 'conflict') {
+    why.push('本模块叠加的音频配置层已被其他模块改动，本模块不会强行覆盖');
+  }
+  if (!why.length) { card.hidden = true; return; }
+  card.hidden = false;
+  $('recoverWhy').textContent = why.join('；') +
+    '。点下方按钮可撤销本模块的全部改动，回到系统原始配置（不重启即可生效）。';
 }
 
 function renderWhitelist() {
@@ -379,6 +415,46 @@ function setSwitching(on, name) {
   }
 }
 
+/* runtime.sh 的错误名 → 给用户看的话。
+ * 不做映射时会直接把 error=xxx 的原始代号弹给用户，看不懂。 */
+var APPLY_ERR = {
+  no_tuning_config: '未找到提供音频端口配置的调音模块（音效模式需要它）',
+  cannot_derive_target: '无法从调音模块路径推导出系统上的生效路径',
+  target_missing: '系统上的音频端口配置文件不存在',
+  snapshot_failed: '无法保存端口配置基线',
+  port_patch_empty: '端口补丁产生了空文件，已放弃',
+  no_port_changes: '端口标志本来就是目标状态，无需补丁（可能已被其他模块改过）',
+  bind_mount_denied: '无法把补丁叠加到系统路径（挂载被拒绝）',
+  mount_not_visible: '挂载已建立但对系统不可见',
+  unmount_failed_reboot_required: '撤销上一层的挂载失败，需要重启',
+  overlay_changed_by_another_module: '该路径已被其他模块改动，本模块不会强行覆盖',
+  apply_failed_restored_native: '应用失败，已恢复为系统原始配置',
+  rollback_incomplete_reboot_required: '应用失败且回滚未完成，需要重启',
+  legacy_source_repair_failed: '调音模块的端口文件曾被旧版本改动，修复失败',
+  mode_switch_missing: '模块文件不完整（找不到模式状态机），请重新刷入',
+  daemon_start_failed: '守护进程启动失败',
+  cannot_save_mode: '无法写入模式文件',
+  bad_mode: '内部错误：模式参数不合法'
+};
+
+function applyErrText(raw) {
+  var out = String(raw == null ? '' : raw);
+  /* helper 回的是单行 \x1f 分隔；取出 error= 的值 */
+  var f = fields(out), code = '';
+  for (var i = 0; i < f.length; i++) {
+    var ln = String(f[i]).replace(/[\r\n]+$/, '');
+    if (ln.indexOf('error=') === 0) { code = ln.slice(6); break; }
+  }
+  if (!code) return out || '无输出';
+  /* 端口补丁被拒时会带上具体子原因 */
+  if (code.indexOf('port_patch_rejected') === 0) {
+    var sub = code.slice('port_patch_rejected'.length).replace(/^_/, '');
+    return '端口配置无法安全改写' + (sub ? '（' + sub + '）' : '') + '，未做任何改动';
+  }
+  if (APPLY_ERR[code]) return APPLY_ERR[code];
+  return code;
+}
+
 function switchMode(mode) {
   if (S.switching) return;
   if (mode === S.mode) { toast('已经是该模式'); return; }
@@ -390,7 +466,7 @@ function switchMode(mode) {
     sh(HELPER_CMD + ' setmode ' + mode, 40000)
       .then(function (r) {
         var f = fields(r.out);
-        if (f.indexOf('ok=1') < 0) throw new Error(r.out || '无输出');
+        if (f.indexOf('ok=1') < 0) throw new Error(applyErrText(r.out));
         S.mode = mode;
         return loadAll();
       })
@@ -398,7 +474,8 @@ function switchMode(mode) {
         S.switching = false;
         setSwitching(false, mode);
         $('modeMsg').innerHTML = '';
-        $('modeMsg').textContent = '已切换到' + name + '（音频服务已重启）';
+        $('modeMsg').textContent = '已切换到' + name +
+          '（音频服务仅在端口标志变化时才会重启；请强行停止并重新打开游戏）';
         $('modeMsg').hidden = false;
         toast('已切换到' + name, 2600);
         /* 模式变了，低延迟相关显示项需要重绘 */
@@ -408,7 +485,35 @@ function switchMode(mode) {
         S.switching = false;
         setSwitching(false, (S.mode === 'sound' ? 'fast' : 'sound'));
         $('modeMsg').hidden = true;
-        toast('切换失败: ' + (e && e.message ? e.message : e), 5000);
+        toast('切换失败: ' + (e && e.message ? e.message : e), 6000);
+        renderAll();
+      });
+  });
+}
+
+/* 恢复到系统原始配置：撤销本模块的全部改动（端口层、事务、开机护栏）。
+ * 不会自动重试失败的应用，所以给用户一个显式的脱困入口。 */
+function doRecover() {
+  if (S.switching) return;
+  S.switching = true;
+  busy(true);
+  defer(function () {
+    sh(HELPER_CMD + ' recover', 30000)
+      .then(function (r) {
+        var f = fields(r.out);
+        if (f.indexOf('ok=1') < 0) throw new Error(applyErrText(r.out));
+        return loadAll();
+      })
+      .then(function () {
+        S.switching = false;
+        busy(false);
+        toast('已恢复到系统原始配置', 3000);
+        renderAll();
+      })
+      .catch(function (e) {
+        S.switching = false;
+        busy(false);
+        toast('恢复失败: ' + (e && e.message ? e.message : e), 6000);
         renderAll();
       });
   });
@@ -478,6 +583,8 @@ function bind() {
     if (e.key === 'Enter' || e.keyCode === 13) { e.preventDefault(); addPkg(); }
   });
   $('btn-reload').addEventListener('click', function () { refresh(); });
+  var brc = $('btn-recover');
+  if (brc) brc.addEventListener('click', function () { doRecover(); });
   $('btn-save').addEventListener('click', function () { save(); });
   /* 头部一键切换：在当前模式的反方向之间切换 */
   $('btn-toggle').addEventListener('click', function () {

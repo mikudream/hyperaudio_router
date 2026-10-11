@@ -3,7 +3,7 @@
 > 通用机型的 HyperOS 音频模块：**在「音效」与「低延迟」两种工作模式间一键切换**，
 > 附带 KernelSU WebUI 可视化配置。
 
-[![模块版本](https://img.shields.io/badge/version-0.4.5-blue)]()
+[![模块版本](https://img.shields.io/badge/version-0.4.6-blue)]()
 [![适配](https://img.shields.io/badge/机型-通用-green)]()
 [![管理器](https://img.shields.io/badge/KernelSU%20%7C%20APatch%20%7C%20Magisk-WebUI-orange)]()
 
@@ -137,19 +137,60 @@ HyperOS 的音频链路里存在一对**框架层互斥**：
 
 ```
 assets/    本项目维护的文本源码
-           module.prop / customize.sh / post-fs-data.sh / service.sh / system.prop
+           module.prop / customize.sh / service.sh / system.prop
 webui/     本项目源码：WebUI 与设备端脚本
            webroot/            KernelSU WebUI 界面（index.html / app.js / style.css）
-           helper.sh           WebUI 后端（status / tuning / setmode / save）
+           helper.sh           WebUI 后端（status / tuning / setmode / save / recover）
            action.sh           KernelSU 执行按钮（一键在两种模式间切换）
-           uninstall.sh        卸载清理（停守护进程 / 还原端口标志 / 清临时文件）
-           mode_switch.sh      音效 ↔ 低延迟 模式切换（端口补丁 + 简介刷新 + 守护进程）
+           uninstall.sh        卸载清理（撤销端口层 / 停守护进程 / 修旧版遗留 / 清临时文件）
+           runtime.sh          模式状态机（改副本再 bind + 事务 + 开机护栏 + 回滚）
+           patch_ports.awk     有界 XML 编辑器（只改两个端口的 flags，异常一律 fail-closed）
            start_daemon.sh     守护进程启动器
            detect_tuning.sh    调音来源检测（异步调用，不在关键路径）
+tests/     主机侧测试（不随包分发）
+           test_patch_ports.sh   patch_ports.awk 的行为与 fail-closed 用例
 prebuilt/  上游预编译产物（无法从源码重建，按原样保留，见 CREDITS.md）
 CREDITS.md 来源与致谢（随模块包分发）
 build.ps1  构建脚本：组装 + 清理作者标识 + 校验 + 打包（产物逐字节可复现）
 ```
+
+### 端口补丁是怎么做的（0.4.6 起）
+
+音效模式需要摘掉 `low_latency_out` / `raw_out` 的 FAST 标志，本模块的做法是：
+
+1. 找到提供 `audio_module_config_primary.xml` 的调音模块源文件（按文件名探测，不认机型）
+2. 把**生效路径上的那份文件**快照到 `state/base.xml`
+3. 用 `patch_ports.awk` 从快照生成 `state/active.xml`（只改两个端口的 flags，其余字节不动；
+   任何不支持的构造都拒绝执行）
+4. 把 `active.xml` **叠加 bind mount** 到生效路径 —— **不先 umount**
+   （失败的 umount 会让该文件彻底失挂、比 mount 失败更糟）
+
+因此：
+
+- **不写调音模块的任何文件**，升级/禁用/卸载都不会留下被改过的第三方文件
+- 卸载只需摘掉自己那一层，系统原始配置即刻恢复
+- 挂载归属用 `dev:ino` + `/proc/self/mountinfo` 判断；若发现已被别的模块替换则**拒绝动手**
+
+> 从 0.4.5 及更早版本升级上来的设备，源文件可能已被旧版**直接改过**（缺 FAST）。
+> `runtime.sh` 会在应用前识别并修复这一遗留状态；判据保守（两个端口都缺 FAST 才认定）。
+
+### 事务与开机护栏
+
+- `apply` 前先写 `state/pending`；**全部成功**才写 `state/applied` 与 `mode`，并清除 pending
+- 任一步失败 → 撤销全部改动、`mode` 写回 `fast`、报 `apply_failed_restored_native`；
+  回滚自身失败则报 `rollback_incomplete_reboot_required` 并**保留 pending**
+- 开机时若发现残留 `pending` 或上次开机失败记录，**强制回到原始配置**并记入
+  `state/boot.failure`，**绝不反复重试一个已知失败的配置**
+- WebUI 会在需要恢复时显示「需要恢复」卡片，提供一键 `recover`
+
+### 与 HyperAudio Switch 2.0 的差异（有意为之）
+
+参考 2.0 时**没有**采用这两点：
+
+- **不用 `setprop ctl.restart audioserver`**：本机实测重启音频服务会让调音失效，
+  因此仍用 `killall audioserver`，且**只在端口标志真的变化时**才做
+- **不在运行时改 `aaudio.*` 属性、不替换 AAudio 库**：本模块继续用 `system.prop` 与预编译库，
+  也不做"每 5 秒 dumpsys 巡检"式的常驻调度（那是 2.0 自己的取舍）
 
 ### 构建
 

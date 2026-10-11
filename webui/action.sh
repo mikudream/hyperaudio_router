@@ -11,7 +11,10 @@
 
 MOD=/data/adb/modules/hyperaudio
 MODEFILE=$MOD/mode
-MSW=$MOD/bin/mode_switch.sh
+# 模式状态机。0.4.5 里叫 mode_switch.sh，现在改名为 runtime.sh；保留旧名回退
+# 只是为了让"只更新了部分文件"的中间状态也能工作。
+MSW=$MOD/bin/runtime.sh
+[ -f "$MSW" ] || MSW=$MOD/bin/mode_switch.sh
 SH=/system/bin/sh
 
 quiet() { [ "$FROM_WEBUI" = "1" ]; }
@@ -48,8 +51,8 @@ if [ ! -f "$MSW" ]; then
   exit 1
 fi
 
-# 真正执行切换（apply 内部会改写端口标志、启停守护进程、重启 audioserver）
-$SH "$MSW" apply "$NEXT" >/dev/null 2>&1
+# 真正执行切换（apply 内部会改写端口标志、启停守护进程、必要时重启音频服务）
+OUT=$($SH "$MSW" apply "$NEXT" 2>&1)
 
 # 复核结果
 AFTER=$(cat "$MODEFILE" 2>/dev/null | tr -d ' \r\n')
@@ -69,9 +72,40 @@ if [ "$AFTER" = "$NEXT" ]; then
   say ""
   say "模块简介已更新，当前模式显示在简介开头。"
   exit 0
-else
-  say ""
-  say "切换失败：模式文件未写入预期值（期望 $NEXT，实际 ${AFTER:-空}）"
-  say "可打开 WebUI 查看详细状态。"
-  exit 1
 fi
+
+# 失败：把 runtime.sh 给出的具体原因透传出来，而不是一律说"模式文件没写对"
+ERR=$(printf '%s' "$OUT" | grep -m1 '^error=' | cut -d= -f2-)
+say ""
+case "$ERR" in
+  no_tuning_config)
+    say "切换失败：未找到提供音频端口配置的调音模块。"
+    say "本模块的音效模式需要外部调音模块提供 audio_module_config_primary.xml。" ;;
+  port_patch_rejected_*)
+    say "切换失败：端口配置无法安全改写（${ERR#port_patch_rejected_}）。"
+    say "该配置文件可能已被其他模块或工具改过。已回滚，未做任何改动。" ;;
+  no_port_changes)
+    say "切换失败：端口标志本来就是目标状态，无需补丁。"
+    say "这通常说明配置已被别的模块改过。已回滚。" ;;
+  bind_mount_denied|mount_not_visible)
+    say "切换失败：无法把补丁叠加到系统路径（挂载被拒）。"
+    say "已回滚，未做任何改动。" ;;
+  apply_failed_restored_native)
+    say "切换失败，已恢复为系统原始配置。"
+    say "详情可在 WebUI 的 Debug 中查看。" ;;
+  rollback_incomplete_reboot_required|unmount_failed_reboot_required)
+    say "切换失败，且回滚未完全完成，需要重启手机。"
+    say "重启后请在 WebUI 中重新选择模式。" ;;
+  overlay_changed_by_another_module)
+    say "切换失败：该挂载点已被其他模块改动，本模块不会强行覆盖。"
+    say "请先在 WebUI 中执行「恢复」，或重启后再试。" ;;
+  legacy_source_repair_failed)
+    say "切换失败：调音模块的端口文件曾被旧版本改动，且修复失败。"
+    say "请在该调音模块中恢复原始配置后重试。" ;;
+  '')
+    say "切换未完成，请在 WebUI 中检查当前模式。" ;;
+  *)
+    say "切换未完成：$ERR"
+    say "可打开 WebUI 查看详细状态。" ;;
+esac
+exit 1

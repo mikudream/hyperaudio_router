@@ -5,32 +5,44 @@
 # 时机：由 KernelSU/Magisk 启动，晚于所有模块的 post-fs-data.sh，
 #       此时调音模块已把 audio_module_config_primary.xml 挂载到 /odm。
 #
-# 逻辑：按 mode 文件决定行为
-#   sound（音效模式，默认）：应用"摘 FAST"补丁 → 全局走效果链；不启动守护进程
-#   fast （低延迟模式）：恢复 FAST 补丁 → 启动 hyper-audio 守护进程（RT 提权）
+# 逻辑：交给 bin/runtime.sh boot 处理，它包含：
+#   · 按 mode 文件应用（sound 摘 FAST / fast 还原）
+#   · **开机护栏**：若上次启动或切换未收尾（存在 state/pending），
+#     或上次开机应用失败（state/boot.failure），本次强制回到原始配置
+#     并记录原因，**绝不反复重试一个已知失败的配置**。
+#   · 同一次启动只执行一次（用 boot_id 去重）。
 #
-# 说明：本脚本只负责"按当前模式应用一次"；端口补丁、简介刷新、守护进程启停
-#       全部由 bin/mode_switch.sh apply 完成，避免同一逻辑两处维护。
+# 说明：端口补丁、简介刷新、守护进程启停全部由 runtime.sh 完成，
+#       避免同一逻辑两处维护。
 # ============================================================
 MODDIR=${0%/*}
 
 chmod +x "$MODDIR/hyper-audio" 2>/dev/null
 chmod +x "$MODDIR/action.sh" 2>/dev/null
-chmod +x "$MODDIR/bin/mode_switch.sh" 2>/dev/null
+chmod +x "$MODDIR/bin/runtime.sh" 2>/dev/null
 chmod +x "$MODDIR/bin/start_daemon.sh" 2>/dev/null
 
-# 读取模式（默认 sound）。用内建 read，避免 cat|tr 两个进程。
-MODE=""
-[ -f "$MODDIR/mode" ] && IFS= read -r MODE < "$MODDIR/mode" 2>/dev/null
-MODE=${MODE%$'\r'}
-case "$MODE" in sound|fast) ;; *) MODE=sound ;; esac
+# 端口补丁用 awk 完成，需要可执行（busybox awk 也能跑，但有的 shell 会查执行位）
+chmod 0644 "$MODDIR/bin/patch_ports.awk" 2>/dev/null
 
-# 应用端口标志（内部会一并刷新 module.prop 的「当前模式」前缀、
-# 并按模式启停守护进程）。注意用 -f 而不是 -x：安装后脚本可能没有执行位。
-if [ -f "$MODDIR/bin/mode_switch.sh" ]; then
+# 注意用 -f 而不是 -x：安装后脚本可能没有执行位。
+# 中间状态兜底：只有 runtime.sh 不存在时才回退到旧的 mode_switch.sh。
+RSW=$MODDIR/bin/runtime.sh
+[ -f "$RSW" ] || RSW=$MODDIR/bin/mode_switch.sh
+
+if [ -f "$RSW" ]; then
   LOG=/data/local/tmp/hyperaudio-init.log
   {
-    echo "[service.sh] mode=$MODE $(date 2>/dev/null)"
-    sh "$MODDIR/bin/mode_switch.sh" apply "$MODE" 2>&1
+    echo "[service.sh] boot $(date 2>/dev/null)"
+    if [ -f "$MODDIR/bin/runtime.sh" ]; then
+      sh "$MODDIR/bin/runtime.sh" boot 2>&1
+    else
+      # 旧脚本没有 boot 子命令，按 mode 文件应用即可
+      MODE=""
+      [ -f "$MODDIR/mode" ] && IFS= read -r MODE < "$MODDIR/mode" 2>/dev/null
+      MODE=${MODE%$'\r'}
+      case "$MODE" in sound|fast) ;; *) MODE=sound ;; esac
+      sh "$RSW" apply "$MODE" 2>&1
+    fi
   } >> "$LOG" 2>/dev/null
 fi

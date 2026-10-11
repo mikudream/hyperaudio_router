@@ -77,6 +77,38 @@ Rust 守护进程 `hyper-audio`。
 
 ---
 
+## 借鉴与参考
+
+### HyperAudio Switch 2.0 的 `patch_ports.awk`
+
+本模块 `bin/patch_ports.awk` **移植自 [HyperAudio Switch 2.0](https://github.com/2278535805/HyperAudio)**（署名作者：
+HLMC离开、月见里幽瞳、海希安的城主、ChatGPT 6 Astra，模块 ID `hyperaudio_compat`）中的同名文件，
+并已在其基础上删去与本模块无关的 `compat` 模式语义。该文件是一个**有界 XML 起始标签编辑器**：
+只改写 `low_latency_out` / `raw_out` 两个 output 端口的 `flags` 属性，其余字节保持不变；
+遇到不支持的构造（DOCTYPE、未闭合注释/属性、端口缺失或重复、未知 flag 组合、已被改过的配置）
+一律 fail-closed（非零退出且不产生任何输出）。感谢原作者写出这个严格且可审计的实现。
+
+### 其它参考到的设计思路
+
+以下为**思路**层面的参考，本模块按自身结构独立实现：
+
+| 设计 | 来源 | 本模块的实现 |
+|---|---|---|
+| 端口补丁"改自己的副本再 bind mount"、**不先 umount** | HyperAudio Switch 2.0 | `bin/runtime.sh` 的 `prepare_patch` / `install_patch` |
+| 事务标记 + 应用失败回滚到原始配置 | 同上 | `state/pending` + `apply_mode` 的失败分支 |
+| 开机护栏（上次未收尾则强制原始配置、不自动重试） | 同上 | `bin/runtime.sh` 的 `boot_run` |
+| 挂载所有权用 `dev:ino` 与 mountinfo **证明**而非信任标记 | 同上 | `mount_is_ours` / `remove_our_mount` |
+
+**未采用** 2.0 的以下做法（有意取舍，详见 `README.md`）：
+`setprop ctl.restart audioserver`（本机实测会让调音失效）、
+运行时改写 `aaudio.*` 属性、替换 AAudio 库、以及每 5 秒 `dumpsys` 的常驻巡检调度。
+
+> 说明：双方互不隶属。2.0 是在本项目的 0.4.x 基础上继续演进的分支
+> （其 `docs/UPSTREAM_CREDITS.md` 收录了本项目的来源记录）；
+> 本次改动是把 2.0 中经过验证的**可靠性做法**反向移植回本项目。
+
+---
+
 ## 许可证状况
 
 **HyperAudio 与 Mi17Audio 两个仓库均未包含 `LICENSE` / `COPYING` / `README` 中的许可声明**
