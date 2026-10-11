@@ -126,7 +126,12 @@ EOF
       else
         printf 'boot_guard=none\n'
       fi
-      # 挂载归属：ours=我们叠的层；conflict=被别的模块替换；none=无
+      # 挂载归属：ours=我们叠的层；conflict=路径上挂着别人的层而我们还以为有自己的；
+      # none=我们没有任何层（这是最常见的情况，包括"只挂着调音模块自己的层"）。
+      #
+      # 判定顺序很重要：先看我们自己有没有层。active.xml 不在 => 我们没层 => none，
+      # 绝不能拿一个不存在的 active.xml 去比对，否则会把调音模块自己的挂载
+      # 误报成 conflict（真机上踩到过）。
       if [ -f "$STATE/active.xml" ] && [ -f "$STATE/target" ]; then
         _tg=$(cat "$STATE/target" 2>/dev/null | tr -d ' \r\n')
         if [ -f "$_tg" ]; then

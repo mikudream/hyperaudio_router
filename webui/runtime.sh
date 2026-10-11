@@ -169,6 +169,20 @@ target_mounted() {
   awk -v t="$TARGET" '$5==t {found=1; exit} END{exit !found}' "$MOUNTINFO" 2>/dev/null
 }
 
+# 生效路径是否仍是调音模块的**原始**文件（没有别的补丁层压在上面）。
+# 判据：生效路径与调音模块源文件是同一个 inode。
+#
+# 这条判据是"能不能安全覆盖"的本质依据：只要它成立，压在我们下面的就是
+# 调音模块自己的那份，我们叠一层再摘掉不会有任何损失。
+# 反过来，如果路径上已经压着别人的补丁，inode 就对不上，绝不能动。
+target_is_pristine() {
+  [ -n "$TARGET" ] && [ -n "$SRC" ] || return 1
+  [ -f "$TARGET" ] && [ -f "$SRC" ] || return 1
+  _ta=$(stat -c '%d:%i' "$TARGET" 2>/dev/null)
+  _sa=$(stat -c '%d:%i' "$SRC" 2>/dev/null)
+  [ -n "$_ta" ] && [ "$_ta" = "$_sa" ]
+}
+
 # 启动时把 TARGET 解析出来（TARGET 原先只在 apply_mode 里推导）。
 resolve_target() {
   if [ -f "$STATE/target" ]; then
@@ -191,15 +205,39 @@ resolve_target() {
 remove_our_mount() {
   resolve_target
   [ -n "$TARGET" ] || return 0
-  target_mounted || { rm -f "$STATE/owned" 2>/dev/null; return 0; }
+
+  # 我们从未建立过层（没有 active.xml 也没有 owned 标记）时，目标上挂着的
+  # 必然是**别的模块**的层 —— 这是正常情况，不是冲突。
+  # 真机上踩到过：首次开机时 /odm 上挂着调音模块自己的 bind mount，
+  # mount_is_ours 因为没有 active.xml 可比而返回假，于是被误判成
+  # overlay_changed_by_another_module，触发回滚 + 开机护栏，
+  # 结果模块一装上就被自己锁在原生模式。
+  if [ ! -f "$STATE/active.xml" ] && [ ! -f "$STATE/owned" ]; then
+    return 0
+  fi
+
+  target_mounted || { rm -f "$STATE/owned" "$STATE/active.xml" "$STATE/target" 2>/dev/null; return 0; }
   if mount_is_ours; then
     if umount "$TARGET" 2>/dev/null; then
-      rm -f "$STATE/owned" 2>/dev/null
+      # 摘层成功就把自己的痕迹清干净：active.xml 留着会让下一次
+      # mount_is_ours 拿它去和"现在挂着的那层"（比如调音模块自己的）比对，
+      # 从而误报 overlay_changed_by_another_module，把后续 apply 也一起挡掉。
+      # 真机上就是这样：fast -> sound -> fast 之后再也切不回 sound。
+      rm -f "$STATE/owned" "$STATE/active.xml" "$STATE/target" 2>/dev/null
       return 0
     fi
     err unmount_failed_reboot_required; return 1
   fi
-  # 挂着但内容不是我们的 —— 可能被别的模块替换了，绝不擅自动手
+
+  # 不是我们的层，但如果生效路径仍是调音模块的原始文件，说明压在我们下面的
+  # 就是它自己的那份 —— 这在首次使用、或上次摘层后残留旧 active.xml 时都会
+  # 出现，是正常情况，不是冲突。直接清掉自己的痕迹，让调用方重新叠加。
+  if target_is_pristine; then
+    rm -f "$STATE/owned" "$STATE/active.xml" "$STATE/target" 2>/dev/null
+    return 0
+  fi
+
+  # 既不是我们的层、下面也不是原始文件 —— 有第三方补丁压着，绝不擅自动手
   err overlay_changed_by_another_module; return 1
 }
 

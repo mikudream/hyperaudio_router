@@ -225,6 +225,59 @@ grep -q '【当前模式：低延迟模式】' "$B/mod/module.prop" && ok "简�
 grep -q 'FAST PRIMARY' "$SRCXML" && ok "源文件仍带 FAST（未被我们碰过）" || bad "源文件被改"
 
 echo ""
+echo "############ 4b. sound -> fast -> sound 循环（真机踩到的 bug）############"
+# 真机上 fast -> sound -> fast 之后再也切不回 sound：
+# 摘层成功却没清掉 active.xml，于是下一次 apply 时 mount_is_ours
+# 拿残留的 active.xml 去和"现在挂着的调音模块自己的层"比对 => 误判 conflict
+# => 回滚 + 开机护栏。这里把整圈跑一遍验收。
+reset_mocks
+reset_tree
+HA_RT_OURS_TEST=yes
+HA_RT_TARGET_STAT="$B/mod/state/active.xml"
+run_rt apply sound
+[ "$RC" = "0" ] || bad "第 1 次 sound 失败（$OUT）"
+[ "$(tr -d ' \r\n' < "$B/mod/state/applied" 2>/dev/null)" = "sound" ] && ok "第 1 次 sound 成功" || bad "第 1 次 sound 的 applied 不对"
+
+run_rt apply fast
+[ "$RC" = "0" ] || bad "切回 fast 失败（$OUT）"
+[ -f "$B/mod/state/active.xml" ] && bad "摘层后 active.xml 残留（正是真机 bug）" || ok "摘层后已清掉 active.xml"
+[ -f "$B/mod/state/target" ]  && bad "摘层后 target 残留" || ok "摘层后已清掉 target"
+[ -f "$B/mod/state/owned" ]   && bad "摘层后 owned 残留" || ok "摘层后已清掉 owned"
+
+# 关键：第二次切 sound 必须成功（真机上这一步曾经失败）
+reset_mocks
+HA_RT_OURS_TEST=yes
+HA_RT_TARGET_STAT="$B/mod/state/active.xml"
+run_rt apply sound
+echo "  (第 2 次 sound: rc=$RC) $(printf '%s' "$OUT" | tr '\n' ' ')"
+[ "$RC" = "0" ] && ok "第 2 次 sound 成功（循环可用）" || bad "第 2 次 sound 失败（$OUT）"
+printf '%s' "$OUT" | grep -q 'overlay_changed_by_another_module' && bad "又误报 overlay_changed" || ok "未误报 overlay_changed"
+[ "$(tr -d ' \r\n' < "$B/mod/state/applied" 2>/dev/null)" = "sound" ] && ok "applied=sound" || bad "applied 不对"
+
+echo ""
+echo "############ 4c. 残留 active.xml 时不得把调音模块自己的层当成冲突 ############"
+# 真机场景：fast 模式下反复操作后，state 里留着一个旧的 active.xml，
+# 而 /odm 上挂着的是**调音模块自己**的 bind mount（内容 = 原始文件）。
+# 这不该被判成冲突，否则用户再也切不回音效模式。
+# 这里用硬链接让目标与源文件同 inode，忠实模拟"挂的就是原始那份"。
+reset_tree
+rm -f "$B/mod/state/owned"
+printf 'stale\n' > "$B/mod/state/active.xml"        # 残留的旧副本
+rm -f "$TARGET"
+ln "$SRCXML" "$TARGET" 2>/dev/null || cp "$SRCXML" "$TARGET"
+{ printf '%s\n' "$TARGET"; } > "$B/mounts"
+sync_mountinfo
+HA_RT_OURS_TEST=no
+MOCK_MOUNT=ok
+MOCK_UMOUNT=ok
+NO_SYNC_MOUNTINFO=1
+run_rt recover
+echo "  (rc=$RC) $(printf '%s' "$OUT" | tr '\n' ' ')"
+[ "$RC" = "0" ] && ok "放行（不误报冲突）" || bad "误报冲突（$OUT）"
+printf '%s' "$OUT" | grep -q 'overlay_changed_by_another_module' && bad "把调音模块自己的层当成冲突了" || ok "未报 overlay_changed"
+grep -qF "$TARGET" "$B/mounts" && ok "调音模块自己的层未被摘" || bad "把调音模块的层摘掉了"
+
+echo ""
 echo "############ 5. 开机护栏：残留 pending => 强制原始配置 ############"
 reset_mocks
 reset_tree
@@ -271,11 +324,11 @@ run_rt boot
 [ "$(tr -d ' \r\n' < "$B/mod/state/boot")" = "fake-boot-id-2" ] && ok "boot_id 已更新并重新应用" || bad "未重新应用"
 
 echo ""
-echo "############ 8. 退路判据：目标挂了但内容不是我们的 => 拒绝 umount ############"
+echo "############ 8. 有我们的层、但已被他人覆盖 => 拒绝 umount ############"
 reset_mocks
 reset_tree
 apply_sound_ok >/dev/null 2>&1
-# 场景：路径上确实挂着一层，但不是我们的（别的模块/工具覆盖了）。
+# 场景：我们建立过层（active.xml 在），但路径上现在挂的不是它。
 # 验收标准：报 overlay_changed_by_another_module，且**不动**那一层。
 # 用显式钩子指定"不是我们的"：主机侧伪造不了 dev:ino 证据。
 # 注意：mount 是运行时才记进挂载表的，而 run_rt 只在运行前同步 mountinfo，
@@ -290,6 +343,37 @@ echo "  (rc=$RC) $(printf '%s' "$OUT" | tr '\n' ' ')"
 [ "$RC" != "0" ] && ok "返回非零" || bad "居然成功了"
 printf '%s' "$OUT" | grep -q 'overlay_changed_by_another_module' && ok "拒绝覆盖他人挂载" || bad "错误名不对（$OUT）"
 grep -qF "$TARGET" "$B/mounts" && ok "他人的挂载确实没被摘" || bad "把他人的挂载摘掉了"
+
+echo ""
+echo "############ 8c. 我们从未建立层、目标被他人挂载 => 必须放行 ############"
+# 真机上踩到的场景：模块刚装上、首次开机，/odm 上挂着的是调音模块自己的
+# bind mount。此时既没有 active.xml 也没有 owned 标记 —— 这不是冲突，
+# 不能因此判定 overlay_changed 并触发回滚/开机护栏。
+reset_mocks
+reset_tree
+rm -f "$B/mod/state/active.xml" "$B/mod/state/owned"
+{ printf '%s\n' "$TARGET"; } > "$B/mounts"
+sync_mountinfo
+HA_RT_OURS_TEST=no
+MOCK_MOUNT=ok
+MOCK_UMOUNT=ok
+NO_SYNC_MOUNTINFO=1
+run_rt recover
+echo "  (rc=$RC) $(printf '%s' "$OUT" | tr '\n' ' ')"
+[ "$RC" = "0" ] && ok "放行（不误报冲突）" || bad "误报冲突（$OUT）"
+printf '%s' "$OUT" | grep -q 'overlay_changed_by_another_module' && bad "把调音模块自己的层当成冲突了" || ok "未报 overlay_changed"
+grep -qF "$TARGET" "$B/mounts" && ok "调音模块自己的层完好" || bad "把调音模块的层摘掉了"
+# 同一场景下 apply sound 也必须能正常建立我们的层
+reset_mocks
+reset_tree
+rm -f "$B/mod/state/active.xml" "$B/mod/state/owned"
+{ printf '%s\n' "$TARGET"; } > "$B/mounts"
+sync_mountinfo
+HA_RT_OURS_TEST=yes
+HA_RT_TARGET_STAT="$B/mod/state/active.xml"
+NO_SYNC_MOUNTINFO=1
+run_rt apply sound
+[ "$RC" = "0" ] && ok "首次开机可直接进入音效模式" || bad "首次 apply 失败（$OUT）"
 
 echo ""
 echo "############ 8b. 退路判据：没有挂载记录时不得去动别人的东西 ############"
