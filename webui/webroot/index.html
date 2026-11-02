@@ -100,10 +100,7 @@
           <span class="pill" id="dolby-count">0 项</span>
         </div>
         <section class="card preference-card" id="card-dolby" hidden>
-          <p class="hint">
-            名单内的应用音轨会回落到普通混音轨，经过 Dolby 效果链；其余应用保持低延迟。
-            添加后无需重启，杀掉应用重开即可。<br />请勿加入实时低延迟音游：它们依赖 FAST 轨的时序，转普通轨会慢放或卡顿。
-          </p>
+          <p class="hint">名单内的应用走杜比效果链：它的音轨会回落到普通混音轨，从而经过 Dolby 处理；其余应用保持低延迟。添加后无需重启，杀掉目标应用重开即生效。请勿加入实时低延迟音游——它们依赖快速轨的时序，转普通轨会慢放或卡顿。</p>
 
           <label class="row" id="dolby-enable-row" hidden style="display:none">
             <span class="copy">
@@ -139,9 +136,7 @@
           <span class="pill" id="wl-count">0 项</span>
         </div>
         <section class="card preference-card" id="card-whitelist" hidden>
-          <p class="hint">
-            名单内的应用在前台时，其音频线程会被提升为实时优先级（SCHED_FIFO）。
-          </p>
+          <p class="hint">名单内的应用在前台播放时，其音频线程会被提升到实时优先级（SCHED_FIFO），用于降低卡顿与爆音。该优化只作用于名单内的应用，名单外应用保持系统默认调度。</p>
           <div class="add-row">
             <input type="text" id="f-newpkg" placeholder="输入包名，如 com.xxx.game" autocomplete="off"
               autocapitalize="off" spellcheck="false" />
