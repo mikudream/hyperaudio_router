@@ -90,6 +90,16 @@ echo "  -> 通过"
 else
 echo "  -> 失败"; rc=1
 fi
+# ---------------- 10. WebUI 渲染（无浏览器）----------------
+if command -v node >/dev/null 2>&1; then
+  echo ""
+  echo "############ 10. WebUI 渲染冒烟（真机样本驱动）############"
+  if node "$HERE/test_webui_render.js"; then
+  echo "  -> 通过"
+  else
+  echo "  -> 失败"; rc=1
+  fi
+fi
 if [ "$rc" = "0" ]; then
   echo "全部主机侧测试通过"
 else
