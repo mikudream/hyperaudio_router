@@ -1,0 +1,101 @@
+/* About subpages: Miuix TopAppBar / Card / BasicComponent patterns;
+   independent M3 small app bar and list skin. See DESIGN_NOTES.md. */
+.back-button {left:16px;right:auto !important}
+:root[data-subpage="true"] .toolbar-inner>.back-button {left:16px;right:auto}
+:root[data-ui-style="md3"][data-subpage="true"] .toolbar-inner {padding-left:64px}
+:root[data-ui-style="md3"][data-subpage="true"] .toolbar-inner>.back-button {left:4px}
+.about-app-row {justify-content:flex-start;gap:16px;padding-top:22px;padding-bottom:22px;min-height:116px}
+.about-app-icon {display:block;flex:0 0 64px;width:64px;height:64px}
+.about-app-icon>svg {display:block;width:100%;height:100%}
+.about-app-card .about-app-name {font-size:18px;line-height:1.4;overflow-wrap:normal;word-break:normal}
+.about-version {display:block;font-size:12px;line-height:1.6;margin-top:8px;color:var(--fg-dim);white-space:nowrap}
+.about-footer {margin-top:16px;margin-bottom:12px}
+
+/* Compact screens show a reading destination with normal back navigation.
+   The native dialog supplies top-layer focus containment. */
+.credits-dialog {z-index:100;position:fixed;inset:0;width:100%;height:100%;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;border-radius:0;overflow:hidden;background:var(--bg);color:var(--fg);font-family:var(--ha-font);box-shadow:none}
+.credits-dialog::backdrop {background:rgb(0 0 0 / .32)}
+.credits-dialog[open] {display:flex;flex-direction:column}
+.credits-toolbar {display:grid;grid-template-columns:48px minmax(0,1fr) 48px;align-items:center;flex:none;min-height:calc(52px + var(--ha-safe-top,0px));padding:var(--ha-safe-top,0px) calc(12px + var(--ha-safe-right,0px)) 0 calc(12px + var(--ha-safe-left,0px));background:var(--bg);transition:box-shadow .18s ease,background-color .18s ease}
+.credits-toolbar h2 {grid-column:2;grid-row:1;margin:0;text-align:center;font-size:18px;line-height:26px;font-weight:550;opacity:var(--credits-collapse,0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.credits-toolbar>.icon-button {width:48px;height:48px;background:transparent;color:var(--fg)}
+#credits-back {grid-column:1;grid-row:1}
+#credits-close {grid-column:3;grid-row:1}
+.credits-toolbar .icon {width:24px;height:24px}
+.credit-back-md3 {display:none}
+.credits-dialog[data-scrolled="true"] .credits-toolbar {box-shadow:0 1px 0 var(--line)}
+.credits-body {flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:8px calc(16px + var(--ha-safe-right,0px)) calc(32px + var(--ha-safe-bottom,0px)) calc(16px + var(--ha-safe-left,0px));font-size:15px;line-height:24px;-webkit-overflow-scrolling:touch}
+.credits-heading {padding:6px 10px 0;margin-bottom:26px}
+.credits-large-title {font-size:32px;line-height:40px;font-weight:550;letter-spacing:0;overflow-wrap:anywhere;opacity:calc(1 - var(--credits-collapse,0))}
+.credits-intro {margin-top:10px;color:var(--fg-dim);font-size:14px;line-height:22px;overflow-wrap:anywhere}
+.credits-section {margin-top:26px;min-width:0}
+.credit-section-title {margin:0 10px 10px;color:var(--fg-dim);font-size:13px;font-weight:500;line-height:20px}
+.credit-group {list-style:none;margin:0;padding:0;background:var(--card);border-radius:16px;overflow:hidden}
+.credit-group>li {position:relative;margin:0;padding:0}
+.credit-group>li+li:before {content:"";position:absolute;inset:0 16px auto;height:1px;background:var(--line)}
+.credit-row {display:flex;align-items:center;gap:16px;width:100%;min-height:76px;margin:0;padding:16px;text-align:left;color:var(--fg);background:transparent;text-decoration:none;border:0;border-radius:0}
+.credit-copy {display:block;flex:1;min-width:0}
+.credit-copy>b {display:block;font-size:16px;line-height:24px;font-weight:500;overflow-wrap:anywhere}
+.credit-copy>small {display:block;margin-top:3px;color:var(--fg-dim);font-size:13px;line-height:20px;overflow-wrap:anywhere}
+.credit-leading {display:flex;align-items:center;justify-content:center;flex:none;width:40px;height:40px;background:var(--accent-soft);color:var(--accent-fg);border-radius:12px;font-size:17px;font-weight:550}
+.credit-leading .icon {width:22px;height:22px}
+.credit-row .chevron {flex:none;width:8px;height:8px;margin:0 4px;color:var(--fg-dim)}
+.credit-note {margin:14px 10px 0;color:var(--fg-dim);font-size:13px;line-height:22px;overflow-wrap:anywhere}
+.credit-prose {padding:20px;background:var(--card);border-radius:16px}
+.credit-prose p+p {margin-top:16px}
+.credit-owner {color:var(--fg-dim);font-size:14px;line-height:22px}
+.credit-scope {margin:8px 0 0;color:var(--accent-fg);font-size:13px;line-height:20px;font-weight:500}
+.credit-identity {display:flex;gap:16px;align-items:center;margin-bottom:20px}
+.credit-identity .credit-leading {width:48px;height:48px;border-radius:16px;font-size:22px}
+.credit-actions {display:flex;flex-wrap:wrap;gap:12px;margin-top:20px}
+.credit-action {position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;flex:1;min-width:128px;min-height:48px;padding:12px 18px;border-radius:14px;background:var(--card-2);color:var(--fg);font-size:14px;line-height:20px;font-weight:550;text-align:center;text-decoration:none;overflow:hidden}
+.credit-action-primary {background:var(--accent);color:#fff}
+.credit-action .icon {width:18px;height:18px}
+.credit-source-link {display:inline-flex;align-items:center;gap:8px;min-height:48px;margin-top:12px;padding:10px 0;color:var(--accent-fg);font-size:14px;line-height:22px;text-decoration:none;overflow-wrap:anywhere}
+.credit-source-link .icon {width:18px;height:18px}
+.credit-license-text {margin:20px 0 0;padding:20px;background:var(--card);border:0;border-radius:16px;color:var(--fg);white-space:pre-wrap;word-break:normal;overflow-wrap:anywhere;font-family:ui-monospace,monospace;font-size:12px;line-height:20px;tab-size:2}
+.credits-dialog :is(button,a):focus-visible {outline:3px solid var(--accent);outline-offset:-3px}
+html.credits-open,html.credits-open body {overflow:hidden}
+
+/* M3: surface roles, 64 dp small app bar, 22/28 title,
+   16/24 labels, 14/20 supporting text, continuous two-line lists. */
+:root[data-ui-style="md3"] .about-app-card .about-app-name {font-size:22px;line-height:28px;font-weight:400;letter-spacing:0}
+:root[data-ui-style="md3"] .about-app-row {padding-top:24px;padding-bottom:24px;gap:16px}
+:root[data-ui-style="md3"] .about-version {font-size:12px;line-height:16px}
+:root[data-ui-style="md3"] .credits-dialog {background:var(--md-surface)}
+:root[data-ui-style="md3"] .credits-toolbar {min-height:calc(64px + var(--ha-safe-top,0px));padding-left:calc(4px + var(--ha-safe-left,0px));padding-right:calc(4px + var(--ha-safe-right,0px));column-gap:12px;background:var(--md-surface)}
+:root[data-ui-style="md3"] .credits-toolbar h2 {text-align:left;font-size:22px;line-height:28px;font-weight:400;opacity:1}
+:root[data-ui-style="md3"] .credits-dialog[data-scrolled="true"] .credits-toolbar {background:var(--md-surface-container);box-shadow:none}
+:root[data-ui-style="md3"] .credit-back-miuix {display:none}
+:root[data-ui-style="md3"] .credit-back-md3 {display:block}
+:root[data-ui-style="md3"] .credits-body {padding:8px var(--ha-safe-right,0px) calc(32px + var(--ha-safe-bottom,0px)) var(--ha-safe-left,0px);font-size:16px;line-height:24px}
+:root[data-ui-style="md3"] .credits-heading {padding:4px 16px 0;margin-bottom:24px}
+:root[data-ui-style="md3"] .credits-large-title {display:none}
+:root[data-ui-style="md3"] .credits-dialog:is([data-view="license"],[data-view="project"]) .credits-large-title {display:block;font-size:24px;line-height:32px;font-weight:400;opacity:1;margin-bottom:8px}
+:root[data-ui-style="md3"] .credits-intro {margin:0;font-size:14px;line-height:20px}
+:root[data-ui-style="md3"] .credits-section {margin-top:24px}
+:root[data-ui-style="md3"] .credit-section-title {margin:0 16px 8px;color:var(--md-primary);font-size:14px;line-height:20px;font-weight:500}
+:root[data-ui-style="md3"] .credit-group {padding:8px 0;border-radius:0;background:var(--md-surface)}
+:root[data-ui-style="md3"] .credit-group>li+li:before {display:none}
+:root[data-ui-style="md3"] .credit-row {min-height:72px;padding:12px 16px;gap:16px}
+:root[data-ui-style="md3"] .credit-copy>b {font-size:16px;line-height:24px;font-weight:400;letter-spacing:.15px}
+:root[data-ui-style="md3"] .credit-copy>small {margin:0;font-size:14px;line-height:20px;letter-spacing:.25px}
+:root[data-ui-style="md3"] .credit-leading {border-radius:50%;background:var(--md-secondary-container);color:var(--md-on-secondary-container);font-weight:500}
+:root[data-ui-style="md3"] .credit-note {margin:12px 16px 0;font-size:14px;line-height:20px}
+:root[data-ui-style="md3"] .credit-prose {margin:0 16px;padding:20px;border-radius:16px;background:var(--md-surface-low)}
+:root[data-ui-style="md3"] .credit-scope {font-size:14px;line-height:20px;color:var(--md-primary)}
+:root[data-ui-style="md3"] .credit-identity {margin:0 16px 20px}
+:root[data-ui-style="md3"] .credit-identity .credit-leading {border-radius:50%}
+:root[data-ui-style="md3"] .credit-actions {margin:24px 16px 0;gap:8px}
+:root[data-ui-style="md3"] .credit-action {min-height:48px;padding:14px 24px;border-radius:24px;background:var(--md-secondary-container);color:var(--md-on-secondary-container);font-weight:500;letter-spacing:.1px}
+:root[data-ui-style="md3"] .credit-action-primary {background:var(--md-primary);color:var(--md-on-primary)}
+:root[data-ui-style="md3"] .credit-source-link {margin:12px 16px 0;color:var(--md-primary)}
+:root[data-ui-style="md3"] .credit-license-text {margin:20px 16px 0;padding:16px;background:var(--md-surface-low);border-radius:12px}
+:root[data-ui-style="md3"] .credits-dialog button:after {z-index:0}
+
+@media(min-width:640px) and (min-height:620px) {
+ .credits-dialog {width:min(600px,calc(100% - 48px));height:calc(100% - 48px);height:calc(100dvh - 48px);max-height:960px;margin:auto;border-radius:24px;box-shadow:0 24px 80px #0003}
+ :root[data-ui-style="md3"] .credits-dialog {border-radius:28px}
+}
+@media(max-width:340px) {.about-app-row{gap:12px}.about-app-icon{width:56px;height:56px;flex-basis:56px}.credits-large-title{font-size:28px;line-height:36px}}
+@media(prefers-reduced-motion:reduce) {.credits-toolbar{transition:none}}
