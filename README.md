@@ -1,14 +1,35 @@
-# 音频模式切换器 · hyperaudio
+# HyperAudio Switch · hyperaudio
 
-> 通用机型的 HyperOS 音频模块：**在「音效」与「低延迟」两种工作模式间一键切换**，
-> 附带 KernelSU WebUI 可视化配置。
+> 通用机型的 HyperOS 音频模块：**在「原生 / 音效」两种工作模式间一键切换**，
+> 附带与 HyperAudio Switch 3.0 一致的 KernelSU WebUI。
 
-[![模块版本](https://img.shields.io/badge/version-0.4.7-blue)]()
+[![模块版本](https://img.shields.io/badge/version-2.0.0-blue)]()
 [![适配](https://img.shields.io/badge/机型-通用-green)]()
 [![管理器](https://img.shields.io/badge/KernelSU%20%7C%20APatch%20%7C%20Magisk-WebUI-orange)]()
 
 ---
 
+## 架构说明（2.0.0 起）
+
+本版本按 `HyperAudio Switch 3.0` 的前后端逻辑重构，**界面与其保持一致**
+（Miuix / Material 3、关于页、致谢页、底部导航、主题切换）。
+
+| 层 | 组成 |
+|---|---|
+| 前端 | `webroot/`（v3.0 的 44 个文件，含 `assets/<版本号>/` 资源） |
+| 后端入口 | `bin/webui.sh` → `bin/ha.sh`，返回 `rc=N\|base64` 契约 |
+| 状态机 | `bin/runtime.sh`（事务、回滚、开机护栏） |
+| 通路控制 | `bin/sound.sh` / `bin/lowlat.sh` / `bin/boot.sh` |
+| 诊断 | `bin/diagnostics.sh`、`bin/debug.sh` |
+| 根级流程 | `service.sh`（boot + start-backends）、`action.sh`（cycle） |
+
+与上游 v3.0 的差异：
+
+- **移除了安装脚本里的机型锁**（上游写死 `ro.product.device = myron`，与通用定位冲突）
+- 覆盖升级不再要求"先切回原生"，改为保留可复用配置后继续安装
+- 模块 id 统一为 `hyperaudio`
+
+---
 ## 这是什么
 
 HyperOS 的音频链路里存在一对**框架层互斥**：

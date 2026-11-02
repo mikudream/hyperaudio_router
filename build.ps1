@@ -61,7 +61,6 @@ New-Item -ItemType Directory -Force -Path (Join-Path $stage 'webroot') | Out-Nul
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'webui')   | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'bin')     | Out-Null
 Copy-Item (Join-Path $root 'webui\webroot\*') (Join-Path $stage 'webroot') -Recurse -Force
-foreach ($f in @('helper.sh'))          { Copy-Item (Join-Path $root "webui\$f") (Join-Path $stage 'webui') -Force }
 # action.sh / uninstall.sh must sit at the module root: the KernelSU / Magisk
 # "action" button and the uninstall hook both look for them there.
   # 本分支不提供动作按钮：定位是全局恒定低延迟 + 按应用音效，没有可切换的模式
