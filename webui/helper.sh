@@ -45,6 +45,7 @@ flat() { tr '\n' '\037'; }
 DOLBY_DIR=$MOD
 DOLBY_CONF=$MOD/perapp.conf
 DOLBY_SO=$MOD/zygisk/arm64-v8a.so
+DOLBY_LEGACY=/data/adb/modules/dolbyrouter/perapp.conf
 DOLBY_MAX=64
 
 # 它的 .so 是否已按本机重定位过 mFlags 偏移。
@@ -96,6 +97,13 @@ dolby_write() {
   } > "$_tmp" 2>/dev/null || return 1
   chmod 0644 "$_tmp" 2>/dev/null
   mv -f "$_tmp" "$DOLBY_CONF" 2>/dev/null || return 1
+  # 原生负载把名单路径硬编码成 /data/adb/modules/dolbyrouter/perapp.conf，
+  # 整合版必须同时写一份到那里，否则 companion 读到 conf=0，永远不命中。
+  if [ "$DOLBY_LEGACY" != "$DOLBY_CONF" ]; then
+    mkdir -p "${DOLBY_LEGACY%/*}" 2>/dev/null
+    cp -f "$DOLBY_CONF" "$DOLBY_LEGACY" 2>/dev/null
+    chmod 0644 "$DOLBY_LEGACY" 2>/dev/null
+  fi
   return 0
 }
 
@@ -480,7 +488,8 @@ EOF
     _cmd=${2:-status}
     _inst=0; [ -d "$DOLBY_DIR" ] && _inst=1
     _comp=0
-    if ps -A 2>/dev/null | grep -q 'zn-zygisk-companion64 dolbyrouter'; then _comp=1; fi
+    # 整合版里负载名为 hyperaudio，独立版为 dolbyrouter，两种都算已加载
+    if ps -A 2>/dev/null | grep -q 'zn-zygisk-companion64 \(dolbyrouter\|hyperaudio\)'; then _comp=1; fi
     if [ "$_inst" = "1" ]; then _off=$(dolby_offset_state); else _off=none; fi
     # 是否内置了 zygisk 负载：区分“通用版”与“整合版”，决定 UI 该说什么
     _pay=0; [ -f "$MOD/zygisk/arm64-v8a.so" ] && _pay=1
