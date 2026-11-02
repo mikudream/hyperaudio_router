@@ -42,9 +42,9 @@ flat() { tr '\n' '\037'; }
 # 我们**不**改它的代码，只读写它的配置文件：它是独立的 Zygisk 模块，
 # 在目标应用进程内 hook createTrack_l() 清掉 FAST|PRIMARY，让那个应用的
 # 音轨回落到普通混音轨（从而经过 DAP 音效链）。详见 CREDITS.md。
-DOLBY_DIR=/data/adb/modules/dolbyrouter
-DOLBY_CONF=$DOLBY_DIR/perapp.conf
-DOLBY_SO=$DOLBY_DIR/zygisk/arm64-v8a.so
+DOLBY_DIR=$MOD
+DOLBY_CONF=$MOD/perapp.conf
+DOLBY_SO=$MOD/zygisk/arm64-v8a.so
 DOLBY_MAX=64
 
 # 它的 .so 是否已按本机重定位过 mFlags 偏移。
@@ -526,10 +526,13 @@ EOF
         printf 'error=bad_dolby_command\x1f\n'; exit 0 ;;
     esac
 
-    printf 'dolby_installed=%s\ndolby_companion=%s\ndolby_payload=%s\ndolby_offset=%s\ndolby_enabled=%s\ndolby_count=%s\n' 
-      "$_inst" "$_comp" "$_pay" "$_off" "$(dolby_enabled)" "$(dolby_count)"
+    echo "dolby_installed=$_inst"
+    echo "dolby_companion=$_comp"
+    echo "dolby_payload=$_pay"
+    echo "dolby_offset=$_off"
+    echo "dolby_enabled=$(dolby_enabled)"
+    echo "dolby_count=$(dolby_count)"
     printf 'dolby_apps_begin\n'
-    dolby_apps
     printf 'dolby_apps_end\n'
     ;;
 
