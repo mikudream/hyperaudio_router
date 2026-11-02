@@ -127,8 +127,13 @@
   }
 
   function loadInfo() {
+    // 一次读两项：版本与作者，避免两次进程开销
     return run("/system/bin/sh -c \"sed -n 's/^version=//p' /data/adb/modules/hyperaudio/module.prop\"").then(function (v) {
       setVal('info-ver', String(v).trim() || '—');
+    }).then(function () {
+      return run("/system/bin/sh -c \"sed -n 's/^author=//p' /data/adb/modules/hyperaudio/module.prop\"");
+    }).then(function (au) {
+      setVal('info-author', String(au).trim() || '—');
     });
   }
 

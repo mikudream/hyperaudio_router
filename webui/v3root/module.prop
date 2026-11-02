@@ -1,0 +1,8 @@
+id=hyperaudio_compat
+name=HyperAudio Switch
+version=3.0
+versionCode=26101606
+author=月见里幽瞳 / 海希安的城主
+description=音频模式热切换。支持原生与音效模式、低延迟调度、自定义音频设置和开机模式选择。提供 Miuix / Material 3 界面与可选悬浮底栏，Miuix 支持模糊和液态玻璃。部分游戏在音效模式下可能出现电流声、破音或无声。
+actionIcon=icon/action.png
+webuiIcon=icon/webui.png
