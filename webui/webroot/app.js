@@ -882,3 +882,27 @@ document.addEventListener('DOMContentLoaded', function () {
   bind();
   refresh();
 });
+
+/* DOCK-SWITCH：顶层独立实现页签切换。
+   之前把它放在 bind() 里，只要 bind 中途抛异常就整段不生效（表现为点击无反应）。
+   这里用纯顶层代码 + DOMContentLoaded，与其它逻辑完全解耦。 */
+(function () {
+  var MAP = [['tab-status', 'pane-status'], ['tab-dolby', 'pane-dolby'], ['tab-low', 'pane-low']];
+  function show(i) {
+    MAP.forEach(function (p, k) {
+      var b = document.getElementById(p[0]);
+      var pane = document.getElementById(p[1]);
+      if (b) b.classList.toggle('active', k === i);
+      if (pane) pane.hidden = (k !== i);
+    });
+    var d = document.getElementById('dock');
+    if (d) d.style.setProperty('--ha-nav-index', i);
+  }
+  document.addEventListener('DOMContentLoaded', function () {
+    MAP.forEach(function (p, i) {
+      var b = document.getElementById(p[0]);
+      if (b) b.addEventListener('click', function (e) { e.preventDefault(); show(i); });
+    });
+    show(0);
+  });
+})();
