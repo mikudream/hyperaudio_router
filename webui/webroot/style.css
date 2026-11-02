@@ -269,3 +269,57 @@ h1, h2, p { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::after, *::before { transition: none !important; animation-duration: .001s !important; }
 }
+
+/* ---------- v3.0 布局骨架：节标题 / 图标 / 行内右侧值 ---------- */
+.section-title {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  margin: 22px 4px 8px; padding: 0 4px;
+}
+.section-title h2 { font-size: 13px; font-weight: 500; color: var(--fg-dim); }
+.section-value { font-size: 12px; color: var(--fg-dim); text-align: right; }
+
+.icon {
+  display: block; flex: none; width: 23px; height: 23px;
+  fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.icon-button {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  flex: none; width: 40px; height: 40px; border-radius: 50%;
+  background: var(--card); color: var(--fg-dim); box-shadow: var(--shadow);
+}
+.icon-button .spin-xs { position: absolute; }
+
+.copy { min-width: 0; flex: 1; }
+.copy > b { display: block; font-size: 15px; font-weight: 550; line-height: 1.45; overflow-wrap: anywhere; }
+.copy > small {
+  display: block; margin-top: 4px; font-size: 12px; font-weight: 400;
+  color: var(--fg-dim); line-height: 1.55; overflow-wrap: anywhere;
+}
+.row .value {
+  flex: none; max-width: 52%; text-align: right; font-size: 14px; font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.preference-card { padding: 14px 18px; }
+.preference-card > .row + .row,
+.preference-card > .hint + .row { border-top: 1px solid var(--line); }
+.preference-card > .hint { padding-top: 10px; }
+
+.mode-card { padding: 16px; }
+.mode-tab { position: relative; padding: 16px 14px 14px; }
+.mode-icon { display: block; margin-bottom: 12px; color: var(--fg-dim); }
+.mode-icon.icon { width: 26px; height: 26px; stroke-width: 1.7; }
+.mode-tab.active .mode-icon { color: var(--accent-fg); }
+.mode-check {
+  position: absolute; right: 12px; top: 14px;
+  width: 17px; height: 17px; border-radius: 50%;
+  border: 1.5px solid var(--switch-off);
+}
+.mode-tab.active .mode-check { background: var(--accent); border-color: var(--accent); }
+.mode-tab.active .mode-check::after {
+  content: ""; position: absolute; left: 4px; top: 2.5px;
+  width: 5px; height: 9px; border: solid #fff; border-width: 0 1.6px 1.6px 0;
+  transform: rotate(45deg);
+}
+.mode-tab.busy { opacity: .6; }
