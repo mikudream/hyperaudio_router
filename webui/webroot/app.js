@@ -811,6 +811,7 @@ function dolbyCall(cmd, arg) {
       });
     })();
     window.__loadDolby = loadDolby;
+    window.__save = save;
 window.__renderDolby = renderDolby;
 
 var DOLBY_ERR = {
@@ -905,24 +906,7 @@ document.addEventListener('DOMContentLoaded', function () {
     show(0);
   });
 })();
-/* AUTO-SAVE：保存/重新读取按钮已从界面移除，改为改动即保存。
-   通过点击隐藏的 btn-save 复用原有保存逻辑，避免重写一遍校验。 */
-(function () {
-  document.addEventListener('DOMContentLoaded', function () {
-    var ids = ['f-enable', 'f-only', 'f-hal', 'f-audio', 'f-app'];
-    var t = null;
-    function trigger() {
-      var b = document.getElementById('btn-save');
-      if (!b) return;
-      if (t) clearTimeout(t);
-      t = setTimeout(function () { b.click(); }, 400);
-    }
-    ids.forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) { el.addEventListener('change', trigger); }
-    });
-  });
-})();
+
 /* RUN-STATE：状态页三行状态与两个数量。
    独立于 bind()，直接按 id 绘制，5 秒刷新。
    注意：必须用本页自己的 sh() 封装（它内部处理 ksu.exec 的返回形式），
@@ -995,15 +979,18 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 })();
 
-/* FORCE-WL：低延迟逻辑固定为"仅名单内生效"，界面不再提供开关。
-   载入时把隐藏的 f-only 置为 true 并保存一次，确保配置真正落盘。 */
+
+/* WL-AUTOSAVE：白名单只能在界面上增删，没有保存按钮，所以增删后立即保存。
+   只在用户操作后触发——不在载入时保存（那会用尚未渲染的 DOM 覆盖配置）。 */
 (function () {
   document.addEventListener('DOMContentLoaded', function () {
-    var el = document.getElementById('f-only');
-    if (el) el.checked = true;
-    setTimeout(function () {
-      var b = document.getElementById('btn-save');
-      if (b) b.click();
-    }, 1200);
+    var box = document.getElementById('wl-list');
+    if (!box) return;
+    box.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !/btn/.test(t.className)) return;
+      if (t.textContent && t.textContent.indexOf('移除') < 0) return;
+      setTimeout(function () { if (window.__save) window.__save(); }, 120);
+    });
   });
 })();
