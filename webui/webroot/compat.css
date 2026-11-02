@@ -64,3 +64,9 @@
 .bad { color: #c84343 !important; font-weight: 600; }
 /* 诊断标题：黑色粗体（普通 card-title 是次要灰） */
 .card-title.diag-title { color: var(--fg, #15171b) !important; font-weight: 700 !important; font-size: 15px !important; }
+/* REWRITE：新版页面需要的少量补充 */
+.page { min-width: 0; }
+.row .value { flex: none; max-width: 56%; text-align: right; font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.ok { color: #2e7d57 !important; font-weight: 600; }
+.bad { color: #c84343 !important; font-weight: 600; }
+.main { padding-bottom: 120px; }

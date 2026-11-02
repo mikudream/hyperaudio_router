@@ -549,6 +549,34 @@ EOF
     } | flat
     ;;
 
+  wl)
+    # 低延迟链路名单的增删（config.toml 的 whitelist 段）
+    _cmd=${2:-status}
+    case "$_cmd" in
+      add|del)
+        _pkg=$3
+        case "$_pkg" in ''|*[!A-Za-z0-9_.]*) printf 'error=bad_package\x1f\n'; exit 0 ;; esac
+        if ! printf '%s' "$_pkg" | grep -qE '^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+$'; then
+          printf 'error=bad_package\x1f\n'; exit 0
+        fi
+        _tmp="$TMP/config.$$"
+        if [ "$_cmd" = "add" ]; then
+          if grep -q "\"$_pkg\"" "$CONF" 2>/dev/null; then
+            printf 'ok=1\x1f\n'; exit 0
+          fi
+          awk -v p="$_pkg" '
+            /^[[:space:]]*whitelist[[:space:]]*=/ && !done { print; print "    \"" p "\","; done=1; next }
+            { print }
+          ' "$CONF" > "$_tmp" || { printf 'error=write_failed\x1f\n'; exit 0; }
+        else
+          grep -Fv "\"$_pkg\"" "$CONF" > "$_tmp" || { printf 'error=write_failed\x1f\n'; exit 0; }
+        fi
+        mv -f "$_tmp" "$CONF" && chmod 0644 "$CONF" || { printf 'error=write_failed\x1f\n'; exit 0; }
+        printf 'ok=1\x1f\n'
+        ;;
+      *) printf 'error=bad_wl_command\x1f\n' ;;
+    esac
+    ;;
   diag)
     # 只读诊断：生成报告文件并返回路径。全程不修改任何状态。
     if [ ! -f "$MOD/bin/diagnose.sh" ]; then printf 'error=no_diagnose\x1f\n'; exit 0; fi

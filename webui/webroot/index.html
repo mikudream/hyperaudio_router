@@ -7,13 +7,8 @@
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#000" media="(prefers-color-scheme: dark)" />
   <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)" />
-  <!-- 样式全部来自 HyperAudio Switch v3.0 的界面资源（离线、无外部依赖），
-       最后一份 compat.css 只补 v3.0 没有的、由 app.js 动态生成的列表元素。 -->
-  <link rel="stylesheet" type="text/css" href="./v3-style.css" />
-  <link rel="stylesheet" type="text/css" href="./v3-material3.css" />
-  <link rel="stylesheet" type="text/css" href="./v3-navigation-layout.css" />
-  <link rel="stylesheet" type="text/css" href="./v3-host-ui.css" />
-  <link rel="stylesheet" type="text/css" href="./compat.css" />
+  <link rel="stylesheet" href="./v3-style.css" />
+  <link rel="stylesheet" href="./compat.css" />
   <title>低延迟音效路由</title>
 </head>
 
@@ -22,146 +17,109 @@
     <header class="hd">
       <div class="hd-title">
         <h1>低延迟音效路由</h1>
-        <div class="hd-sub" id="sub" hidden>正在读取配置…</div>
-        <div class="hd-badge" id="runBadge" hidden>—</div>
+        <div class="hd-sub" id="sub">正在读取…</div>
       </div>
     </header>
 
-    <!-- 旧模式切换组件：本版本不使用，保留节点供 app.js 访问但完全隐藏 -->
-    <div hidden>
-      <span id="toggleLabel"></span>
-      <div class="mode-tabs" id="modeTabs">
-        <button class="mode-tab" id="tab-sound" data-mode="sound" type="button">音效模式</button>
-        <button class="mode-tab" id="tab-fast" data-mode="fast" type="button">低延迟模式</button>
-      </div>
-      <p class="hint" id="modeDesc"></p>
-      <div id="modeMsg" class="mode-msg" hidden></div>
-      <section class="card" id="card-sound"></section>
-      <button id="btn-toggle" type="button" hidden></button>
-      <!-- 保存/重新读取已从界面移除，但 bind() 仍会给它们绑事件；
-           保留隐藏节点避免取到 null 导致整个 bind() 中断。 -->
-      <button id="btn-save" type="button" hidden></button>
-      <button id="btn-reload" type="button" hidden></button>
-      <span id="toggleSpin" hidden></span>
-    </div>
-
     <main class="main">
 
-      
-
-      <div class="page" id="pane-status">
-
+      <div class="page" id="page-status">
         <div class="section-title"><h2>运行状态</h2></div>
         <section class="card preference-card">
-          <div class="row"><span class="copy"><b>杜比链路注入</b></span><span id="st-zygisk">—</span></div>
-          <div class="row"><span class="copy"><b>低延迟守护进程</b></span><span id="st-daemon">—</span></div>
-          <div class="row"><span class="copy"><b>音频框架</b></span><span id="audio-ready">—</span></div>
-          <p class="hint" id="audio-ready-why" hidden></p>
+          <div class="row">
+            <span class="copy"><b>杜比链路注入</b></span>
+            <span class="value" id="st-zygisk">—</span>
+          </div>
+          <div class="row">
+            <span class="copy"><b>低延迟守护进程</b></span>
+            <span class="value" id="st-daemon">—</span>
+          </div>
+          <div class="row">
+            <span class="copy"><b>音频框架</b></span>
+            <span class="value" id="st-audio">—</span>
+          </div>
         </section>
 
         <div class="section-title"><h2>链路应用</h2></div>
         <section class="card preference-card">
-          <div class="row"><span class="copy"><b>杜比链路应用</b></span><span id="cnt-dolby">—</span></div>
-          <div class="row"><span class="copy"><b>低延迟链路应用</b></span><span id="cnt-low">—</span></div>
+          <div class="row">
+            <span class="copy"><b>杜比链路应用</b></span>
+            <span class="value" id="cnt-dolby">—</span>
+          </div>
+          <div class="row">
+            <span class="copy"><b>低延迟链路应用</b></span>
+            <span class="value" id="cnt-low">—</span>
+          </div>
         </section>
 
         <div class="section-title"><h2>调音状态</h2></div>
         <section class="card preference-card">
-          <div class="row"><span class="copy"><b>调音来源</b></span><span id="tuning-src">检测中…</span></div>
-          <div class="row" id="tuning-ver-row" hidden><span class="copy"><b>模块版本</b></span><span id="tuning-ver">—</span></div>
-        </section>
-
-        <span id="dolby-state" hidden></span>
-        <p class="hint" id="dolby-why" hidden></p>
-
-        <section class="card preference-card" id="card-recover" hidden>
-          <div class="row"><span class="copy"><b>需要恢复</b></span></div>
-          <p class="hint" id="recoverWhy"></p>
-          <div class="row"><button class="btn primary" id="btn-recover" type="button">恢复到系统原始配置</button></div>
+          <div class="row">
+            <span class="copy"><b>调音来源</b></span>
+            <span class="value" id="tuning-src">—</span>
+          </div>
+          <div class="row">
+            <span class="copy"><b>模块版本</b></span>
+            <span class="value" id="tuning-ver">—</span>
+          </div>
         </section>
 
         <div class="section-title"><h2>问题检测</h2></div>
         <section class="card preference-card">
-          <div class="card-title diag-title">诊断</div>
-          <p class="hint">导出只读报告（挂载、端口 flags、音频就绪、日志尾部），不改任何设置。</p>
-          <div class="row"><button class="btn" id="btn-diag" type="button">导出诊断报告</button></div>
+          <div class="row">
+            <span class="copy"><b>诊断</b></span>
+            <button class="btn sm" id="btn-diag" type="button">导出报告</button>
+          </div>
         </section>
 
         <div class="section-title"><h2>模块信息</h2></div>
         <section class="card preference-card">
-          <div class="row"><span class="copy"><b>版本</b></span><span>1.0.3</span></div>
-          <div class="row"><span class="copy"><b>作者</b></span><span>deepseek-flash</span></div>
+          <div class="row"><span class="copy"><b>版本</b></span><span class="value" id="info-ver">—</span></div>
+          <div class="row"><span class="copy"><b>作者</b></span><span class="value" id="info-author">—</span></div>
         </section>
       </div>
 
-      <div class="page" id="pane-dolby" hidden>
-        <div class="section-title">
-          <h2>杜比链路的应用</h2>
-          <span class="pill" id="dolby-count">0 项</span>
-        </div>
-        <section class="card preference-card" id="card-dolby" hidden>
-          <p class="hint">名单内的应用走杜比效果链：它的音轨会回落到普通混音轨，从而经过 Dolby 处理；其余应用保持低延迟。添加后无需重启，杀掉目标应用重开即生效。请勿加入实时低延迟音游——它们依赖快速轨的时序，转普通轨会慢放或卡顿。</p>
-
-          <label class="row" id="dolby-enable-row" hidden style="display:none">
-            <span class="copy">
-              <b>启用杜比链路</b>
-            </span>
-            <span class="switch">
-              <input type="checkbox" id="f-dolby-on" class="sw" />
-              <span class="switch-track"></span>
-            </span>
-          </label>
-
-          <div id="dolby-add-wrap" hidden>
-            <div class="add-row">
-              <input type="text" id="f-dolby-pkg" placeholder="输入包名，如 com.xxx.game" autocomplete="off"
-                autocapitalize="off" spellcheck="false" />
-              <button class="btn sm primary" id="btn-dolby-add" type="button">添加</button>
-            </div>
-            <div id="dolby-list" class="list"></div>
-          </div>
-        </section>
-      </div>
-
-      <div class="page" id="pane-low" hidden>
-        <span id="card-fast" hidden></span>
-        <input class="number-input" type="number" id="f-hal" value="20" hidden />
-        <input class="number-input" type="number" id="f-audio" value="16" hidden />
-        <input class="number-input" type="number" id="f-app" value="15" hidden />
-        <input type="checkbox" id="f-enable" class="sw" checked hidden />
-        <input type="checkbox" id="f-only" class="sw" checked hidden />
-
-        <div class="section-title">
-          <h2>低延迟链路的应用</h2>
-          <span class="pill" id="wl-count">0 项</span>
-        </div>
-        <section class="card preference-card" id="card-whitelist" hidden>
-          <p class="hint">名单内的应用在前台播放时，其音频线程会被提升到实时优先级（SCHED_FIFO），用于降低卡顿与爆音。该优化只作用于名单内的应用，名单外应用保持系统默认调度。</p>
+      <div class="page" id="page-dolby" hidden>
+        <div class="section-title"><h2>杜比链路的应用</h2><span class="pill" id="dolby-count">0 项</span></div>
+        <section class="card preference-card">
+          <p class="hint">名单内的应用走杜比效果链：音轨回落到普通混音轨，经过 Dolby 处理；其余应用保持低延迟。添加后杀掉应用重开即可生效。<br />请勿加入实时低延迟音游——它们依赖快速轨时序，转普通轨会慢放或卡顿。</p>
           <div class="add-row">
-            <input type="text" id="f-newpkg" placeholder="输入包名，如 com.xxx.game" autocomplete="off"
+            <input type="text" id="dolby-input" placeholder="输入包名，如 com.xxx.game" autocomplete="off"
               autocapitalize="off" spellcheck="false" />
-            <button class="btn sm primary" id="btn-add" type="button">添加</button>
+            <button class="btn sm primary" id="dolby-add" type="button">添加</button>
           </div>
-          <div id="wl-list" class="list"></div>
+          <div class="list" id="dolby-list"></div>
         </section>
+      </div>
 
-        
+      <div class="page" id="page-low" hidden>
+        <div class="section-title"><h2>低延迟链路的应用</h2><span class="pill" id="low-count">0 项</span></div>
+        <section class="card preference-card">
+          <p class="hint">名单内的应用在前台播放时，其音频线程会被提升到实时优先级（SCHED_FIFO），降低卡顿与爆音。该优化只作用于名单内的应用。</p>
+          <div class="add-row">
+            <input type="text" id="low-input" placeholder="输入包名，如 com.xxx.game" autocomplete="off"
+              autocapitalize="off" spellcheck="false" />
+            <button class="btn sm primary" id="low-add" type="button">添加</button>
+          </div>
+          <div class="list" id="low-list"></div>
+        </section>
       </div>
 
     </main>
-<footer class="ft">
+
+    <footer class="ft">
       <nav class="bottom-nav" id="dock">
         <span class="nav-indicator"></span>
-        <button class="nav-item active" id="tab-status" type="button">
-          <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M4 13h4l3 6 4-14 3 8h2"/></svg></span>
+        <button class="nav-item active" data-page="page-status" type="button">
+          <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M4 13h4l3 6 4-14 3 8h2" /></svg></span>
           <span>状态</span>
         </button>
-        <button class="nav-item" id="tab-dolby" type="button">
-          <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12h3l2-5 3 10 2-5h4"/></svg></span>
+        <button class="nav-item" data-page="page-dolby" type="button">
+          <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12h3l2-5 3 10 2-5h4" /></svg></span>
           <span>杜比链路</span>
         </button>
-        <button class="nav-item" id="tab-low" type="button">
-          <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M13 3 6 13h5l-1 8 7-11h-5l1-7z"/></svg></span>
+        <button class="nav-item" data-page="page-low" type="button">
+          <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M13 3 6 13h5l-1 8 7-11h-5l1-7z" /></svg></span>
           <span>低延迟链路</span>
         </button>
       </nav>
@@ -169,12 +127,8 @@
   </div>
 
   <div class="toast" id="toast" hidden></div>
-  <div class="mask" id="mask" hidden>
-    <div class="spin"></div>
-  </div>
-
   <script src="./app.js"
-    onerror="document.getElementById('sub').textContent='app.js 加载失败，请检查模块文件完整性';document.getElementById('mask').hidden=true;"></script>
+    onerror="document.getElementById('sub').textContent='app.js 加载失败，请检查模块文件完整性';"></script>
 </body>
 
 </html>
