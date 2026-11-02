@@ -327,3 +327,13 @@ h1, h2, p { margin: 0; }
   transform: rotate(45deg);
 }
 .mode-tab.busy { opacity: .6; }
+/* ---------- 顶部页签（应用音效 / 低延迟） ---------- */
+.tabs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  background: var(--card-2); border-radius: 16px; padding: 4px; margin: 4px 0 14px;
+}
+.tabs .tab {
+  min-height: 40px; border-radius: 12px; font-size: 14px; font-weight: 550;
+  color: var(--fg-dim); background: transparent; transition: background-color .18s ease, color .18s ease;
+}
+.tabs .tab.active { background: var(--card); color: var(--accent-fg); box-shadow: var(--shadow); }

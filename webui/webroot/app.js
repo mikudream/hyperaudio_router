@@ -675,9 +675,7 @@ var DOLBY_TEXT = {
 };
 
 function parseDolby(out) {
-  /* helper 的 dolby 输出是换行分隔（status 才是 \x1f），两种都要认，
-     否则整段会被当成一行，只解析出第一个键。 */
-  var f = String(out).split(/[\u001f\n]+/), apps = [], inApps = false;
+  var f = fields(out), apps = [], inApps = false;
   f.forEach(function (ln) {
     ln = String(ln).replace(/[\r\n]+$/, '');
     if (ln === '') return;
@@ -817,6 +815,17 @@ var DOLBY_ERR = {
 };
 
 $('btn-add').addEventListener('click', addPkg);
+
+    /* 顶部页签：应用音效 / 低延迟 */
+    var TABS = [['tab-app','pane-app'], ['tab-low','pane-low']];
+    TABS.forEach(function (p) {
+      $(p[0]).addEventListener('click', function () {
+        TABS.forEach(function (q) {
+          $(q[0]).classList.toggle('active', q[0] === p[0]);
+          $(q[1]).hidden = (q[0] !== p[0]);
+        });
+      });
+    });
 
     /* 导出诊断报告：只读，不触碰任何设置 */
     $('btn-diag').addEventListener('click', function () {

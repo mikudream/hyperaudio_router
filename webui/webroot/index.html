@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#000" media="(prefers-color-scheme: dark)" />
   <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)" />
   <link rel="stylesheet" type="text/css" href="./style.css" />
-  <title>音频模式切换器</title>
+  <title>低延迟音效路由</title>
 </head>
 
 <body>
@@ -16,188 +16,156 @@
 
     <header class="hd">
       <div class="hd-title">
-        <h1>音频模式切换器</h1>
+        <h1>低延迟音效路由</h1>
         <div class="hd-sub" id="sub">正在读取配置…</div>
         <div class="hd-badge" id="runBadge">—</div>
       </div>
       <div class="hd-right">
-        <button class="icon-button" id="btn-toggle" type="button" aria-label="切换模式">
+        <button class="icon-button" id="btn-toggle" type="button" aria-label="重新应用" hidden>
           <span class="spin-xs" id="toggleSpin" hidden></span>
-          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M7 7h10l-3-3M17 17H7l3 3" />
-          </svg>
         </button>
       </div>
     </header>
 
+    <!-- 旧模式切换组件：本版本不使用，保留节点供 app.js 访问但完全隐藏 -->
+    <div hidden>
+      <div class="section-title"><h2>工作模式</h2><span id="toggleLabel"></span></div>
+      <div class="mode-tabs" id="modeTabs">
+        <button class="mode-tab" id="tab-sound" data-mode="sound" type="button"><b>音效模式</b></button>
+        <button class="mode-tab" id="tab-fast" data-mode="fast" type="button"><b>低延迟模式</b></button>
+      </div>
+      <p class="hint" id="modeDesc"></p>
+      <div id="modeMsg" class="mode-msg" hidden></div>
+      <section class="card" id="card-sound"></section>
+    </div>
+
     <main class="main">
 
-      <div class="section-title">
-        <h2>工作模式</h2>
-        <span class="section-value" id="toggleLabel">点右上角切换</span>
+      <div class="tabs" role="tablist">
+        <button class="tab active" id="tab-app" type="button" role="tab">应用音效</button>
+        <button class="tab" id="tab-low" type="button" role="tab">低延迟</button>
       </div>
-      <section class="card mode-card" hidden>
-        <div class="mode-tabs" id="modeTabs">
-          <button class="mode-tab" id="tab-sound" data-mode="sound" type="button">
-            <svg class="mode-icon icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 14v-4h3l4-3v10l-4-3H4z" />
-              <path d="M15 9a4 4 0 0 1 0 6" />
-              <path d="M17.5 6.5a7.5 7.5 0 0 1 0 11" />
-            </svg>
-            <b>音效模式</b>
-            <small>全局走效果链 · 调音生效</small>
-            <span class="mode-check" aria-hidden="true"></span>
-          </button>
-          <button class="mode-tab" id="tab-fast" data-mode="fast" type="button">
-            <svg class="mode-icon icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M13 3 5 14h5l-1 7 8-11h-5l1-7z" />
-            </svg>
-            <b>低延迟模式</b>
-            <small>走 fast track · 延迟最低</small>
-            <span class="mode-check" aria-hidden="true"></span>
-          </button>
-        </div>
-        <p class="hint" id="modeDesc"></p>
-        <p class="hint" id="mmapNote">AAudio 应用走 MMAP 直通（由模块自带的 AAudio 库解锁），该通路不经过效果链，因此不受工作模式影响。</p>
-        <div id="modeMsg" class="mode-msg" hidden></div>
-      </section>
 
-      <section class="card" id="card-recover" hidden>
-        <div class="card-title">需要恢复</div>
-        <p class="hint" id="recoverWhy"></p>
-        <button class="btn primary" id="btn-recover" type="button">恢复到系统原始配置</button>
-      </section>
+      <div id="pane-app">
 
-      <div class="section-title">
-        <h2 id="h-status">状态</h2>
-      </div>
-      <section class="card preference-card" id="card-sound">
-        <div class="row">
-          <span class="copy">
-            <b>调音来源</b>
-            <small>提供 audio_module_config_primary.xml 的模块</small>
-          </span>
-          <span class="value" id="tuning-src">检测中…</span>
-        </div>
-        <div class="row" id="tuning-ver-row" hidden>
-          <span class="copy"><b>模块版本</b></span>
-          <span class="value" id="tuning-ver">—</span>
-        </div>
-        <div class="row">
-          <span class="copy">
-            <b>音频框架</b>
-            <small>重启音频服务后，框架是否真的加载了配置</small>
-          </span>
-          <span class="value" id="audio-ready">—</span>
-        </div>
-        <p class="hint" id="audio-ready-why" hidden></p>
-      </section>
-
-      <section class="card preference-card" id="card-dolby" hidden>
-        <div class="card-title">
-          按应用音效
-          <span class="pill" id="dolby-count">0 项</span>
-        </div>
-        <p class="hint">
-          名单内的应用单独回落到普通混音轨，从而经过 Dolby 效果链；名单外保持快速轨。
-          改名单<b>不需要重启</b>，杀掉应用重开即可。<br />
-          已知限制：走 AAudio MMAP 直通的应用不在本名单的作用范围内（该通路在更底层就已绕开效果链）。
-        </p>
-
-        <div class="row">
-          <span class="copy"><b>模块状态</b></span>
-          <span class="value" id="dolby-state">检测中…</span>
-        </div>
-        <p class="hint" id="dolby-why" hidden></p>
-
-        <label class="row" id="dolby-enable-row" hidden>
-          <span class="copy">
-            <b>启用按应用音效</b>
-            <small>perapp.conf 的 enabled</small>
-          </span>
-          <input type="checkbox" id="f-dolby-on" class="sw" />
-        </label>
-
-        <div id="dolby-add-wrap" hidden>
-          <div class="add-row">
-            <input type="text" id="f-dolby-pkg" placeholder="输入包名，如 com.xxx.game" autocomplete="off"
-              autocapitalize="off" spellcheck="false" />
-            <button class="btn sm primary" id="btn-dolby-add" type="button">添加</button>
+        <section class="card preference-card" id="card-dolby" hidden>
+          <div class="card-title">
+            启用音效的应用
+            <span class="pill" id="dolby-count">0 项</span>
           </div>
-          <div id="dolby-list" class="list"></div>
-        </div>
-      </section>
-      <section class="card preference-card" id="card-fast" hidden>
-        <div class="card-title">低延迟设置</div>
+          <p class="hint">
+            名单内的应用会把音轨回落到普通混音轨，经过 Dolby 效果链；
+            其余应用保持低延迟。添加后无需重启，杀掉应用重开即可。
+          </p>
 
-        <label class="row">
-          <span class="copy">
-            <b>启用守护进程</b>
-            <small>enable：总开关</small>
-          </span>
-          <input type="checkbox" id="f-enable" class="sw" />
-        </label>
+          <div class="row">
+            <span class="copy"><b>模块状态</b></span>
+            <span class="value" id="dolby-state">检测中…</span>
+          </div>
+          <p class="hint" id="dolby-why" hidden></p>
 
-        <label class="row">
-          <span class="copy">
-            <b>仅白名单生效</b>
-            <small>only_whitelist：只提升白名单应用的音频线程</small>
-          </span>
-          <input type="checkbox" id="f-only" class="sw" />
-        </label>
+          <label class="row" id="dolby-enable-row" hidden>
+            <span class="copy">
+              <b>启用按应用音效</b>
+              <small>关闭后所有应用都保持低延迟</small>
+            </span>
+            <input type="checkbox" id="f-dolby-on" class="sw" />
+          </label>
 
-        <div class="row">
-          <span class="copy">
-            <b>HAL 优先级</b>
-            <small>hal_priority：audiohalservice / FastMixer 等</small>
-          </span>
-          <input type="number" id="f-hal" min="1" max="99" />
-        </div>
-        <div class="row">
-          <span class="copy">
-            <b>音频线程优先级</b>
-            <small>audio_priority：App 播放线程（AudioTrack / AAudio）</small>
-          </span>
-          <input type="number" id="f-audio" min="1" max="99" />
-        </div>
-        <div class="row">
-          <span class="copy">
-            <b>应用线程优先级</b>
-            <small>app_priority：App 侧相关线程</small>
-          </span>
-          <input type="number" id="f-app" min="1" max="99" />
-        </div>
-      </section>
+          <div id="dolby-add-wrap" hidden>
+            <div class="add-row">
+              <input type="text" id="f-dolby-pkg" placeholder="输入包名，如 com.xxx.game" autocomplete="off"
+                autocapitalize="off" spellcheck="false" />
+              <button class="btn sm primary" id="btn-dolby-add" type="button">添加</button>
+            </div>
+            <div id="dolby-list" class="list"></div>
+          </div>
+        </section>
 
-      <section class="card preference-card" id="card-whitelist" hidden>
-        <div class="card-title">
-          白名单
-          <span class="pill" id="wl-count">0 项</span>
-        </div>
-        <p class="hint">
-          白名单内的应用在前台时，其音频线程会被提升为实时优先级（SCHED_FIFO）。
-        </p>
-        <div class="add-row">
-          <input type="text" id="f-newpkg" placeholder="输入包名，如 com.xxx.game" autocomplete="off"
-            autocapitalize="off" spellcheck="false" />
-          <button class="btn sm primary" id="btn-add" type="button">添加</button>
-        </div>
-        <div id="wl-list" class="list"></div>
-      </section>
+        <section class="card preference-card">
+          <div class="card-title">运行状态</div>
+          <div class="row">
+            <span class="copy"><b>调音来源</b></span>
+            <span class="value" id="tuning-src">检测中…</span>
+          </div>
+          <div class="row" id="tuning-ver-row" hidden>
+            <span class="copy"><b>模块版本</b></span>
+            <span class="value" id="tuning-ver">—</span>
+          </div>
+          <div class="row">
+            <span class="copy">
+              <b>音频框架</b>
+              <small>音频服务是否已加载当前配置</small>
+            </span>
+            <span class="value" id="audio-ready">—</span>
+          </div>
+          <p class="hint" id="audio-ready-why" hidden></p>
+        </section>
 
-
-
-      <div class="section-title">
-        <h2>支持</h2>
+        <section class="card" id="card-recover" hidden>
+          <div class="card-title">需要恢复</div>
+          <p class="hint" id="recoverWhy"></p>
+          <button class="btn primary" id="btn-recover" type="button">恢复到系统原始配置</button>
+        </section>
       </div>
-      <section class="card" id="card-diag">
-        <div class="card-title">诊断</div>
-        <p class="hint">
-          导出一份只读报告（模式、挂载、端口 flags、音频就绪、日志尾部），
-          不修改任何设置。遇到问题把它发给开发者即可。
-        </p>
-        <button class="btn sm" id="btn-diag" type="button">导出诊断报告</button>
-      </section>
+
+      <div id="pane-low" hidden>
+
+        <section class="card preference-card" id="card-fast" hidden>
+          <div class="card-title">低延迟设置</div>
+
+          <label class="row">
+            <span class="copy">
+              <b>启用守护进程</b>
+              <small>enable：总开关</small>
+            </span>
+            <input type="checkbox" id="f-enable" class="sw" />
+          </label>
+
+          <label class="row">
+            <span class="copy">
+              <b>仅白名单生效</b>
+              <small>only_whitelist：只提升白名单应用的音频线程</small>
+            </span>
+            <input type="checkbox" id="f-only" class="sw" />
+          </label>
+
+          <div class="row">
+            <span class="copy"><b>HAL 优先级</b><small>hal_priority</small></span>
+            <input type="number" id="f-hal" min="1" max="99" />
+          </div>
+          <div class="row">
+            <span class="copy"><b>音频线程优先级</b><small>audio_priority</small></span>
+            <input type="number" id="f-audio" min="1" max="99" />
+          </div>
+          <div class="row">
+            <span class="copy"><b>应用线程优先级</b><small>app_priority</small></span>
+            <input type="number" id="f-app" min="1" max="99" />
+          </div>
+        </section>
+
+        <section class="card preference-card" id="card-whitelist" hidden>
+          <div class="card-title">
+            低延迟白名单
+            <span class="pill" id="wl-count">0 项</span>
+          </div>
+          <p class="hint">
+            白名单内的应用在前台时，其音频线程会被提升为实时优先级（SCHED_FIFO）。
+          </p>
+          <div class="add-row">
+            <input type="text" id="f-newpkg" placeholder="输入包名，如 com.xxx.game" autocomplete="off"
+              autocapitalize="off" spellcheck="false" />
+            <button class="btn sm primary" id="btn-add" type="button">添加</button>
+          </div>
+          <div id="wl-list" class="list"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-title">诊断</div>
+          <p class="hint">导出只读报告（模式、挂载、端口 flags、音频就绪、日志尾部），不改任何设置。</p>
+          <button class="btn sm" id="btn-diag" type="button">导出诊断报告</button>
+        </section>
+      </div>
 
     </main>
 
