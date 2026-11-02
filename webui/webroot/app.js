@@ -40,7 +40,7 @@ var S = {
   tuning: { module: '', name: '', version: '', verified: false, count: 0, loaded: false },
   /* 按应用音效（DolbyRouter）：由 helper dolby 异步填充。
    * offset: ported=已适配本机 / stock=原厂偏移(0x378，危险) / unknown / missing / none */
-  dolby: { installed: false, companion: false, offset: 'none', enabled: false, apps: [], loaded: false },
+  dolby: { installed: true, companion: false, payload: false, offset: 'none', enabled: false, apps: [], loaded: false },
   whitelist: [],
   running: false,
   daemonOk: true,
@@ -688,6 +688,7 @@ function parseDolby(out) {
     if (k === 'error') { throw new Error(v); }
     if (k === 'dolby_installed') { S.dolby.installed = (v === '1'); return; }
     if (k === 'dolby_companion') { S.dolby.companion = (v === '1'); return; }
+    if (k === 'dolby_payload') { S.dolby.payload = (v === '1'); return; }
     if (k === 'dolby_offset') { S.dolby.offset = v; return; }
     if (k === 'dolby_enabled') { S.dolby.enabled = (v === '1'); return; }
   });
@@ -721,11 +722,13 @@ function dolphin(pkg) {
 function renderDolby() {
   var d = S.dolby;
   var card = $('card-dolby');
-  if (!d.installed) { card.hidden = true; return; }
+  // 常显：功能存在与否都要让用户看得见，不能靠异步探测成功才出现
   card.hidden = false;
 
   $('dolby-count').textContent = d.apps.length + ' 项';
-  $('dolby-state').textContent = DOLBY_TEXT[d.offset] || DOLBY_TEXT.unknown;
+  $('dolby-state').textContent = d.payload
+    ? (DOLBY_TEXT[d.offset] || DOLBY_TEXT.unknown)
+    : '通用版未内置，需单独安装 DolbyRouter';
 
   var why = [];
   if (d.offset === 'stock') {
@@ -743,7 +746,8 @@ function renderDolby() {
   $('dolby-why').textContent = why.join(' ');
   $('dolby-why').hidden = false;
 
-  var usable = (d.offset !== 'stock');
+  // 只有内置了负载(整合版)且偏移已适配，才允许添加应用；通用版要引导去装独立版
+  var usable = d.payload && (d.offset !== 'stock');
   $('dolby-enable-row').hidden = !usable;
   $('dolby-add-wrap').hidden = !usable;
   $('f-dolby-on').checked = !!d.enabled;
