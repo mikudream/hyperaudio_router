@@ -64,7 +64,8 @@ Copy-Item (Join-Path $root 'webui\webroot\*') (Join-Path $stage 'webroot') -Forc
 foreach ($f in @('helper.sh'))          { Copy-Item (Join-Path $root "webui\$f") (Join-Path $stage 'webui') -Force }
 # action.sh / uninstall.sh must sit at the module root: the KernelSU / Magisk
 # "action" button and the uninstall hook both look for them there.
-foreach ($f in @('action.sh','uninstall.sh')) { Copy-Item (Join-Path $root "webui\$f") $stage -Force }
+  # 本分支不提供动作按钮：定位是全局恒定低延迟 + 按应用音效，没有可切换的模式
+  Copy-Item (Join-Path $root 'webui\uninstall.sh') $stage -Force
 foreach ($f in @('runtime.sh','audio_ready.sh','patch_ports.awk','check_audio_ready.awk','start_daemon.sh','detect_tuning.sh','diagnose.sh')) {
   Copy-Item (Join-Path $root "webui\$f") (Join-Path $stage 'bin') -Force
 }
