@@ -730,6 +730,10 @@ do_status() {
   if [ -f "$STATE/boot.failure" ]; then echo "boot_guard=$(cat "$STATE/boot.failure" 2>/dev/null | head -1)"; else echo "boot_guard=none"; fi
   if daemon_running; then echo "daemon=running"; else echo "daemon=stopped"; fi
   detect_src >/dev/null 2>&1 && echo "source=$SRC" || echo "source=none"
+  # TARGET 只在 apply_mode 里推导过，status 里必须重新解析一次。
+  # 原先这里直接用 TARGET，于是 status 恒报 "target=missing / overlay=none"，
+  # 而实际上层正挂得好好的（真机实测发现）。
+  resolve_target >/dev/null 2>&1
   if [ -n "$TARGET" ] && [ -f "$TARGET" ]; then
     echo "target=$TARGET"
     if mount_is_ours; then echo "overlay=ours"
