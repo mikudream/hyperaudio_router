@@ -38,6 +38,10 @@
       <div id="modeMsg" class="mode-msg" hidden></div>
       <section class="card" id="card-sound"></section>
       <button id="btn-toggle" type="button" hidden></button>
+      <!-- 保存/重新读取已从界面移除，但 bind() 仍会给它们绑事件；
+           保留隐藏节点避免取到 null 导致整个 bind() 中断。 -->
+      <button id="btn-save" type="button" hidden></button>
+      <button id="btn-reload" type="button" hidden></button>
       <span id="toggleSpin" hidden></span>
     </div>
 

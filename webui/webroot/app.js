@@ -906,3 +906,21 @@ document.addEventListener('DOMContentLoaded', function () {
     show(0);
   });
 })();
+/* AUTO-SAVE：保存/重新读取按钮已从界面移除，改为改动即保存。
+   通过点击隐藏的 btn-save 复用原有保存逻辑，避免重写一遍校验。 */
+(function () {
+  document.addEventListener('DOMContentLoaded', function () {
+    var ids = ['f-enable', 'f-only', 'f-hal', 'f-audio', 'f-app'];
+    var t = null;
+    function trigger() {
+      var b = document.getElementById('btn-save');
+      if (!b) return;
+      if (t) clearTimeout(t);
+      t = setTimeout(function () { b.click(); }, 400);
+    }
+    ids.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) { el.addEventListener('change', trigger); }
+    });
+  });
+})();
