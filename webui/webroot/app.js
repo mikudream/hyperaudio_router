@@ -883,3 +883,14 @@ document.addEventListener('DOMContentLoaded', function () {
   bind();
   refresh();
 });
+
+/* 兜底：确保按应用音效的状态一定会被拉取一次。
+   它的实现位于 bind() 作用域内，通过 window.__loadDolby 暴露；
+   这里轮询等待（最多 6 秒），避免因初始化顺序或 bind 中途异常导致永不拉取。 */
+document.addEventListener('DOMContentLoaded', function () {
+  var n = 0;
+  var t = setInterval(function () {
+    if (window.__loadDolby) { clearInterval(t); window.__loadDolby(); return; }
+    if (++n > 40) { clearInterval(t); }
+  }, 150);
+});
