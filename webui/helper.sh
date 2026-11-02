@@ -38,13 +38,14 @@ mkdir -p "$TMP" 2>/dev/null
 getk() { sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\(.*\)/\1/p" "$CONF" 2>/dev/null | head -1; }
 flat() { tr '\n' '\037'; }
 
-# ---------------- DolbyRouter（按应用音效）----------------
-# 我们**不**改它的代码，只读写它的配置文件：它是独立的 Zygisk 模块，
-# 在目标应用进程内 hook createTrack_l() 清掉 FAST|PRIMARY，让那个应用的
-# 音轨回落到普通混音轨（从而经过 DAP 音效链）。详见 CREDITS.md。
-DOLBY_DIR=/data/adb/modules/dolbyrouter
-DOLBY_CONF=$DOLBY_DIR/perapp.conf
-DOLBY_SO=$DOLBY_DIR/zygisk/arm64-v8a.so
+# ---------------- 按应用音效（DolbyRouter，已并入本模块）----------------
+# 本分支把 DolbyRouter 的 zygisk 负载与配置都并进了本模块：zygisk 负载在
+# <模块>/zygisk/arm64-v8a.so，名单在 <模块>/perapp.conf。所以只装一个模块即可。
+# 若仍装着独立版 dolbyrouter，两个模块会**重复注入**同一批进程，必须提示。
+DOLBY_DIR=$MOD
+DOLBY_CONF=$MOD/perapp.conf
+DOLBY_SO=$MOD/zygisk/arm64-v8a.so
+DOLBY_STANDALONE=/data/adb/modules/dolbyrouter
 DOLBY_MAX=64
 
 # 它的 .so 是否已按本机重定位过 mFlags 偏移。

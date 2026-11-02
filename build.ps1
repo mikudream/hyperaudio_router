@@ -74,6 +74,12 @@ Copy-Item (Join-Path $root 'prebuilt\config.toml') $stage -Force
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'system\lib64') | Out-Null
 Copy-Item (Join-Path $root 'prebuilt\libaaudio_internal.so')         (Join-Path $stage 'system\lib64') -Force
 Copy-Item (Join-Path $root 'prebuilt\libaaudio_internal_builder.so') (Join-Path $stage 'system\lib64') -Force
+# Zygisk payload: only this branch ships it (per-app switching). zygiskd loads
+# <module>/zygisk/<abi>.so, so it must sit at the module root, not under bin/.
+New-Item -ItemType Directory -Force -Path (Join-Path $stage 'zygisk') | Out-Null
+Copy-Item (Join-Path $root 'zygisk\arm64-v8a.so')           (Join-Path $stage 'zygisk') -Force
+Copy-Item (Join-Path $root 'zygisk\abi.h.patch')            (Join-Path $stage 'zygisk') -Force
+Copy-Item (Join-Path $root 'zygisk\patch_mflags_offset.py') (Join-Path $stage 'zygisk') -Force
 Copy-Item (Join-Path $root 'prebuilt\META-INF') $stage -Recurse -Force
 
 Write-Output "== 2. strip upstream author identifiers =="
@@ -126,6 +132,7 @@ $allowed = @(
   '^META-INF/com/google/android/update-binary$','^META-INF/com/google/android/updater-script$',
   '^bin/(runtime|audio_ready|start_daemon|detect_tuning)\.sh$','^bin/(patch_ports|check_audio_ready)\.awk$',
   '^system/lib64/libaaudio_internal(_builder)?\.so$',
+  '^zygisk/arm64-v8a\.so$','^zygisk/(abi\.h\.patch|patch_mflags_offset\.py)$',
   '^webui/helper\.sh$',
   '^webroot/(index\.html|app\.js|style\.css)$'
 )

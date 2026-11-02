@@ -48,6 +48,14 @@ set_permissions() {
   for f in $MODPATH/bin/patch_ports.awk $MODPATH/bin/check_audio_ready.awk; do
     [ -f "$f" ] && chmod 0644 "$f"
   done
+
+  # Zygisk 负载（本分支内置的 DolbyRouter）：zygiskd 以 system_file 上下文
+  # 加载它，权限必须是 0644 且不带执行位。
+  f=$MODPATH/zygisk/arm64-v8a.so
+  if [ -f "$f" ]; then
+    chmod 0644 "$f"
+    chcon u:object_r:system_file:s0 "$f" 2>/dev/null
+  fi
 }
 
 # ── 不再遮蔽任何系统音频库（重要）────────────────────────────
