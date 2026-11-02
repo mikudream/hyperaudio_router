@@ -543,6 +543,7 @@ EOF
     echo "dolby_offset=$_off"
     echo "dolby_enabled=$(dolby_enabled)"
     echo "dolby_count=$(dolby_count)"
+    echo "dolby_apps=$(dolby_apps | tr '\n' ',' | sed 's/,$//')"
     printf 'dolby_apps_begin\n'
     printf 'dolby_apps_end\n'
     } | flat
