@@ -1,7 +1,7 @@
 id=hyperaudio
 name=低延迟音效路由（应用版）
-version=1.0.0
-versionCode=10000
+version=1.1.0
+versionCode=11000
 author=deepseek-flash
 description=【应用版】全局固定低延迟（fast track，不卡顿），仅名单内的应用启用音效：其音轨回落到普通混音轨，经 Dolby 效果链处理。新增应用无需重启，杀掉应用重开即可。
 credits=See CREDITS.md（来源与致谢）
