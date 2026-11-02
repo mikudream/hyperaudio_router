@@ -489,7 +489,9 @@ EOF
     _inst=0; [ -d "$DOLBY_DIR" ] && _inst=1
     _comp=0
     # 整合版里负载名为 hyperaudio，独立版为 dolbyrouter，两种都算已加载
-    if ps -A 2>/dev/null | grep -q 'zn-zygisk-companion64 \(dolbyrouter\|hyperaudio\)'; then _comp=1; fi
+    # toybox grep 对 BRE 的 \| 支持不可靠，用两次独立匹配更稳
+    if ps -A 2>/dev/null | grep -q 'zn-zygisk-companion64 hyperaudio'; then _comp=1; fi
+    if ps -A 2>/dev/null | grep -q 'zn-zygisk-companion64 dolbyrouter'; then _comp=1; fi
     if [ "$_inst" = "1" ]; then _off=$(dolby_offset_state); else _off=none; fi
     # 是否内置了 zygisk 负载：区分“通用版”与“整合版”，决定 UI 该说什么
     _pay=0; [ -f "$MOD/zygisk/arm64-v8a.so" ] && _pay=1
@@ -535,7 +537,7 @@ EOF
         printf 'error=bad_dolby_command\x1f\n'; exit 0 ;;
     esac
 
-    echo "dolby_installed=$_inst"
+    { echo "dolby_installed=$_inst"
     echo "dolby_companion=$_comp"
     echo "dolby_payload=$_pay"
     echo "dolby_offset=$_off"
@@ -543,6 +545,7 @@ EOF
     echo "dolby_count=$(dolby_count)"
     printf 'dolby_apps_begin\n'
     printf 'dolby_apps_end\n'
+    } | flat
     ;;
 
   diag)
