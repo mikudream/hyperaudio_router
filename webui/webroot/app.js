@@ -38,6 +38,9 @@ var S = {
   mode: 'sound',
   config: { enable: 'true', only_whitelist: 'false', audio_priority: '16', hal_priority: '20', app_priority: '15' },
   tuning: { module: '', name: '', version: '', verified: false, count: 0, loaded: false },
+  /* 按应用音效（DolbyRouter）：由 helper dolby 异步填充。
+   * offset: ported=已适配本机 / stock=原厂偏移(0x378，危险) / unknown / missing / none */
+  dolby: { installed: false, companion: false, offset: 'none', enabled: false, apps: [], loaded: false },
   whitelist: [],
   running: false,
   daemonOk: true,
@@ -223,6 +226,8 @@ function loadAll() {
           }
           parseStatus(r.out);
           renderAll();
+          /* 按应用音效：附加信息，异步拉取，失败不影响主界面 */
+          loadDolby();
           resolve(true);
         })
         .catch(function (e) {
@@ -655,7 +660,166 @@ function addPkg() {
 function bind() {
   $('tab-sound').addEventListener('click', function () { switchMode('sound'); });
   $('tab-fast').addEventListener('click', function () { switchMode('fast'); });
-  $('btn-add').addEventListener('click', addPkg);
+  /* ---------------- 按应用音效（DolbyRouter） ---------------- */
+
+var DOLBY_TEXT = {
+  ported: '已就绪（偏移已适配本机）',
+  stock: '未适配本机，已禁用',
+  unknown: '已安装，但无法确认是否适配本机',
+  missing: '缺少 zygisk 库',
+  none: '未安装'
+};
+
+function parseDolby(out) {
+  var f = fields(out), apps = [], inApps = false;
+  f.forEach(function (ln) {
+    ln = String(ln).replace(/[\r\n]+$/, '');
+    if (ln === '') return;
+    if (ln === 'dolby_apps_begin') { inApps = true; return; }
+    if (ln === 'dolby_apps_end') { inApps = false; return; }
+    if (inApps) { apps.push(ln); return; }
+    var i = ln.indexOf('=');
+    if (i < 0) return;
+    var k = ln.slice(0, i), v = ln.slice(i + 1);
+    if (k === 'error') { throw new Error(v); }
+    if (k === 'dolby_installed') { S.dolby.installed = (v === '1'); return; }
+    if (k === 'dolby_companion') { S.dolby.companion = (v === '1'); return; }
+    if (k === 'dolby_offset') { S.dolby.offset = v; return; }
+    if (k === 'dolby_enabled') { S.dolby.enabled = (v === '1'); return; }
+  });
+  S.dolby.apps = apps;
+  S.dolby.loaded = true;
+}
+
+function loadDolby() {
+  return sh(HELPER_CMD + ' dolby', 60000)
+    .then(function (r) {
+      if (!r.out) throw new Error('无输出');
+      parseDolby(r.out);
+    })
+    .catch(function () {
+      S.dolby.installed = (S.dolby.installed === true);
+      S.dolby.loaded = true;
+      S.dolby.offset = S.dolby.offset || 'none';
+    })
+    .then(function () {
+      renderDolby();
+    });
+}
+
+function dolphin(pkg) {
+  var p = document.createElement('div');
+  p.className = 'pkg';
+  p.textContent = pkg;
+  return p;
+}
+
+function renderDolby() {
+  var d = S.dolby;
+  var card = $('card-dolby');
+  if (!d.installed) { card.hidden = true; return; }
+  card.hidden = false;
+
+  $('dolby-count').textContent = d.apps.length + ' 项';
+  $('dolby-state').textContent = DOLBY_TEXT[d.offset] || DOLBY_TEXT.unknown;
+
+  var why = [];
+  if (d.offset === 'stock') {
+    why.push('这个 DolbyRouter 还是给小米平板 6（Android 15）编的版本，' +
+      'mFlags 偏移 0x378 在本机（Android 17）指向了别的字段。直接勾选应用可能让应用行为异常，' +
+      '所以这里已禁用写入。请先按 CREDITS.md 里的说明把它重定位到 0x3c0。');
+  } else if (d.offset === 'unknown') {
+    why.push('无法从 .so 里辨认出 mFlags 偏移，可能是自定义构建。' +
+      '如果勾选后应用出现异常，先把名单清空——改动会立刻失效，不需要重启。');
+  }
+  if (d.offset !== 'stock' && !d.companion) {
+    why.push('没检测到 DolbyRouter 的后台进程，可能还没重启过或 Zygisk Next 未启用。');
+  }
+  why.push('请勿把实时低延迟音游放进来：它们依赖 FAST 轨的时序，转普通轨会慢放/卡顿。');
+  $('dolby-why').textContent = why.join(' ');
+  $('dolby-why').hidden = false;
+
+  var usable = (d.offset !== 'stock');
+  $('dolby-enable-row').hidden = !usable;
+  $('dolby-add-wrap').hidden = !usable;
+  $('f-dolby-on').checked = !!d.enabled;
+
+  var box = $('dolby-list');
+  box.innerHTML = '';
+  if (!d.apps.length) {
+    var e = document.createElement('div');
+    e.className = 'empty';
+    e.textContent = '名单为空。加上去的应用会经过 Dolby 效果链，其余保持快速轨。';
+    box.appendChild(e);
+    return;
+  }
+  d.apps.forEach(function (pkg) {
+    var el = document.createElement('div');
+    el.className = 'item';
+    var meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.appendChild(dolphin(pkg));
+    var del = document.createElement('button');
+    del.className = 'btn sm danger';
+    del.textContent = '移除';
+    del.addEventListener('click', function () {
+      dolbyCall('del', pkg);
+    });
+    el.appendChild(meta);
+    el.appendChild(del);
+    box.appendChild(el);
+  });
+}
+
+function dolbyCall(cmd, arg) {
+  var c = HELPER_CMD + ' dolby ' + cmd + (arg ? ' ' + arg : '');
+  if (cmd === 'enable') c = HELPER_CMD + ' dolby enable ' + (arg ? '1' : '0');
+  busy(true);
+  return sh(c, 60000)
+    .then(function (r) {
+      var out = r.out || '';
+      if (out.indexOf('error=') >= 0) {
+        var code = out.split('error=')[1].split('\x1f')[0].split('\n')[0];
+        throw new Error(DOLBY_ERR[code] || code);
+      }
+      parseDolby(out);
+      renderDolby();
+      toast('已更新按应用音效名单', 2000);
+    })
+    .catch(function (e) {
+      toast('操作失败: ' + (e && e.message ? e.message : e), 6000);
+      return loadDolby();
+    })
+    .then(function () { busy(false); });
+}
+
+var DOLBY_ERR = {
+  dolby_not_installed: '未安装 DolbyRouter',
+  dolby_offset_not_ported: '当前 DolbyRouter 未适配本机，已拒绝写入（详见下方说明）',
+  bad_package: '包名格式不对，应形如 com.example.game',
+  too_many_apps: '名单已满（最多 64 个）',
+  write_failed: '写入配置文件失败，请检查模块目录权限',
+  bad_value: '参数不合法',
+  bad_dolby_command: '不支持的操作'
+};
+
+$('btn-add').addEventListener('click', addPkg);
+
+/* 按应用音效：添加应用 / 总开关 */
+$('btn-dolby-add').addEventListener('click', function () {
+  var v = ($('f-dolby-pkg').value || '').trim();
+  if (!v) { toast('请输入包名', 2000); return; }
+  dolbyCall('add', v).then(function () { $('f-dolby-pkg').value = ''; });
+});
+$('f-dolby-on').addEventListener('change', function () {
+  dolbyCall('enable', this.checked ? '1' : '0');
+});
+$('f-dolby-pkg').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' || e.keyCode === 13) {
+    e.preventDefault();
+    $('btn-dolby-add').click();
+  }
+});
   $('f-newpkg').addEventListener('keydown', function (e) {
     if (e.key === 'Enter' || e.keyCode === 13) { e.preventDefault(); addPkg(); }
   });

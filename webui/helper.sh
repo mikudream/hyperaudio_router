@@ -38,6 +38,87 @@ mkdir -p "$TMP" 2>/dev/null
 getk() { sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\(.*\)/\1/p" "$CONF" 2>/dev/null | head -1; }
 flat() { tr '\n' '\037'; }
 
+# ---------------- DolbyRouter（按应用音效）----------------
+# 我们**不**改它的代码，只读写它的配置文件：它是独立的 Zygisk 模块，
+# 在目标应用进程内 hook createTrack_l() 清掉 FAST|PRIMARY，让那个应用的
+# 音轨回落到普通混音轨（从而经过 DAP 音效链）。详见 CREDITS.md。
+DOLBY_DIR=/data/adb/modules/dolbyrouter
+DOLBY_CONF=$DOLBY_DIR/perapp.conf
+DOLBY_SO=$DOLBY_DIR/zygisk/arm64-v8a.so
+DOLBY_MAX=64
+
+# 它的 .so 是否已按本机重定位过 mFlags 偏移。
+# 判据：清 FAST|PRIMARY 的那两条指令的 imm12（= 偏移/4）：
+#   0x3c0 -> 0xF0 -> LDR 字 0xB943C0xx、STR 字 0xB903C0xx
+#   0x378 -> 0xDE -> LDR 字 0xB94378xx、STR 字 0xB90378xx
+# （Rn<<5 只会落在低 12 位，所以前 5 个十六进制位稳定，Rd 与 Rn 都不影响。）
+# 用 od -tx4 取 32 位字再比前缀，避免依赖 readelf/objdump。
+# 这一项要读 324KB，成本不低，所以只在 dolby 这个异步动作里做，不进 status。
+dolby_offset_state() {
+  [ -f "$DOLBY_SO" ] || { printf 'missing'; return; }
+  _w=$(od -An -v -tx4 "$DOLBY_SO" 2>/dev/null | tr ' ' '\n' | grep -c '^b943c')
+  _s=$(od -An -v -tx4 "$DOLBY_SO" 2>/dev/null | tr ' ' '\n' | grep -c '^b903c')
+  _wo=$(od -An -v -tx4 "$DOLBY_SO" 2>/dev/null | tr ' ' '\n' | grep -c '^b9437')
+  _so=$(od -An -v -tx4 "$DOLBY_SO" 2>/dev/null | tr ' ' '\n' | grep -c '^b9037')
+  if [ "${_w:-0}" -gt 0 ] && [ "${_s:-0}" -gt 0 ]; then
+    printf 'ported'
+  elif [ "${_wo:-0}" -gt 0 ] && [ "${_so:-0}" -gt 0 ]; then
+    printf 'stock'
+  else
+    printf 'unknown'
+  fi
+}
+
+dolby_enabled() {
+  [ -f "$DOLBY_CONF" ] || { printf '0'; return; }
+  _e=$(sed -n 's/^[[:space:]]*enabled[[:space:]]*=[[:space:]]*\([01]\).*/\1/p' "$DOLBY_CONF" 2>/dev/null | head -1)
+  [ "$_e" = "1" ] && printf '1' || printf '0'
+}
+
+# 只输出包名（跳过 enabled= 行与注释/空行）
+dolby_apps() {
+  [ -f "$DOLBY_CONF" ] || return 0
+  sed -n 's/^[[:space:]]*app[[:space:]]*=[[:space:]]*\([A-Za-z0-9_.]*\).*/\1/p' "$DOLBY_CONF" 2>/dev/null
+}
+
+dolby_count() { dolby_apps | wc -l | tr -d ' '; }
+
+# 原子重写：先写临时文件再 mv，避免 WebUI 读到半截配置。
+# 参数：<enabled 0|1>，包名从 stdin 逐行读入（已校验）。
+dolby_write() {
+  _en=$1
+  _tmp="$TMP/perapp.conf.$$"
+  {
+    printf 'enabled=%s\n' "$_en"
+    while IFS= read -r _a; do
+      [ -n "$_a" ] && printf 'app=%s\n' "$_a"
+    done
+  } > "$_tmp" 2>/dev/null || return 1
+  chmod 0644 "$_tmp" 2>/dev/null
+  mv -f "$_tmp" "$DOLBY_CONF" 2>/dev/null || return 1
+  return 0
+}
+
+# 包名白名单校验：形如 a.b.c，只允许字母数字下划线与点，且不以数字开头。
+# 拒绝一切会破坏 conf 格式或造成注入的输入。
+dolby_valid_pkg() {
+  case "$1" in
+    ''|*[!A-Za-z0-9_.]*) return 1 ;;
+  esac
+  case "$1" in
+    *.*) ;;
+    *) return 1 ;;
+  esac
+  case "$1" in
+    [0-9]*|.*|*.) return 1 ;;
+  esac
+  case "$1" in
+    *..*) return 1 ;;
+  esac
+  [ ${#1} -le 120 ] || return 1
+  return 0
+}
+
 # 用 shell 内建 read + 参数展开读取，避免 cat/tr/命令替换各起一个进程。
 # 本设备每个进程约 70ms，而 getmode 在 status/setmode/save 每条命令里都会调用。
 # read 读取时默认 IFS 会去掉行首尾的空白，这里再兜底剥掉空白/制表符/CR，
@@ -169,6 +250,9 @@ EOF
       printf 'audio_ready=%s\n' "$_ar"
       _why=$(head -1 "$STATE/audio-ready/reason.txt" 2>/dev/null | tr -d ' \r\n')
       [ -n "$_why" ] && printf 'audio_ready_reason=%s\n' "$_why"
+      # 按应用音效（DolbyRouter）只报"装没装"——一个目录判断，零成本。
+      # 偏移是否适配、应用列表要读 324KB 的 .so，走单独的 dolby 动作。
+      if [ -d "$DOLBY_DIR" ]; then printf 'dolby_installed=1\n'; else printf 'dolby_installed=0\n'; fi
     } | flat
     printf '\n'
     ;;
@@ -388,6 +472,63 @@ EOF
       cp -f "$TMP/config.toml.bak" "$CONF" 2>/dev/null
       printf 'error=write_failed\x1f\n'
     fi
+    ;;
+
+  dolby)
+    # 按应用音效（DolbyRouter）。前端在 status 之后单独拉这条：
+    # 判定"是否已按本机重定位偏移"要读 324KB 的 .so，不能放进 status。
+    _cmd=${2:-status}
+    _inst=0; [ -d "$DOLBY_DIR" ] && _inst=1
+    _comp=0
+    if ps -A 2>/dev/null | grep -q 'zn-zygisk-companion64 dolbyrouter'; then _comp=1; fi
+    if [ "$_inst" = "1" ]; then _off=$(dolby_offset_state); else _off=none; fi
+
+    case "$_cmd" in
+      status) ;;
+      enable|add|del|clear)
+        # 三道闸：没装 / 偏移未适配本机 / 没有权限，都不写。
+        if [ "$_inst" != "1" ]; then printf 'error=dolby_not_installed\x1f\n'; exit 0; fi
+        if [ "$_off" = "stock" ]; then printf 'error=dolby_offset_not_ported\x1f\n'; exit 0; fi
+        _en=$(dolby_enabled)
+        case "$_cmd" in
+          enable)
+            case "$3" in 0|1) ;; *) printf 'error=bad_value\x1f\n'; exit 0 ;; esac
+            _en=$3
+            dolby_apps | dolby_write "$_en" || { printf 'error=write_failed\x1f\n'; exit 0; }
+            ;;
+          clear)
+            printf '0\n' | dolby_write "$_en" || { printf 'error=write_failed\x1f\n'; exit 0; }
+            ;;
+          add)
+            if ! dolby_valid_pkg "$3"; then printf 'error=bad_package\x1f\n'; exit 0; fi
+            # 已存在则不重复添加（保持幂等，重复点不会写坏文件）
+            if dolby_apps | grep -qx "$3"; then
+              :
+            else
+              if [ "$(dolby_count)" -ge "$DOLBY_MAX" ]; then
+                printf 'error=too_many_apps\x1f\n'; exit 0
+              fi
+              { dolby_apps; printf '%s\n' "$3"; } | dolby_write "$_en" \
+                || { printf 'error=write_failed\x1f\n'; exit 0; }
+            fi
+            ;;
+          del)
+            if ! dolby_valid_pkg "$3"; then printf 'error=bad_package\x1f\n'; exit 0; fi
+            dolby_apps | grep -Fxv "$3" | dolby_write "$_en" \
+              || { printf 'error=write_failed\x1f\n'; exit 0; }
+            ;;
+        esac
+        printf 'ok=1\x1f'
+        ;;
+      *)
+        printf 'error=bad_dolby_command\x1f\n'; exit 0 ;;
+    esac
+
+    printf 'dolby_installed=%s\ndolby_companion=%s\ndolby_offset=%s\ndolby_enabled=%s\ndolby_count=%s\n' \
+      "$_inst" "$_comp" "$_off" "$(dolby_enabled)" "$(dolby_count)"
+    printf 'dolby_apps_begin\n'
+    dolby_apps
+    printf 'dolby_apps_end\n'
     ;;
 
   *)

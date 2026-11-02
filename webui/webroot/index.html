@@ -133,6 +133,39 @@
         <div id="wl-list" class="list"></div>
       </section>
 
+      <!-- ===== 按应用音效（DolbyRouter）===== -->
+      <section class="card" id="card-dolby" hidden>
+        <div class="card-title">
+          按应用音效
+          <span class="pill" id="dolby-count">0 项</span>
+        </div>
+        <p class="hint">
+          配合独立模块 <b>DolbyRouter</b> 使用：名单内的应用会单独回落到普通混音轨，
+          从而经过 Dolby 效果链；名单外的应用保持快速轨。与上面的全局模式互不影响，
+          改名单<b>不需要重启</b>，杀掉应用重开即可。
+        </p>
+
+        <div class="kv"><span>模块状态</span><b id="dolby-state">检测中…</b></div>
+        <p class="hint" id="dolby-why" hidden></p>
+
+        <label class="row switch-row" id="dolby-enable-row" hidden>
+          <span>
+            <b>启用按应用音效</b>
+            <small>perapp.conf 的 enabled</small>
+          </span>
+          <input type="checkbox" id="f-dolby-on" class="sw" />
+        </label>
+
+        <div id="dolby-add-wrap" hidden>
+          <div class="add-row">
+            <input type="text" id="f-dolby-pkg" placeholder="输入包名，如 com.xxx.game" autocomplete="off"
+              autocapitalize="off" spellcheck="false" />
+            <button class="btn sm" id="btn-dolby-add">添加</button>
+          </div>
+          <div id="dolby-list" class="list"></div>
+        </div>
+      </section>
+
     </main>
 
     <footer class="ft">
