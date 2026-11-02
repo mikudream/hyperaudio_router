@@ -226,8 +226,9 @@ function loadAll() {
           }
           parseStatus(r.out);
           renderAll();
-          /* 按应用音效：附加信息，异步拉取，失败不影响主界面 */
-          loadDolby();
+          /* 按应用音效：附加信息，异步拉取，失败不影响主界面。
+           * 它的定义在 bind() 作用域内，故通过 window 上的引用调用。 */
+          if (window.__loadDolby) window.__loadDolby();
           resolve(true);
         })
         .catch(function (e) {
@@ -356,6 +357,9 @@ function renderAll() {
   $('card-fast').hidden = isSound;
   $('card-whitelist').hidden = isSound;
   $('card-sound').hidden = !isSound;
+  /* 节标题跟随卡片显隐，否则低延迟模式下会留下一个空标题 */
+  var _sh = $('h-status');
+  if (_sh) _sh.parentNode.hidden = !isSound;
 
   /* 头部一键切换按钮：文案指向"切换到的目标模式" */
   var tl = $('toggleLabel');
@@ -792,6 +796,9 @@ function dolbyCall(cmd, arg) {
     })
     .then(function () { busy(false); });
 }
+
+window.__loadDolby = loadDolby;
+window.__renderDolby = renderDolby;
 
 var DOLBY_ERR = {
   dolby_not_installed: '未安装 DolbyRouter',
