@@ -28,3 +28,11 @@
 .tabs3 .tab3 { min-height: 38px; border-radius: 12px; font-size: 13px; font-weight: 550;
   color: var(--fg-dim, #626873); background: transparent; border: 0; }
 .tabs3 .tab3.active { background: var(--card, #fff); color: var(--accent-fg, #1765db); }
+/* 保存栏：固定在 dock 之上 */
+.savebar {
+  position: fixed; left: 0; right: 0; bottom: 92px; z-index: 19;
+  display: flex; gap: 10px; justify-content: center;
+  max-width: 600px; margin: 0 auto; padding: 0 16px; pointer-events: none;
+}
+.savebar .btn { flex: 1; pointer-events: auto; }
+.main { padding-bottom: 176px; }

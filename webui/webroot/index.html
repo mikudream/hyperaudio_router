@@ -43,11 +43,7 @@
 
     <main class="main">
 
-      <div class="tabs3" role="tablist">
-        <button class="tab3 active" id="tab-status" type="button" role="tab">状态</button>
-        <button class="tab3" id="tab-dolby" type="button" role="tab">杜比链路</button>
-        <button class="tab3" id="tab-low" type="button" role="tab">低延迟链路</button>
-      </div>
+      
 
       <div class="page" id="pane-status">
         <div class="section-title"><h2>模块状态</h2></div>
@@ -186,9 +182,27 @@
 
     </main>
 
-    <footer class="ft">
+    <div class="savebar">
       <button class="btn secondary" id="btn-reload" type="button">重新读取</button>
       <button class="btn primary" id="btn-save" type="button">保存并生效</button>
+    </div>
+
+    <footer class="ft">
+      <nav class="bottom-nav" id="dock">
+        <span class="nav-indicator"></span>
+        <button class="nav-item active" id="tab-status" type="button">
+          <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M4 13h4l3 6 4-14 3 8h2"/></svg></span>
+          <span>状态</span>
+        </button>
+        <button class="nav-item" id="tab-dolby" type="button">
+          <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12h3l2-5 3 10 2-5h4"/></svg></span>
+          <span>杜比链路</span>
+        </button>
+        <button class="nav-item" id="tab-low" type="button">
+          <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M13 3 6 13h5l-1 8 7-11h-5l1-7z"/></svg></span>
+          <span>低延迟链路</span>
+        </button>
+      </nav>
     </footer>
   </div>
 

@@ -801,7 +801,17 @@ function dolbyCall(cmd, arg) {
     .then(function () { busy(false); });
 }
 
-window.__loadDolby = loadDolby;
+/* 底部 dock：切换页签时把指示器移到对应位置（v3.0 的 --ha-nav-index） */
+    (function () {
+      var dock = $('dock');
+      var ids = ['tab-status', 'tab-dolby', 'tab-low'];
+      if (!dock) return;
+      ids.forEach(function (id, i) {
+        var b = $(id);
+        if (b) b.addEventListener('click', function () { dock.style.setProperty('--ha-nav-index', i); });
+      });
+    })();
+    window.__loadDolby = loadDolby;
 window.__renderDolby = renderDolby;
 
 var DOLBY_ERR = {
