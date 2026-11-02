@@ -129,7 +129,7 @@ foreach ($f in $forbidden) {
 # aborts the build, so extra/.xml/.json payloads or stray notes cannot ship.
 $allowed = @(
   '^module\.prop$','^customize\.sh$','^post-fs-data\.sh$','^service\.sh$','^system\.prop$','^uninstall\.sh$',
-  '^CREDITS\.md$','^config\.toml$','^hyper-audio$',
+  '^CREDITS\.md$','^config\.toml$','^hyper-audio$','^mode$',
   '^META-INF/com/google/android/update-binary$','^META-INF/com/google/android/updater-script$',
     '^bin/[A-Za-z0-9_]+\.(sh|awk)$',
   '^system/lib64/libaaudio_internal(_builder)?\.so$',

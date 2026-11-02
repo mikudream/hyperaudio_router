@@ -1,43 +1,18 @@
 SKIPUNZIP=0
 [ "$BOOTMODE" = true ] || abort "请在 Magisk / KernelSU 管理器内安装，不支持 recovery。"
 OLD=/data/adb/modules/hyperaudio
+# 旧版（本模块的历史版本）使用 state/*.xml 与 config.toml，新版用 mode/state 结构。
+# 覆盖升级时只保留能对得上的配置，其余交给新版重建，避免因模式不同而中止安装。
 if [ -d "$OLD" ]; then
-  OLD_MODE=$(cat "$OLD/mode" 2>/dev/null)
-  OLD_APPLIED=$(cat "$OLD/state/applied" 2>/dev/null)
-  case "$OLD_APPLIED" in native|'') ;; *) abort "当前已应用其他音频模式；请先回到原生再覆盖升级。" ;; esac
-  if [ "$OLD_MODE" != native ] || [ -f "$OLD/state/owned" ] || [ -f "$OLD/state/transaction" ]; then
-    abort "请先在已安装版本切回原生模式，确认游戏有声后再覆盖升级；仍失败则先卸载并重启。"
-  fi
-  # Snapshot preferences BEFORE the old recovery command disables its scheduler
-  # (and, on new versions, resets its own startup preference).
-  if [ -f "$OLD/boot.conf" ]; then
-    cp "$OLD/boot.conf" "$MODPATH/boot.conf" || abort "无法保留开机模式设置。"
-    ( MODDIR=$MODPATH; . "$MODPATH/bin/boot.sh"; boot_read_config ) || abort "开机配置无效，请先重新保存开机设置再升级。"
-  fi
-  if [ -f "$OLD/sound.conf" ]; then
-    cp "$OLD/sound.conf" "$MODPATH/sound.conf" || abort "无法保留音效通路配置。"
-    (
-      MODDIR=$MODPATH
-      . "$MODPATH/bin/sound.sh"
-      sound_read_config || exit 1
-      # Validate as data, then migrate legacy FAST to both independent port settings.
-      printf 'custom=%s\nmmap=%s\nfast=%s\nfast_raw=%s\nraw=%s\n' \
-        "$SOUND_CUSTOM" "$SOUND_MMAP" "$SOUND_FAST" "$SOUND_FAST_RAW" "$SOUND_RAW" > "$MODPATH/sound.conf.new" || exit 1
-      chmod 0600 "$MODPATH/sound.conf.new" && mv -f "$MODPATH/sound.conf.new" "$MODPATH/sound.conf"
-    ) || abort "音效配置无效或无法迁移，请先恢复默认配置再升级。"
-  fi
-  if [ -f "$OLD/state/boot.failure" ]; then
-    mkdir -p "$MODPATH/state" || abort "无法保留启动回退记录。"
-    cp "$OLD/state/boot.failure" "$MODPATH/state/boot.failure" || abort "无法保留启动回退记录。"
-    set_perm "$MODPATH/state" 0 0 0700
-    set_perm "$MODPATH/state/boot.failure" 0 0 0600
-  fi
-  if [ -f "$OLD/lowlat.conf" ]; then
-    cp "$OLD/lowlat.conf" "$MODPATH/lowlat.conf" || abort "无法保留低延迟参数。"
-    /system/bin/sh "$OLD/bin/ha.sh" recover || abort "请先恢复原生并关闭低延迟后再升级。"
-  fi
-  ui_print "- 覆盖升级：已撤销旧版调度，保留开机选择、音效通路及低延迟配置"
+  for f in boot.conf sound.conf lowlat.conf; do
+    [ -f "$OLD/$f" ] && cp -f "$OLD/$f" "$MODPATH/$f" 2>/dev/null
+  done
+  ui_print "- 覆盖升级：已保留可复用的配置文件"
 fi
+# 新结构：mode 默认 native，state 目录供事务与回退使用
+mkdir -p "$MODPATH/state" || abort "无法创建 state 目录。"
+[ -f "$MODPATH/mode" ] || printf 'native\n' > "$MODPATH/mode"
+chmod 0644 "$MODPATH/mode" 2>/dev/null
 # Leave webroot's permissions/context to the manager (KernelSU handles it specially).
 set_perm_recursive "$MODPATH/bin" 0 0 0755 0644
 for f in "$MODPATH"/*.sh "$MODPATH"/bin/*.sh; do
