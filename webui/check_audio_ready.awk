@@ -37,10 +37,15 @@ FILENAME==ARGV[1] {
     if ($0 ~ /^[[:space:]]*Primary Output I\/O handle:[[:space:]]*[0-9]+/) primary=$NF+0
 
     # 输出条目。两种布局都要认：
-    #   A) "  1. Handle: 15 ; \"primary\""      —— 标注同一行
-    #   B) "  1. Handle: 15" + 下一行 "; \"primary\""
+    #   A) "  1. Handle: 10; \"primary\""      —— 标注同一行（本机实测这种）
+    #   B) "  1. Handle: 10" + 下一行 "; \"primary\""
+    # 句柄号必须从 "Handle:" 之后取，不能取 $NF —— 布局 A 的 $NF 是 "primary"。
     if ($0 ~ /^[[:space:]]*[0-9]+\.[[:space:]]*Handle:[[:space:]]*[0-9]+/) {
-        cur_handle=$NF+0; in_primary=0; output_ports=0
+        cur_handle=0
+        if (match($0, /Handle:[[:space:]]*[0-9]+/)) {
+            s=substr($0, RSTART, RLENGTH); sub(/^Handle:[[:space:]]*/,"",s); cur_handle=s+0
+        }
+        in_primary=0; output_ports=0
         if ($0 ~ /;[[:space:]]*"primary"[[:space:]]*$/) { in_primary=1; primary_handle=cur_handle }
         next
     }
@@ -53,8 +58,15 @@ FILENAME==ARGV[1] {
     if(in_primary && output_ports && $0 ~ /^[[:space:]]*[0-9]+\.[[:space:]]*"(low_latency_out|raw_out)";/) {
         name=($0 ~ /"low_latency_out"/ ? "low_latency_out" : "raw_out")
         counts[name]++
-        # 优先精确抓 "flags 0x...."；抓不到再退回"取最后一个字段"
-        if (match($0, /flags[[:space:]]+0[xX][0-9a-fA-F]+/)) {
+        # 本机实测格式："1. \"low_latency_out\"; 0x0002 (AUDIO_OUTPUT_FLAG_PRIMARY)"
+        # —— **没有 flags 关键字**，值直接跟在分号后。按优先级依次尝试：
+        #   1) 分号后的十六进制（实测格式）
+        #   2) "flags 0x..."（其他版本可能带关键字）
+        #   3) 兜底：取最后一个字段
+        if (match($0, /;[[:space:]]*0[xX][0-9a-fA-F]+/)) {
+            s=substr($0, RSTART, RLENGTH); sub(/^;[[:space:]]*/,"",s)
+            flags[name]=hexnum(s)
+        } else if (match($0, /flags[[:space:]]+0[xX][0-9a-fA-F]+/)) {
             s=substr($0, RSTART+5, RLENGTH-5); sub(/^[[:space:]]+/,"",s)
             flags[name]=hexnum(s)
         } else {

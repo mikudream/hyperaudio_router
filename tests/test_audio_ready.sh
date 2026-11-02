@@ -83,9 +83,43 @@ Output thread 0x7f: type 0
   HAL frame count: 960
 F
 
+# 布局 C：本机（REDMI K90 Pro Max / HyperOS）实测的真实形状 ——
+#   · Handle 行：`1. Handle: 10; "primary"`（$NF 是 "primary"，不是数字）
+#   · 段标题：`- Output MixPorts (14):`
+#   · 端口行：`1. "low_latency_out"; 0x0002 (AUDIO_OUTPUT_FLAG_PRIMARY)`
+#     **没有 flags 关键字**，值直接跟在分号后
+# 下面这份是真实 dumpsys 的节选（保留了原有缩进与格式）。
+cat > "$T/policy_real.txt" <<'P'
+AudioPolicyManager Dump: 0xb4000076ff80c6e0
+ Primary Output I/O handle: 13
+ Outputs:
+  1. Handle: 10; "primary"
+   - Output MixPorts (14):
+     1. "low_latency_out"; 0x0002 (AUDIO_OUTPUT_FLAG_PRIMARY)
+     8. "raw_out"; 0x0100 (AUDIO_OUTPUT_FLAG_RAW)
+   - Input MixPorts (10):
+  2. Handle: 18; "usb"
+   - Output MixPorts (1):
+     1. "low_latency_out"; 0x0006 (AUDIO_OUTPUT_FLAG_PRIMARY|AUDIO_OUTPUT_FLAG_FAST)
+P
+cat > "$T/flinger_real.txt" <<'F'
+Output thread 0xb4000077b220d590, name AudioOut_D, tid 25729, type 0 (MIXER):
+  I/O handle: 13
+  HAL frame count: 1920
+Output thread 0xb4000077b218c590, name AudioOut_15, tid 25736, type 0 (MIXER):
+  I/O handle: 21
+  HAL frame count: 1920
+F
+
 run_check() { # run_check <policy> <expect_low> <expect_raw> ; 输出 rc
   awk -v expected_low="$2" -v expected_raw="$3" \
       -f "$CHECKER" "$1" "$T/flinger.txt" > "$T/obs.txt" 2> "$T/reason.txt"
+  echo $?
+}
+
+run_check_real() { # 真实布局配套的是 flinger_real
+  awk -v expected_low="$1" -v expected_raw="$2" \
+      -f "$CHECKER" "$T/policy_real.txt" "$T/flinger_real.txt" > "$T/obs.txt" 2> "$T/reason.txt"
   echo $?
 }
 
@@ -98,6 +132,15 @@ ck_eq "不符原因准确" "$(cat "$T/reason.txt")" "loaded_low_latency_flags_mi
 
 ck_eq "只校验 low 时 raw 不参与" "$(run_check "$T/policy_a.txt" 2 '')" "0"
 ck_eq "不校验 flags 时直接通过" "$(run_check "$T/policy_a.txt" '' '')" "0"
+
+echo ""
+echo "############ 2b. 真实 dumpsys 形状（本机实测）############"
+ck_eq "真实格式 匹配 (2/256)" "$(run_check_real 2 256)" "0"
+ck_eq "真实格式 取到 primary=13" "$(sed -n 's/^primary_output=//p' "$T/obs.txt")" "13"
+ck_eq "真实格式 取到 hal_frames=1920" "$(sed -n 's/^primary_hal_frames=//p' "$T/obs.txt")" "1920"
+ck_eq "真实格式 只认主输出的端口（不被后续输出覆盖）" "$(sed -n 's/^low_latency_out=//p' "$T/obs.txt")" "2"
+ck_eq "真实格式 不符时失败 (2/0)" "$(run_check_real 2 0)" "1"
+ck_eq "真实格式 不符原因准确" "$(cat "$T/reason.txt")" "loaded_raw_flags_mismatch"
 
 echo ""
 echo "############ 3. 无法识别 / 主输出缺失 ############"
