@@ -816,17 +816,6 @@ var DOLBY_ERR = {
 
 $('btn-add').addEventListener('click', addPkg);
 
-    /* 顶部页签：应用音效 / 低延迟 */
-    var TABS = [['tab-app','pane-app'], ['tab-low','pane-low']];
-    TABS.forEach(function (p) {
-      $(p[0]).addEventListener('click', function () {
-        TABS.forEach(function (q) {
-          $(q[0]).classList.toggle('active', q[0] === p[0]);
-          $(q[1]).hidden = (q[0] !== p[0]);
-        });
-      });
-    });
-
     /* 导出诊断报告：只读，不触碰任何设置 */
     $('btn-diag').addEventListener('click', function () {
       busy(true);
@@ -882,15 +871,4 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   bind();
   refresh();
-});
-
-/* 兜底：确保按应用音效的状态一定会被拉取一次。
-   它的实现位于 bind() 作用域内，通过 window.__loadDolby 暴露；
-   这里轮询等待（最多 6 秒），避免因初始化顺序或 bind 中途异常导致永不拉取。 */
-document.addEventListener('DOMContentLoaded', function () {
-  var n = 0;
-  var t = setInterval(function () {
-    if (window.__loadDolby) { clearInterval(t); window.__loadDolby(); return; }
-    if (++n > 40) { clearInterval(t); }
-  }, 150);
 });
