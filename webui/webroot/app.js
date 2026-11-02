@@ -675,7 +675,9 @@ var DOLBY_TEXT = {
 };
 
 function parseDolby(out) {
-  var f = fields(out), apps = [], inApps = false;
+  /* helper 的 dolby 输出是换行分隔（status 才是 \x1f），两种都要认，
+     否则整段会被当成一行，只解析出第一个键。 */
+  var f = String(out).split(/[\u001f\n]+/), apps = [], inApps = false;
   f.forEach(function (ln) {
     ln = String(ln).replace(/[\r\n]+$/, '');
     if (ln === '') return;
