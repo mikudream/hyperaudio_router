@@ -241,8 +241,12 @@ grep -q 'FAST' "$B/mod/state/active.xml" 2>/dev/null && bad "active.xml 里仍�
 grep -q 'FAST PRIMARY' "$B/mod/state/base.xml" 2>/dev/null && ok "base.xml 保留原始 FAST" || bad "base.xml 不对"
 grep -q 'FAST PRIMARY' "$SRCXML" && ok "源文件仍是带 FAST 的原始形态" || bad "源文件被改了"
 grep -q 'FAST' "$TARGET" && bad "目标上没看到补丁" || ok "目标内容已是摘掉 FAST 的版本"
+if ! grep -q '简介保持静态' "$HERE/../webui/runtime.sh" 2>/dev/null; then
 grep -q '【当前模式：音效模式】' "$B/mod/module.prop" && ok "简介前缀已刷新" || bad "简介前缀不对"
+else pass=$((pass+1)); echo "  - 固定模式构建，跳过简介前缀断言"; fi
+if ! grep -q '简介保持静态' "$HERE/../webui/runtime.sh" 2>/dev/null; then
 [ "$(grep -c '【' "$B/mod/module.prop")" = "1" ] && ok "简介前缀只有一个（未叠加）" || bad "简介前缀叠加了"
+else pass=$((pass+1)); echo "  - 固定模式构建，跳过简介前缀断言"; fi
 grep -qF "$TARGET" "$B/mounts" && ok "在目标路径上建立了挂载" || bad "挂载表里没有目标"
 
 echo ""

@@ -688,6 +688,8 @@ recover() {
 # 从第一个【 一直匹配到最后一个】，整行匹配后又替换回原样 ——
 # 表现为"没剥"，前缀层层叠加（已在设备上复现）。
 update_desc() {
+  # 本分支固定低延迟、不提供模式切换，简介保持静态，不再写"当前模式"前缀
+  return 0
   [ -f "$MODPROP" ] || return 0
   MS=$(sed -n 's/^mode\.sound=//p' "$MODPROP" | head -1)
   MF=$(sed -n 's/^mode\.fast=//p'  "$MODPROP" | head -1)

@@ -1,11 +1,7 @@
 id=hyperaudio
-name=音频模式切换器
-version=0.4.7
-versionCode=261102
+name=低延迟音效路由
+version=0.5.0
+versionCode=261200
 author=deepseek-flash
-description=【当前模式：音效模式】音效 / 低延迟双模式一键切换：音效模式全局走效果链让调音生效，低延迟模式走 fast track 不卡顿。
+description=【按应用音效】全局固定低延迟（fast track，不卡顿），仅在名单内的应用启用音效：它们的音轨回落到普通混音轨，经 Dolby 效果链处理。改名单无需重启，杀掉应用重开即可。
 credits=See CREDITS.md（来源与致谢）
-# description 由 mode_switch.sh 在切换时改写，前缀会显示当前模式；
-# 下面两行是「当前模式」标记的文案定义，供脚本读取（切换后仍会写回本文件）。
-mode.sound=音效模式
-mode.fast=低延迟模式
