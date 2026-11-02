@@ -52,7 +52,7 @@ Write-Output "== 1. stage module tree =="
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
 
-foreach ($f in @('module.prop','customize.sh','post-fs-data.sh','service.sh','system.prop')) {
+foreach ($f in @('module.prop','customize.sh','post-fs-data.sh','service.sh','system.prop','sound.conf','lowlat.conf','boot.conf')) {
   Copy-Item (Join-Path $root "assets\$f") $stage -Force
 }
 Copy-Item (Join-Path $root 'CREDITS.md') $stage -Force
@@ -64,7 +64,9 @@ Copy-Item (Join-Path $root 'webui\webroot\*') (Join-Path $stage 'webroot') -Recu
 # action.sh / uninstall.sh must sit at the module root: the KernelSU / Magisk
 # "action" button and the uninstall hook both look for them there.
   # 本分支不提供动作按钮：定位是全局恒定低延迟 + 按应用音效，没有可切换的模式
-  Copy-Item (Join-Path $root 'webui\uninstall.sh') $stage -Force
+  Copy-Item (Join-Path $root 'assets\uninstall.sh') $stage -Force
+  # v3.0 的配置文件由 bin 脚本读取，随包提供默认值
+  Copy-Item (Join-Path $root 'webui\*.conf') $stage -Force
 foreach ($f in (Get-ChildItem (Join-Path $root 'webui\bin') -File | ForEach-Object { $_.Name })) {
   Copy-Item (Join-Path $root "webui\bin\$f") (Join-Path $stage 'bin') -Force
 }
