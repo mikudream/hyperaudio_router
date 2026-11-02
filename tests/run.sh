@@ -100,6 +100,14 @@ if command -v node >/dev/null 2>&1; then
   echo "  -> 失败"; rc=1
   fi
 fi
+# ---------------- 11. 应用版后端（router.sh）----------------
+echo ""
+echo "############ 11. 应用版后端：两个名单的增删与校验 ############"
+if sh "$HERE/test_router_sh.sh"; then
+echo "  -> 通过"
+else
+echo "  -> 失败"; rc=1
+fi
 if [ "$rc" = "0" ]; then
   echo "全部主机侧测试通过"
 else

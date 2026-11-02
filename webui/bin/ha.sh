@@ -57,6 +57,8 @@ case "$1" in
     diagnose) run_diagnostics; exit $? ;;
     diag-status) diag_status; exit $? ;;
     tuning) detect_tuning; exit $? ;;
+  router-status|perapp-add|perapp-del|perapp-enable|wl-add|wl-del)
+    /system/bin/sh "$MODDIR/bin/router.sh" "$@"; exit $? ;;
 esac
 lock_state || { echo error=operation_in_progress; exit 1; }
 trap 'unlock_state' EXIT
