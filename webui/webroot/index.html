@@ -82,6 +82,7 @@
 
         <div class="section-title"><h2>支持</h2></div>
         <section class="card preference-card">
+          <div class="card-title">诊断</div>
           <p class="hint">导出只读报告（挂载、端口 flags、音频就绪、日志尾部），不改任何设置。</p>
           <div class="row"><button class="btn" id="btn-diag" type="button">导出诊断报告</button></div>
         </section>
@@ -91,7 +92,6 @@
           <div class="row"><span class="copy"><b>模块</b></span><span>低延迟音效路由（应用版）</span></div>
           <div class="row"><span class="copy"><b>版本</b></span><span>1.0.3</span></div>
           <div class="row"><span class="copy"><b>作者</b></span><span>deepseek-flash</span></div>
-          <p class="hint">实现思路参考 HyperAudio Switch v3.0 与 DolbyRouter，界面资源来自 v3.0。第三方组件版权归各自作者，详见模块内的 CREDITS.md。</p>
         </section>
       </div>
 
@@ -106,7 +106,7 @@
             添加后无需重启，杀掉应用重开即可。<br />请勿加入实时低延迟音游：它们依赖 FAST 轨的时序，转普通轨会慢放或卡顿。
           </p>
 
-          <label class="row" id="dolby-enable-row" hidden>
+          <label class="row" id="dolby-enable-row" hidden style="display:none">
             <span class="copy">
               <b>启用杜比链路</b>
             </span>
@@ -129,16 +129,7 @@
 
       <div class="page" id="pane-low" hidden>
         <div class="section-title"><h2>低延迟链路设置</h2></div>
-        <section class="card preference-card" id="card-fast" hidden>
-          <label class="row">
-            <span class="copy">
-              <b>启用守护进程</b>
-            </span>
-            <span class="switch">
-              <input type="checkbox" id="f-enable" class="sw" />
-              <span class="switch-track"></span>
-            </span>
-          </label>
+        <section class="card preference-card" id="card-fast" hidden>`n          <input type="checkbox" id="f-enable" class="sw" checked hidden />
 
           <label class="row">
             <span class="copy">
