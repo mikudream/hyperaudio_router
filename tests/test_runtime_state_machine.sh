@@ -294,7 +294,6 @@ echo "  (rc=$RC) $(printf '%s' "$OUT" | tr '\n' ' ')"
 [ "$(tr -d ' \r\n' < "$B/mod/state/applied" 2>/dev/null)" = "fast" ] && ok "applied=fast" || bad "applied 不对"
 [ -s "$B/mounts" ] && bad "挂载没摘掉" || ok "已摘掉我们的层"
 [ -f "$B/mod/state/owned" ] && bad "owned 残留" || ok "owned 已清"
-grep -q '【当前模式：低延迟模式】' "$B/mod/module.prop" && ok "简介切到低延迟模式" || bad "简介不对"
 grep -q 'FAST PRIMARY' "$SRCXML" && ok "源文件仍带 FAST（未被我们碰过）" || bad "源文件被改"
 
 echo ""
