@@ -742,7 +742,6 @@ function renderDolby() {
   if (d.offset !== 'stock' && !d.companion) {
     why.push('没检测到 DolbyRouter 的后台进程，可能还没重启过或 Zygisk Next 未启用。');
   }
-  why.push('请勿把实时低延迟音游放进来：它们依赖 FAST 轨的时序，转普通轨会慢放/卡顿。');
   $('dolby-why').textContent = why.join(' ');
   $('dolby-why').hidden = false;
 
