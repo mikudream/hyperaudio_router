@@ -131,11 +131,11 @@ _cleanup_old_overlay() {
 _cleanup_old_overlay
 
 ui_print " "
-ui_print "- 音频模式切换器（通用机型）已安装"
+ui_print "- 低延迟音效路由 0.5.0 已安装"
 ui_print "- 模块 ID：hyperaudio"
-ui_print "- 默认工作模式：音效模式（音频走效果链，调音生效）"
-ui_print "- 打开 KernelSU / APatch 管理器的本模块 WebUI 可："
-ui_print "  · 一键切换 音效模式 / 低延迟模式"
-ui_print "  · 配置实时优先级与生效应用白名单（低延迟模式下）"
-ui_print "  · 自动检测并显示本机调音来源模块"
+ui_print "- 工作方式：全局固定低延迟，音效按应用开启"
+ui_print "- 打开 WebUI 可："
+ui_print "  · 添加需要启用音效的应用（其余应用保持低延迟）"
+ui_print "  · 配置实时优先级与低延迟白名单"
+ui_print "  · 查看音频框架是否就绪、导出诊断报告"
 ui_print "- 配置文件：/data/adb/modules/hyperaudio/config.toml"
