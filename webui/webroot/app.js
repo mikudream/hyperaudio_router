@@ -994,3 +994,16 @@ document.addEventListener('DOMContentLoaded', function () {
     setInterval(paint, 5000);
   });
 })();
+
+/* FORCE-WL：低延迟逻辑固定为"仅名单内生效"，界面不再提供开关。
+   载入时把隐藏的 f-only 置为 true 并保存一次，确保配置真正落盘。 */
+(function () {
+  document.addEventListener('DOMContentLoaded', function () {
+    var el = document.getElementById('f-only');
+    if (el) el.checked = true;
+    setTimeout(function () {
+      var b = document.getElementById('btn-save');
+      if (b) b.click();
+    }, 1200);
+  });
+})();
