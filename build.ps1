@@ -78,9 +78,7 @@ Copy-Item (Join-Path $root 'prebuilt\libaaudio_internal_builder.so') (Join-Path 
 # Zygisk payload: only this branch ships it (per-app switching). zygiskd loads
 # <module>/zygisk/<abi>.so, so it must sit at the module root, not under bin/.
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'zygisk') | Out-Null
-Copy-Item (Join-Path $root 'zygisk\arm64-v8a.so')           (Join-Path $stage 'zygisk') -Force
-Copy-Item (Join-Path $root 'zygisk\abi.h.patch')            (Join-Path $stage 'zygisk') -Force
-Copy-Item (Join-Path $root 'zygisk\patch_mflags_offset.py') (Join-Path $stage 'zygisk') -Force
+  # 通用版不打包 zygisk 负载（那是应用版的按应用挂钩）
 Copy-Item (Join-Path $root 'prebuilt\META-INF') $stage -Recurse -Force
 
 Write-Output "== 2. strip upstream author identifiers =="
