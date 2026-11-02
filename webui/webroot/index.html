@@ -36,7 +36,7 @@
         <h2>工作模式</h2>
         <span class="section-value" id="toggleLabel">点右上角切换</span>
       </div>
-      <section class="card mode-card">
+      <section class="card mode-card" hidden>
         <div class="mode-tabs" id="modeTabs">
           <button class="mode-tab" id="tab-sound" data-mode="sound" type="button">
             <svg class="mode-icon icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -93,6 +93,40 @@
         <p class="hint" id="audio-ready-why" hidden></p>
       </section>
 
+      <section class="card preference-card" id="card-dolby" hidden>
+        <div class="card-title">
+          按应用音效
+          <span class="pill" id="dolby-count">0 项</span>
+        </div>
+        <p class="hint">
+          名单内的应用单独回落到普通混音轨，从而经过 Dolby 效果链；名单外保持快速轨。
+          改名单<b>不需要重启</b>，杀掉应用重开即可。<br />
+          已知限制：走 AAudio MMAP 直通的应用不在本名单的作用范围内（该通路在更底层就已绕开效果链）。
+        </p>
+
+        <div class="row">
+          <span class="copy"><b>模块状态</b></span>
+          <span class="value" id="dolby-state">检测中…</span>
+        </div>
+        <p class="hint" id="dolby-why" hidden></p>
+
+        <label class="row" id="dolby-enable-row" hidden>
+          <span class="copy">
+            <b>启用按应用音效</b>
+            <small>perapp.conf 的 enabled</small>
+          </span>
+          <input type="checkbox" id="f-dolby-on" class="sw" />
+        </label>
+
+        <div id="dolby-add-wrap" hidden>
+          <div class="add-row">
+            <input type="text" id="f-dolby-pkg" placeholder="输入包名，如 com.xxx.game" autocomplete="off"
+              autocapitalize="off" spellcheck="false" />
+            <button class="btn sm primary" id="btn-dolby-add" type="button">添加</button>
+          </div>
+          <div id="dolby-list" class="list"></div>
+        </div>
+      </section>
       <section class="card preference-card" id="card-fast" hidden>
         <div class="card-title">低延迟设置</div>
 
@@ -151,40 +185,7 @@
         <div id="wl-list" class="list"></div>
       </section>
 
-      <section class="card preference-card" id="card-dolby" hidden>
-        <div class="card-title">
-          按应用音效
-          <span class="pill" id="dolby-count">0 项</span>
-        </div>
-        <p class="hint">
-          名单内的应用单独回落到普通混音轨，从而经过 Dolby 效果链；名单外保持快速轨。
-          改名单<b>不需要重启</b>，杀掉应用重开即可。<br />
-          已知限制：走 AAudio MMAP 直通的应用不在本名单的作用范围内（该通路在更底层就已绕开效果链）。
-        </p>
 
-        <div class="row">
-          <span class="copy"><b>模块状态</b></span>
-          <span class="value" id="dolby-state">检测中…</span>
-        </div>
-        <p class="hint" id="dolby-why" hidden></p>
-
-        <label class="row" id="dolby-enable-row" hidden>
-          <span class="copy">
-            <b>启用按应用音效</b>
-            <small>perapp.conf 的 enabled</small>
-          </span>
-          <input type="checkbox" id="f-dolby-on" class="sw" />
-        </label>
-
-        <div id="dolby-add-wrap" hidden>
-          <div class="add-row">
-            <input type="text" id="f-dolby-pkg" placeholder="输入包名，如 com.xxx.game" autocomplete="off"
-              autocapitalize="off" spellcheck="false" />
-            <button class="btn sm primary" id="btn-dolby-add" type="button">添加</button>
-          </div>
-          <div id="dolby-list" class="list"></div>
-        </div>
-      </section>
 
       <div class="section-title">
         <h2>支持</h2>

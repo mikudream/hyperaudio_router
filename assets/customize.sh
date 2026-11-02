@@ -17,7 +17,8 @@ SKIPUNZIP=0
 # 注意：本模块【不再】对任何系统音频库做遮蔽。早期版本会用 0 字节占位遮蔽
 # libaudio{client,flinger,policyservice}impl.so，实测这只会让音频实现层失效：
 # 音效模式下效果链通路整个哑掉（调音全无、部分音频无声），低延迟模式虽仍有声
-# 但调音同样失效。详见下方 set_permissions 上方的说明。
+# 但调音同样失效。详见下方 
+set_permissions 上方的说明。
 #
 # 机型适配：本模块自身不含机型判断；但音效模式依赖外部调音模块提供
 # audio_module_config_primary.xml（见 bin/runtime.sh 的 detect_src）。
@@ -25,6 +26,7 @@ SKIPUNZIP=0
 # 不含任何音效调音内容：无 ACDB 声学校准、无 Dolby DAX 调音、无 mixer 通路
 # 与音量曲线改动，因此可与其他调音模块并存。
 # ============================================================
+
 
 set_permissions() {
   # 先统一：目录 0755、文件 0644
@@ -71,6 +73,9 @@ set_permissions() {
 #   · 音效模式：effect chain 所在的混音通路整个哑掉 —— 调音全无，且部分音频无声
 #   · 低延迟模式：fast track 走另一条通路，仍有声，但调音完全失效
 # 也就是说，遮蔽它们既达不到低延迟目的，又把调音一起废掉了，故彻底移除。
+
+# 本版本固定低延迟：安装即写 fast，界面不提供模式切换
+printf 'fast\n' > "$MODPATH/mode" 2>/dev/null
 set_permissions
 
 # ── 原地清理旧版（<=0.4.5）留下的东西 ─────────────────────────
