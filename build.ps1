@@ -65,7 +65,7 @@ foreach ($f in @('helper.sh'))          { Copy-Item (Join-Path $root "webui\$f")
 # action.sh / uninstall.sh must sit at the module root: the KernelSU / Magisk
 # "action" button and the uninstall hook both look for them there.
 foreach ($f in @('action.sh','uninstall.sh')) { Copy-Item (Join-Path $root "webui\$f") $stage -Force }
-foreach ($f in @('runtime.sh','audio_ready.sh','patch_ports.awk','check_audio_ready.awk','start_daemon.sh','detect_tuning.sh')) {
+foreach ($f in @('runtime.sh','audio_ready.sh','patch_ports.awk','check_audio_ready.awk','start_daemon.sh','detect_tuning.sh','diagnose.sh')) {
   Copy-Item (Join-Path $root "webui\$f") (Join-Path $stage 'bin') -Force
 }
 
@@ -130,7 +130,7 @@ $allowed = @(
   '^module\.prop$','^customize\.sh$','^post-fs-data\.sh$','^service\.sh$','^system\.prop$','^action\.sh$','^uninstall\.sh$',
   '^CREDITS\.md$','^config\.toml$','^hyper-audio$',
   '^META-INF/com/google/android/update-binary$','^META-INF/com/google/android/updater-script$',
-  '^bin/(runtime|audio_ready|start_daemon|detect_tuning)\.sh$','^bin/(patch_ports|check_audio_ready)\.awk$',
+  '^bin/(runtime|audio_ready|start_daemon|detect_tuning|diagnose)\.sh$','^bin/(patch_ports|check_audio_ready)\.awk$',
   '^system/lib64/libaaudio_internal(_builder)?\.so$',
   '^zygisk/arm64-v8a\.so$','^zygisk/(abi\.h\.patch|patch_mflags_offset\.py)$',
   '^webui/helper\.sh$',

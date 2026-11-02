@@ -39,7 +39,7 @@ set_permissions() {
            $MODPATH/webui/helper.sh \
            $MODPATH/bin/runtime.sh $MODPATH/bin/audio_ready.sh \
            $MODPATH/bin/start_daemon.sh \
-           $MODPATH/bin/detect_tuning.sh; do
+           $MODPATH/bin/detect_tuning.sh $MODPATH/bin/diagnose.sh; do
     [ -f "$f" ] && chmod 0755 "$f"
   done
 

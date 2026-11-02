@@ -812,6 +812,20 @@ var DOLBY_ERR = {
 
 $('btn-add').addEventListener('click', addPkg);
 
+    /* 导出诊断报告：只读，不触碰任何设置 */
+    $('btn-diag').addEventListener('click', function () {
+      busy(true);
+      sh(HELPER_CMD + ' diag', 120000)
+        .then(function (r) {
+          var out = r.out || '';
+          var m = out.match(/path=([^\u001f\n]+)/);
+          if (!m) { throw new Error('导出失败'); }
+          toast('已导出到 ' + m[1], 8000);
+        })
+        .catch(function (e) { toast('导出失败: ' + (e && e.message ? e.message : e), 6000); })
+        .then(function () { busy(false); });
+    });
+
 /* 按应用音效：添加应用 / 总开关 */
 $('btn-dolby-add').addEventListener('click', function () {
   var v = ($('f-dolby-pkg').value || '').trim();

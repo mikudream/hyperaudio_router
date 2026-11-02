@@ -149,11 +149,13 @@ webui/     本项目源码：WebUI 与设备端脚本
            patch_ports.awk     有界 XML 编辑器（只改两个端口的 flags，异常一律 fail-closed）
            start_daemon.sh     守护进程启动器
            detect_tuning.sh    调音来源检测（异步调用，不在关键路径）
+           diagnose.sh         只读诊断导出（模式/挂载/端口/就绪/日志，不改状态）
 tests/     主机侧测试（不随包分发，用 `sh tests/run.sh` 跑）
            run.sh                       测试入口
            test_patch_ports.sh          patch_ports.awk 改写与 fail-closed 用例（16 项）
            test_runtime_state_machine.sh runtime.sh 的事务/回滚/护栏/挂载归属/就绪校验（68 项）
-           test_audio_ready.sh          report_flags 位掩码与 dumpsys 解析（22 项）
+           test_audio_ready.sh          report_flags 位掩码与 dumpsys 解析（29 项）
+           test_diagnose.sh             诊断导出：只读性/结构完整/落盘（28 项）
            test_save_validation.sh      save 的严格校验（非法输入必须整体拒绝）
            test_save_no_accumulation.sh 反复保存不应让配置文件增长
 
@@ -187,6 +189,28 @@ build.ps1  构建脚本：组装 + 清理作者标识 + 校验 + 打包（产物
 
 > 从 0.4.5 及更早版本升级上来的设备，源文件可能已被旧版**直接改过**（缺 FAST）。
 > `runtime.sh` 会在应用前识别并修复这一遗留状态；判据保守（两个端口都缺 FAST 才认定）。
+
+### 诊断导出（0.4.7 起）
+
+出问题时不用反复追问"你的模式是什么 / 层挂上了吗 / 框架加载了吗"：
+WebUI 底部「支持 → 诊断」里点一下，或在终端跑 `sh bin/diagnose.sh --save`，
+会生成一份**只读**报告：
+
+```
+hyperaudio-diag-<时间戳>.txt
+├─ 版本 / 模式 / applied / pending / 开机护栏 / 按应用音效是否启用
+├─ 目标路径上的挂载层（谁叠在谁上面）
+├─ 当前生效文件的端口 flags（low_latency_out / raw_out）
+├─ runtime status 原文
+├─ 音频就绪校验：期望值、观测值、结果、pid
+├─ 音频策略与混音线程摘要（含 DAP 效果链出现次数）
+├─ 调音来源、配置项、白名单（前 15 项）
+└─ 日志尾部（每个日志最多 40 行）
+```
+
+它**不写任何配置、不动挂载、不重启服务**（测试里用"跑完前后文件快照必须一致"锁住了
+这一点）。输出目录优先 `/sdcard/Download`，不可用时退到 `/data/local/tmp`；
+也可用 `HA_DIAG_DEST=<目录>` 指定。报告不含应用数据与账号信息。
 
 ### 音频就绪校验（0.4.7 起）
 
