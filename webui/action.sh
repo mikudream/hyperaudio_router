@@ -9,13 +9,13 @@
 # FROM_WEBUI=1 时由 WebUI 调用，此时不要输出人类文案（WebUI 有自己的界面）。
 # ============================================================
 
-MOD=/data/adb/modules/hyperaudio
+MOD=${HA_MOD:-/data/adb/modules/hyperaudio}
 MODEFILE=$MOD/mode
 # 模式状态机。0.4.5 里叫 mode_switch.sh，现在改名为 runtime.sh；保留旧名回退
 # 只是为了让"只更新了部分文件"的中间状态也能工作。
 MSW=$MOD/bin/runtime.sh
 [ -f "$MSW" ] || MSW=$MOD/bin/mode_switch.sh
-SH=/system/bin/sh
+SH=${HA_SH:-/system/bin/sh}
 
 quiet() { [ "$FROM_WEBUI" = "1" ]; }
 
@@ -71,6 +71,17 @@ if [ "$AFTER" = "$NEXT" ]; then
   fi
   say ""
   say "模块简介已更新，当前模式显示在简介开头。"
+    # 就绪校验结论由 runtime.sh 的 apply 输出：只报"已切换"是不准确的，
+    # 配置写进去了不等于音频框架加载了。
+    _ar=$(printf '%s\n' "$OUT" | sed -n 's/^audio_ready=//p' | head -1)
+    case "$_ar" in
+      passed)
+        say "音频框架：已确认加载当前配置。" ;;
+      failed|timeout)
+        say "音频框架：校验未通过（$_ar），模式已保留，原因见 WebUI。" ;;
+      *)
+        say "音频框架：未能确认（${_ar:-unknown}），配置已写入但不能断言已生效。" ;;
+    esac
   exit 0
 fi
 

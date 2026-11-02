@@ -74,6 +74,14 @@ else
 fi
 
 echo ""
+# ---------------- 8. 动作按钮 / 卸载 ----------------
+echo ""
+echo "############ 8. 动作按钮与卸载（就绪结论、失败原因、退出码）############"
+if sh "$HERE/test_action_uninstall.sh"; then
+echo "  -> 通过"
+else
+echo "  -> 失败"; rc=1
+fi
 if [ "$rc" = "0" ]; then
   echo "全部主机侧测试通过"
 else

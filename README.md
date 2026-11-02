@@ -156,6 +156,7 @@ tests/     主机侧测试（不随包分发，用 `sh tests/run.sh` 跑）
            test_runtime_state_machine.sh runtime.sh 的事务/回滚/护栏/挂载归属/就绪校验（68 项）
            test_audio_ready.sh          report_flags 位掩码与 dumpsys 解析（29 项）
            test_diagnose.sh             诊断导出：只读性/结构完整/落盘（28 项）
+           test_action_uninstall.sh     动作按钮与卸载：就绪结论/失败原因/退出码（26 项）
            test_save_validation.sh      save 的严格校验（非法输入必须整体拒绝）
            test_save_no_accumulation.sh 反复保存不应让配置文件增长
 

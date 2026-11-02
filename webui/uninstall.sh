@@ -20,14 +20,17 @@
 # 但卸载场景下模块目录即将消失，所以这里也做一次。
 # ============================================================
 
-MOD=/data/adb/modules/hyperaudio
+MOD=${HA_MOD:-/data/adb/modules/hyperaudio}
 STATE=$MOD/state
 TMP=/data/local/tmp
-SH=/system/bin/sh
+SH=${HA_SH:-/system/bin/sh}
 
 # 1) 撤销我们建立的挂载与状态（runtime.sh recover 会摘层、清事务/护栏）
+# recover 失败意味着我们的挂载层可能仍在系统里；这时不能报"已恢复"，
+# 必须把失败透传给管理器（v3.0 的做法），否则用户会以为已经干净了。
+RC=0
 if [ -f "$MOD/bin/runtime.sh" ]; then
-  $SH "$MOD/bin/runtime.sh" recover >/dev/null 2>&1
+  $SH "$MOD/bin/runtime.sh" recover >/dev/null 2>&1 || RC=$?
 fi
 
 # 2) 兼容处理：若调音模块源文件仍被旧版直接改过（两个端口都缺 FAST），修复它。
@@ -64,6 +67,17 @@ rm -f "$TMP/hyperaudio.pid" "$TMP/hyper-audio.log" "$TMP/hyperaudio-init.log" \
       "$TMP/hyperaudio-runtime.log" "$TMP/amcp.before_switch" "$TMP/ms.out" 2>/dev/null
 rm -rf "$TMP/hyperaudio_webui" 2>/dev/null
 
-echo "hyperaudio: 已撤销端口层、停止守护进程并清理临时文件"
-echo "本次已恢复系统原始音频配置；若上方报告恢复失败，请保留错误记录并重启设备"
-exit 0
+# 5) 删掉只属于本模块的配置与日志（模块目录随后会被管理器删除，
+#    这里显式清一遍，避免"卸载后残留影响重装"）
+rm -f "$MOD/perapp.conf" 2>/dev/null
+rm -rf "$MOD/logs" 2>/dev/null
+
+if [ "$RC" = "0" ]; then
+  echo "hyperaudio: 已撤销端口层、停止守护进程并清理临时文件"
+  echo "系统原始音频配置已恢复"
+  exit 0
+fi
+
+echo "hyperaudio: 清理未完全成功（recover 退出码 $RC）"
+echo "我们的挂载层可能仍在系统里，请重启设备后确认；若仍有异常，请保留此输出"
+exit "$RC"
