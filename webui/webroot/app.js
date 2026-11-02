@@ -47,7 +47,12 @@ var S = {
   applied: '',
   pending: false,
   bootGuard: 'none',
-  overlay: 'none'
+  overlay: 'none',
+  /* 音频框架是否真的加载了当前配置（0.4.7 起）。
+   * passed=已确认；failed/timeout=尝试过但没通过；stale=记录过期；
+   * unverified=读不到或格式不认，不能下结论。 */
+  audioReady: 'unverified',
+  audioReason: ''
 };
 
 /* ---------------- 基础工具 ---------------- */
@@ -159,6 +164,8 @@ function parseStatus(out) {
     if (k === 'pending') { S.pending = (v === '1'); return; }
     if (k === 'boot_guard') { S.bootGuard = v; return; }
     if (k === 'overlay') { S.overlay = v; return; }
+    if (k === 'audio_ready') { S.audioReady = v; return; }
+    if (k === 'audio_ready_reason') { S.audioReason = v; return; }
     S.config[k] = v;
   });
   S.whitelist = wl;
@@ -249,6 +256,61 @@ var MODE_TEXT = {
 /* 渲染"调音来源"。
  * 检测耗时较长（要遍历全部已安装模块），因此由 loadTuning() 异步拉取后再渲染；
  * 在结果回来之前显示"检测中…"，未检测到任何第三方调音则视为官方默认调音。 */
+/* 渲染"音频框架"就绪状态（0.4.7 起）。
+ *
+ * 这一行回答的是：audioserver 是否**真的加载了**我们的端口配置。
+ * 之前只有"磁盘上的文件内容对"这一层证据，重启音频服务后配置可能还没被读入，
+ * 用户就会看到"已切换"但实际行为没变。现在把结果如实区分开：
+ *   passed     已确认（pid 与 boot 都对得上，且端口 flags 与预期一致）
+ *   failed     尝试过但确实没通过
+ *   timeout    等到上限仍没稳定
+ *   stale      上次的记录已过期（音服重启过 / 换过开机）
+ *   unverified 读不到或格式不认识，不能下结论
+ * 只有 passed 才显示"已确认加载"。 */
+var AUDIO_READY_TEXT = {
+  passed: '已确认加载',
+  failed: '未通过',
+  timeout: '等待超时',
+  stale: '记录已过期',
+  unverified: '未能确认'
+};
+
+var AUDIO_READY_WHY = {
+  loaded_low_latency_flags_mismatch: '音频策略里 low_latency_out 的 flags 与我们写入的不一致',
+  loaded_raw_flags_mismatch: '音频策略里 raw_out 的 flags 与我们写入的不一致',
+  audioserver_not_running: '音频服务未在运行',
+  audioserver_pid_not_replaced: '重启后音频服务进程未更换',
+  audioserver_changed_during_probe: '探测期间音频服务又在重启',
+  audio_policy_unavailable: '读不到 audio_policy（dumpsys 不可用）',
+  audio_flinger_unavailable: '读不到 audio_flinger（dumpsys 不可用）',
+  policy_format_unrecognized: 'dumpsys 输出格式无法识别，跳过判定',
+  primary_output_not_ready: '主输出尚未建立',
+  primary_output_missing_in_flinger: '混音器里找不到主输出',
+  primary_hal_buffer_not_ready: 'HAL 缓冲尚未就绪',
+  probe_timeout: '等待音频框架就绪超时',
+  checker_missing: '缺少就绪校验脚本'
+};
+
+function renderAudioReady() {
+  var el = $('audio-ready');
+  if (!el) return;
+  var st = S.audioReady || 'unverified';
+  el.textContent = AUDIO_READY_TEXT[st] || st;
+  el.title = st === 'passed'
+    ? 'audioserver 已加载本次写入的端口配置（仅证明加载，不证明出声或 Dolby 生效）'
+    : (AUDIO_READY_WHY[S.audioReason] || S.audioReason || '');
+
+  var why = $('audio-ready-why');
+  if (!why) return;
+  if (st === 'passed') {
+    why.hidden = true;
+    return;
+  }
+  why.hidden = false;
+  var msg = AUDIO_READY_WHY[S.audioReason] || S.audioReason || '';
+  why.textContent = msg ? ('原因：' + msg + '。') : '';
+}
+
 function renderTuning() {
   var t = S.tuning || {};
   var srcEl = $('tuning-src');
@@ -295,6 +357,7 @@ function renderAll() {
   if (tl && !S.switching) tl.textContent = isSound ? '切换到低延迟模式' : '切换到音效模式';
 
   renderTuning();
+  renderAudioReady();
   renderRecovery();
 
   var b = $('runBadge');
@@ -463,10 +526,17 @@ function switchMode(mode) {
   setSwitching(true, mode);
   /* 让出一轮宏任务，先把这个忙态画出来，再发起会阻塞的 exec */
   defer(function () {
+    var ready = 'unverified', verified = '0';
     sh(HELPER_CMD + ' setmode ' + mode, 40000)
       .then(function (r) {
         var f = fields(r.out);
         if (f.indexOf('ok=1') < 0) throw new Error(applyErrText(r.out));
+        /* helper 会回 audio_ready= / verified=，取出来决定下面怎么说 */
+        for (var i = 0; i < f.length; i++) {
+          var ln = String(f[i]).replace(/[\r\n]+$/, '');
+          if (ln.indexOf('audio_ready=') === 0) ready = ln.slice(12);
+          else if (ln.indexOf('verified=') === 0) verified = ln.slice(9);
+        }
         S.mode = mode;
         return loadAll();
       })
@@ -474,10 +544,17 @@ function switchMode(mode) {
         S.switching = false;
         setSwitching(false, mode);
         $('modeMsg').innerHTML = '';
-        $('modeMsg').textContent = '已切换到' + name +
-          '（音频服务仅在端口标志变化时才会重启；请强行停止并重新打开游戏）';
+        var tail = '（请强行停止并重新打开游戏）';
+        if (ready === 'passed') {
+          $('modeMsg').textContent = '已切换到' + name + '，并确认音频框架已加载新配置' + tail;
+          toast('已切换到' + name, 2600);
+        } else {
+          /* 切完了但没能确认框架真的加载 —— 如实说，不报喜 */
+          $('modeMsg').textContent = '已切换到' + name + '，但未能确认音频框架已加载' +
+            (AUDIO_READY_WHY[S.audioReason] ? '（' + AUDIO_READY_WHY[S.audioReason] + '）' : '') + tail;
+          toast('已切换，但未确认音频框架生效', 5000);
+        }
         $('modeMsg').hidden = false;
-        toast('已切换到' + name, 2600);
         /* 模式变了，低延迟相关显示项需要重绘 */
         renderAll();
       })

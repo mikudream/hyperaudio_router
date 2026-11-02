@@ -41,6 +41,9 @@ cat > "$SRCXML_ORIG" <<'EOF'
 EOF
 
 cp "$HERE/../webui/patch_ports.awk" "$B/mod/bin/patch_ports.awk"
+# 0.4.7 起 runtime.sh 会载入 audio_ready.sh 做音频就绪校验，夹具必须一并提供
+cp "$HERE/../webui/audio_ready.sh" "$B/mod/bin/audio_ready.sh"
+cp "$HERE/../webui/check_audio_ready.awk" "$B/mod/bin/check_audio_ready.awk"
 printf '#!/bin/sh\nexit 0\n' > "$B/mod/bin/start_daemon.sh"
 cat > "$B/mod/module.prop" <<'EOF'
 id=hyperaudio
@@ -75,15 +78,84 @@ fi
 [ -f "$MOCK_UNDER_TABLE" ] && cp -f "$MOCK_UNDER_TABLE" "$1" 2>/dev/null
 exit 0
 EOF
-for c in chcon chown killall setsid restorecon; do
+for c in chcon chown setsid restorecon; do
   printf '#!/bin/sh\nexit 0\n' > "$B/bin/$c"
 done
+
+# pidof：hyper-audio 由 MOCK_DAEMON 控制；audioserver 用 pid 文件模拟，
+# 这样 killall 之后 PID 会真的变，就绪校验才能看到"进程已更换"
 cat > "$B/bin/pidof" <<'EOF'
 #!/bin/sh
-[ "$MOCK_DAEMON" = "1" ] || exit 1
-echo 4242
+case "$1" in
+  audioserver) cat "$MOCK_AUDIO_PID_FILE" 2>/dev/null; exit 0 ;;
+  hyper-audio|"")
+    [ "$MOCK_DAEMON" = "1" ] || exit 1
+    echo 4242
+    exit 0 ;;
+  *) exit 1 ;;
+esac
+EOF
+
+# killall audioserver：换一个新 PID，模拟 init 重新拉起音频服务
+cat > "$B/bin/killall" <<'EOF'
+#!/bin/sh
+[ "$1" = "audioserver" ] || exit 0
+_old=$(cat "$MOCK_AUDIO_PID_FILE" 2>/dev/null)
+case "$_old" in ''|*[!0-9]*) _old=1000 ;; esac
+printf '%s\n' "$((_old + 1))" > "$MOCK_AUDIO_PID_FILE"
 exit 0
 EOF
+
+# getprop：就绪校验会问 init.svc.audioserver
+cat > "$B/bin/getprop" <<'EOF'
+#!/bin/sh
+case "$1" in
+  init.svc.audioserver) echo running ;;
+  *) echo "" ;;
+esac
+exit 0
+EOF
+
+# dumpsys：**从当前生效文件反推"已加载"的 flags**，忠实模拟 audioserver
+# 真的读了那份配置。目标文件不存在时输出不可解析的内容（=> 未验证）。
+# 十六进制格式化交给 awk —— 部分 sh 的 printf 不支持 %x。
+cat > "$B/bin/dumpsys" <<'EOF'
+#!/bin/sh
+# 调用形如 `dumpsys -t 2 media.audio_policy`，服务名在**最后一个参数**，
+# 不能假定是 $2（-t 2 会把它顶到 $3）。
+for _a in "$@"; do _svc=$_a; done
+case "$_svc" in
+  media.audio_policy)
+    _low=""; _raw=""
+    if [ -f "$MOCK_TARGET_FILE" ] && [ -f "$MOCK_PATCHER" ]; then
+      _f=$(awk -v remove_fast_low=0 -v remove_fast_raw=0 -v remove_raw=0 -v report_flags=1 \
+            -f "$MOCK_PATCHER" "$MOCK_TARGET_FILE" 2>/dev/null)
+      _low=$(printf '%s' "$_f" | sed -n 's/^low_latency_out=//p')
+      _raw=$(printf '%s' "$_f" | sed -n 's/^raw_out=//p')
+    fi
+    if [ -z "$_low" ]; then
+      echo "unavailable"; exit 0
+    fi
+    echo "Primary Output I/O handle: 15"
+    echo "Outputs:"
+    echo "  1. Handle: 15 ; \"primary\""
+    echo "     Output MixPorts:"
+    awk -v l="$_low" -v r="$_raw" 'BEGIN{
+      printf "       1. \"low_latency_out\"; flags 0x%08x\n", l+0
+      printf "       2. \"raw_out\"; flags 0x%08x\n", r+0
+    }'
+    exit 0 ;;
+  media.audio_flinger)
+    printf 'Output thread 0x7f: type 0\n'
+    printf '  I/O handle: 15\n'
+    printf '  HAL frame count: 960\n'
+    exit 0 ;;
+  *) exit 0 ;;
+esac
+EOF
+
+# sleep：测试里不需要真的等
+printf '#!/bin/sh\nexit 0\n' > "$B/bin/sleep"
 chmod +x "$B/bin"/*
 
 # ---------- 断言 ----------
@@ -108,6 +180,7 @@ reset_tree() {
   cp "$SRCXML_ORIG" "$SRCXML"
   cp "$SRCXML_ORIG" "$TARGET"      # 目标当前=带 FAST 的原始配置
   : > "$B/mounts"
+  printf '1000\n' > "$B/audiopid"  # 音频服务当前 PID
   sync_mountinfo
 }
 
@@ -120,6 +193,8 @@ run_rt() {
   HA_TARGET_BASE="$B/root" HA_MOUNTINFO="$B/mountinfo" \
   HA_BOOT_ID_FILE="$B/boot_id" HA_SH=sh \
   MOCK_MOUNT_TABLE="$B/mounts" MOCK_UNDER_TABLE="$B/under" \
+  MOCK_AUDIO_PID_FILE="$B/audiopid" \
+  MOCK_TARGET_FILE="$TARGET" MOCK_PATCHER="$B/mod/bin/patch_ports.awk" \
   HA_RT_OURS_TEST="$HA_RT_OURS_TEST" \
   HA_RT_TARGET_STAT="$HA_RT_TARGET_STAT" \
   sh "$RT" "$@" > "$B/out.txt" 2>&1

@@ -153,6 +153,22 @@ EOF
       # 0644，用 -x 会假报"守护进程缺失"（service.sh 的 chmod 未必已跑到）
       if [ -f "$DAEMON" ]; then v_dok=1; else v_dok=0; fi
       printf 'daemon_ok=%s\n' "$v_dok"
+
+      # 音频框架是否真的加载了当前配置（0.4.7 起）。
+      # 判定规则与 runtime.sh 的 audio_ready_state() 保持一致：
+      # 只有 boot_id 与当前 audioserver PID 都对得上时，上次的 passed 才算数。
+      _ar=$(cat "$STATE/audio-ready/result.txt" 2>/dev/null | tr -d ' \r\n')
+      if [ "$_ar" = passed ]; then
+        _bid=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
+        if [ "$(cat "$STATE/audio-ready/boot" 2>/dev/null | tr -d ' \r\n')" != "$_bid" ] || \
+           [ "$(cat "$STATE/audio-ready/pid" 2>/dev/null | tr -d ' \r\n')" != "$(pidof audioserver 2>/dev/null)" ]; then
+          _ar=stale
+        fi
+      fi
+      case "$_ar" in passed|failed|timeout|waiting|stale) ;; *) _ar=unverified ;; esac
+      printf 'audio_ready=%s\n' "$_ar"
+      _why=$(head -1 "$STATE/audio-ready/reason.txt" 2>/dev/null | tr -d ' \r\n')
+      [ -n "$_why" ] && printf 'audio_ready_reason=%s\n' "$_why"
     } | flat
     printf '\n'
     ;;
@@ -215,12 +231,19 @@ EOF
       exit 0
     fi
 
-    # 端口已切但守护进程没起来时，把警告一并回传
-    if printf '%s' "$OUT" | grep -q '^warn=daemon_not_running'; then
-      printf 'ok=1\x1fmode=%s\x1fwarn=daemon_not_running\x1f\n' "$(getmode)"
-    else
-      printf 'ok=1\x1fmode=%s\x1f\n' "$(getmode)"
-    fi
+    # 把 runtime 的告警原样透传：守护进程没起来（daemon_not_running）、
+    # 音频框架未能确认（audio_unverified_*）。前者影响提权，后者影响
+    # "我们是否真的切换成功"，两者都必须让界面看得到。
+    # 可能的告警最多两条，直接各取一份，避免拼接转义出错。
+    _w1=$(printf '%s' "$OUT" | grep -m1 '^warn=' | cut -d= -f2-)
+    _w2=$(printf '%s' "$OUT" | grep '^warn=' | sed -n '2p' | cut -d= -f2-)
+    _ar=$(printf '%s' "$OUT" | grep -m1 '^audio_ready=' | cut -d= -f2-)
+    _vr=$(printf '%s' "$OUT" | grep -m1 '^verified=' | cut -d= -f2-)
+    printf 'ok=1\x1fmode=%s\x1faudio_ready=%s\x1fverified=%s\x1f' \
+      "$(getmode)" "${_ar:-unverified}" "${_vr:-0}"
+    [ -n "$_w1" ] && printf 'warn=%s\x1f' "$_w1"
+    [ -n "$_w2" ] && printf 'warn=%s\x1f' "$_w2"
+    printf '\n'
     ;;
 
   # 撤销一切改动，回到系统原始状态（含摘掉我们的挂载、清掉事务/护栏）

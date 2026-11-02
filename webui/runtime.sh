@@ -338,10 +338,42 @@ stop_daemon() {
 }
 
 # 音频服务无需重启时就不要动它：本机实测重启音频服务有让调音失效的风险，
-# 因此只有端口标志**真的变了**才 killall。
-restart_audio_only_if_needed() {
-  [ "$1" = "1" ] || return 0
+# 因此只有端口标志**真的变了**才重启。
+#
+# 但"重启了"不等于"配置生效了"：服务要先读策略、建主输出、填 HAL 缓冲。
+# 所以重启后必须验证框架真的就绪（见 bin/audio_ready.sh），
+# 这也是 0.4.7 相对 0.4.6 最重要的改进 —— 原先只看磁盘文件内容。
+#
+# 返回值语义：
+#   0  已就绪（AUDIO_READY=passed）或无法验证但不算故障（AUDIO_READY=unverified）
+#   1  被证伪（AUDIO_READY=failed），调用方应回滚
+restart_audio_checked() {
+  _mode=$1
+  _old=$(pidof audioserver 2>/dev/null)
+  if [ -z "$_old" ]; then
+    AUDIO_READY=failed
+    err audioserver_not_running
+    return 1
+  fi
+
+  # 沿用本模块既有的 killall（不用 setprop ctl.restart：实测那条路有让调音失效的风险）
   killall audioserver 2>/dev/null
+  audio_wait_ready "$_mode" "$_old"
+  if [ $? -eq 0 ]; then
+    AUDIO_READY=passed
+    return 0
+  fi
+
+  _why=$(audio_ready_reason)
+  AUDIO_READY=unverified
+  if audio_ready_is_fatal "$_why"; then
+    AUDIO_READY=failed
+    err "audio_not_ready_${_why:-unknown}"
+    return 1
+  fi
+  # 读不到 / 格式不认 / 等超时：不算故障，但绝不宣称已验证
+  log "audio readiness unverified ($_why); keeping mode"
+  echo "warn=audio_unverified_${_why:-unknown}"
   return 0
 }
 
@@ -434,10 +466,19 @@ apply_mode() {
   if [ "$NEED_PATCH" = "1" ]; then
     # 重新快照：调音模块可能在这期间被更新过
     cp -f "$TARGET" "$STATE/base.xml" 2>/dev/null || { err snapshot_failed; return 1; }
-    AFTER_FAST=$(read_fast_state)
-    prepare_patch 1 1 1 || return 1
+    # 只摘 FAST（两个端口），**保留 raw_out 的 RAW**：
+    #   · 与本文件开头声明的语义一致（"摘掉 FAST 标志"），也与 0.4.5 的 sed 行为一致
+    #     （0.4.5 是 "FAST RAW" -> "RAW"）
+    #   · 摘掉 RAW 会让 raw_out 一个标志都不剩，端口退化成无标志状态，
+    #     风险不明（audio policy 可能不接受），而收益只是多影响"显式请求 raw 输出"的应用
+    # 注：0.4.6 曾误传第三个参数为 1（连 RAW 一起摘），0.4.7 起修正为只摘 FAST。
+    prepare_patch 1 1 0 || return 1
     install_patch || return 1
     verify_ports nofast || return 1
+    # AFTER_FAST 必须在**补丁装好之后**读。
+    # 0.4.6 把它读在 install_patch 之前，于是 fast->sound 永远判成"标志没变"
+    # 而不重启音频服务 —— 结果配置写了却没被加载，等于没切。
+    AFTER_FAST=$(read_fast_state)
   else
     # fast：撤销补丁后必须确认端口回到带 FAST 的原始配置
     if [ -n "$TARGET" ] && [ -f "$TARGET" ]; then
@@ -461,10 +502,29 @@ apply_mode() {
 
 # ---------------- 事务外壳 ----------------
 
+# 回滚到系统原始配置。失败路径统一走这里，避免两处逻辑不一致。
+rollback_to_native() {
+  log "rolling back to native"
+  if native_cleanup; then
+    set_mode_file fast || log "cannot write mode during rollback"
+    printf 'native\n' > "$STATE/applied" 2>/dev/null
+    rm -f "$STATE/pending" 2>/dev/null
+    update_desc
+    return 0
+  fi
+  set_mode_file fast
+  printf 'native\n' > "$STATE/applied" 2>/dev/null
+  return 1
+}
+
 do_apply() {
   REQ="$1"
   case "$REQ" in sound|fast) ;; *) err bad_mode; return 1 ;; esac
   mkdir -p "$STATE" 2>/dev/null
+
+  # BOOT_ID 在手动切换时可能还没算过；就绪记录要按 boot 归属，这里补上
+  if [ -z "$BOOT_ID" ]; then BOOT_ID=$(cat "$BOOT_ID_FILE" 2>/dev/null); fi
+  [ -n "$BOOT_ID" ] || BOOT_ID=unknown-boot
 
   PREV_APPLIED=$(applied_value)
   PREV_MODE=$(get_mode)
@@ -472,6 +532,7 @@ do_apply() {
   # 事务标记：中途被杀 / 重启都能被下一次开机发现
   printf '%s\n' "$REQ" > "$STATE/pending" 2>/dev/null || return 1
 
+  AUDIO_READY=""
   apply_mode "$REQ"
   RC=$?
 
@@ -479,22 +540,30 @@ do_apply() {
     log "apply $REQ failed (rc=$RC); rolling back to native"
     # 回滚：撤销我们的一切改动，并把 mode 写回 native，
     # 避免"mode 文件说 sound、实际却是原始配置"的不一致。
-    if native_cleanup; then
-      set_mode_file fast || log "cannot write mode during rollback"
-      printf 'native\n' > "$STATE/applied" 2>/dev/null
-      rm -f "$STATE/pending" 2>/dev/null
-      update_desc
+    if rollback_to_native; then
       err apply_failed_restored_native
     else
-      set_mode_file fast
-      printf 'native\n' > "$STATE/applied" 2>/dev/null
       err rollback_incomplete_reboot_required
     fi
     return 1
   fi
 
-  # 端口标志真的变了才重启音频服务
-  restart_audio_only_if_needed "$FLAGS_CHANGE"
+  # 端口标志真的变了才重启音频服务；重启后必须确认框架真的加载了新配置。
+  if [ "$FLAGS_CHANGE" = "1" ]; then
+    if ! restart_audio_checked "$REQ"; then
+      # 被证伪（加载的 flags 与我们写的不符 / 服务起不来）：这是真的故障，回滚
+      log "audio readiness was disproved (reason=$(audio_ready_reason)); rolling back"
+      if rollback_to_native; then
+        err apply_failed_restored_native
+      else
+        err rollback_incomplete_reboot_required
+      fi
+      return 1
+    fi
+  else
+    # 没有重启：沿用上一次的记录（可能是 passed，也可能是 stale）
+    AUDIO_READY=$(audio_ready_state)
+  fi
 
   DAEMON_OK=1
   if [ "$REQ" = "sound" ]; then
@@ -512,7 +581,15 @@ do_apply() {
   echo "ok=1"
   echo "mode=$REQ"
   [ "$DAEMON_OK" = "1" ] || echo "warn=daemon_not_running"
-  [ "$NEED_PATCH" = "1" ] && echo "verified=1"
+
+  # verified=1 现在表示：文件级（/odm 内容）与框架级（audioserver 实际加载）
+  # **两重**都通过。只看到文件对不再算验证通过 —— 这是我们与 0.4.6 的差别。
+  if [ "$AUDIO_READY" = "passed" ] && { [ "$REQ" = "fast" ] || [ "$NEED_PATCH" = "1" ]; }; then
+    echo "verified=1"
+  else
+    echo "verified=0"
+  fi
+  echo "audio_ready=${AUDIO_READY:-unverified}"
   echo "flags_changed=$FLAGS_CHANGE"
   return 0
 }
@@ -663,9 +740,30 @@ do_status() {
     echo "target=missing"
     echo "overlay=none"
   fi
+  # 音频框架是否真的加载了当前配置（见 bin/audio_ready.sh）
+  if [ -z "$BOOT_ID" ]; then BOOT_ID=$(cat "$BOOT_ID_FILE" 2>/dev/null); fi
+  [ -n "$BOOT_ID" ] || BOOT_ID=unknown-boot
+  audio_ready_status
 }
 
 # ---------------- 入口 ----------------
+
+# audio_ready.sh 依赖 log/err 与上方变量，放在入口之前载入。
+# 若它缺失（例如只更新了部分文件的中间状态），降级为"不校验"而不是让整个
+# 模式切换失败 —— 切换本身是核心功能，就绪校验只是附加证据。
+if [ -f "$MOD/bin/audio_ready.sh" ]; then
+  . "$MOD/bin/audio_ready.sh"
+else
+  log "audio_ready.sh missing; readiness verification disabled"
+  audio_wait_ready()    { return 1; }
+  audio_ready_reason()  { echo ready_helper_missing; }
+  audio_ready_is_fatal() { return 1; }
+  audio_ready_state()   { echo unverified; }
+  audio_ready_status()  {
+    echo "audio_ready=unverified"
+    echo "audio_ready_reason=ready_helper_missing"
+  }
+fi
 
 case "$1" in
   apply)

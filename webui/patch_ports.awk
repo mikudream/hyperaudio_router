@@ -5,10 +5,11 @@
 # 任何不支持的构造、端口缺失/重复、未知 flag 组合都 fail-closed
 # （非零退出且 stdout 为空），调用方据此放弃并回滚，绝不写出半成品。
 #
-# 移植自 HyperAudio Switch 2.0 的 bin/patch_ports.awk（作者 HLMC离开 等），
-# 见 CREDITS.md「借鉴与参考」。相对原版的差异：
+# 移植自 HyperAudio Switch 的 bin/patch_ports.awk（作者 HLMC离开 等；v3.0 起
+# 由 月见里幽瞳 / 海希安的城主 维护），见 CREDITS.md「借鉴与参考」。相对原版：
 #   · 去掉其 compat 模式特有的语义，只保留本模块需要的两个端口
 #   · 参数命名沿用本模块：remove_fast_low / remove_fast_raw / remove_raw
+#   · 保留 v3.0 新增的 report_flags 模式（见文件末尾）
 #
 # 调用：awk -v remove_fast_low=1 -v remove_fast_raw=1 -v remove_raw=1 \
 #            -f patch_ports.awk < base.xml > candidate.xml
@@ -16,6 +17,9 @@
 #   remove_fast_raw=1  摘掉 raw_out 的 FAST
 #   remove_raw=1       摘掉 raw_out 的 RAW
 # 三者全 0 时本编辑器不做任何改动（调用方应据此判定"无需补丁"）。
+#
+# 附加参数 report_flags=1：改为输出两行位掩码而不是改写后的 XML，
+# 供"音频就绪校验"比对 dumpsys 里实际加载的 flags（见 check_audio_ready.awk）。
 # ============================================================
 function fail(s) { print "patch_error=" s > "/dev/stderr"; bad=1; exit 2 }
 BEGIN {
@@ -56,6 +60,10 @@ function edit(tag,   name,role,flags,s,l,q,n,a,i,f,prefix,keep,sep,fast_selected
         if ((f=="FAST" && fast_selected==1) || (f=="RAW" && raw_selected)) { removed[name]++; continue }
         if (f!="PRIMARY" && f!="NONE" && f!="FAST" && f!="RAW") fail("unsupported_flag_" name "_" f)
         if (f=="PRIMARY") primary[name]++
+        # 记录"保留下来"的标志，供 report_flags 模式换算成 AUDIO_OUTPUT_FLAG 位掩码
+        if (f=="PRIMARY") kept_primary[name]=1
+        if (f=="FAST") kept_fast[name]=1
+        if (f=="RAW") kept_raw[name]=1
         keep=keep (keep=="" ? "" : sep) prefix f
     }
     if (name=="low_latency_out" && primary[name]!=1) fail("missing_primary")
@@ -93,5 +101,13 @@ END {
         out=out tag; pos=e+1
     }
     if (count["low_latency_out"]!=1 || count["raw_out"]!=1) fail("required_ports_not_found")
-    printf "%s",out
+    # report_flags=1：不输出改写后的 XML，而是输出"改写后应有的 flags 位掩码"。
+    # 位值与 AOSP audio_output_flags_t 一致：
+    #   AUDIO_OUTPUT_FLAG_PRIMARY=0x2、FAST=0x4、RAW=0x100(256)。
+    # 用途：让"音频就绪校验"能拿 dumpsys 里实际加载的 flags 与预期比对，
+    # 从而证明 audioserver 真的加载了我们写的配置（而不是只看磁盘文件）。
+    if (report_flags==1) {
+        print "low_latency_out=" (2*kept_primary["low_latency_out"]+4*kept_fast["low_latency_out"]+256*kept_raw["low_latency_out"])
+        print "raw_out=" (2*kept_primary["raw_out"]+4*kept_fast["raw_out"]+256*kept_raw["raw_out"])
+    } else printf "%s",out
 }

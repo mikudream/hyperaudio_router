@@ -3,7 +3,7 @@
 > 通用机型的 HyperOS 音频模块：**在「音效」与「低延迟」两种工作模式间一键切换**，
 > 附带 KernelSU WebUI 可视化配置。
 
-[![模块版本](https://img.shields.io/badge/version-0.4.6-blue)]()
+[![模块版本](https://img.shields.io/badge/version-0.4.7-blue)]()
 [![适配](https://img.shields.io/badge/机型-通用-green)]()
 [![管理器](https://img.shields.io/badge/KernelSU%20%7C%20APatch%20%7C%20Magisk-WebUI-orange)]()
 
@@ -143,21 +143,26 @@ webui/     本项目源码：WebUI 与设备端脚本
            helper.sh           WebUI 后端（status / tuning / setmode / save / recover）
            action.sh           KernelSU 执行按钮（一键在两种模式间切换）
            uninstall.sh        卸载清理（撤销端口层 / 停守护进程 / 修旧版遗留 / 清临时文件）
-           runtime.sh          模式状态机（改副本再 bind + 事务 + 开机护栏 + 回滚）
+           runtime.sh          模式状态机（改副本再 bind + 事务 + 开机护栏 + 回滚 + 就绪校验）
+           audio_ready.sh      音频就绪校验（重启后确认框架真的加载了配置）
+           check_audio_ready.awk  dumpsys 解析器（端口 flags 位掩码比对）
            patch_ports.awk     有界 XML 编辑器（只改两个端口的 flags，异常一律 fail-closed）
            start_daemon.sh     守护进程启动器
            detect_tuning.sh    调音来源检测（异步调用，不在关键路径）
 tests/     主机侧测试（不随包分发，用 `sh tests/run.sh` 跑）
            run.sh                       测试入口
            test_patch_ports.sh          patch_ports.awk 改写与 fail-closed 用例（16 项）
-           test_runtime_state_machine.sh runtime.sh 的事务/回滚/护栏/挂载归属（54 项）
+           test_runtime_state_machine.sh runtime.sh 的事务/回滚/护栏/挂载归属/就绪校验（68 项）
+           test_audio_ready.sh          report_flags 位掩码与 dumpsys 解析（22 项）
            test_save_validation.sh      save 的严格校验（非法输入必须整体拒绝）
            test_save_no_accumulation.sh 反复保存不应让配置文件增长
 
 > `runtime.sh` 跑在主机上需要注入：路径用 `HA_MOD` / `HA_TMP` / `HA_SOURCE_DIR` /
-> `HA_TARGET_BASE` / `HA_MOUNTINFO` / `HA_BOOT_ID_FILE` 重定向；`mount`/`umount` 等
-> 用 PATH mock；归属判定用测试钩子 `HA_RT_OURS_TEST` / `HA_RT_TARGET_STAT`。
+> `HA_TARGET_BASE` / `HA_MOUNTINFO` / `HA_BOOT_ID_FILE` 重定向；`mount`/`umount` /
+> `dumpsys` / `pidof` / `getprop` 用 PATH mock；归属判定用测试钩子
+> `HA_RT_OURS_TEST` / `HA_RT_TARGET_STAT`。
 > 这些变量**只在测试里设置**，真机上不设，取值与默认行为完全一致。
+> 注意：就绪校验的 dumpsys 夹具是**离线构造**的，真实输出格式必须真机确认。
 prebuilt/  上游预编译产物（无法从源码重建，按原样保留，见 CREDITS.md）
 CREDITS.md 来源与致谢（随模块包分发）
 build.ps1  构建脚本：组装 + 清理作者标识 + 校验 + 打包（产物逐字节可复现）
@@ -182,6 +187,37 @@ build.ps1  构建脚本：组装 + 清理作者标识 + 校验 + 打包（产物
 
 > 从 0.4.5 及更早版本升级上来的设备，源文件可能已被旧版**直接改过**（缺 FAST）。
 > `runtime.sh` 会在应用前识别并修复这一遗留状态；判据保守（两个端口都缺 FAST 才认定）。
+
+### 音频就绪校验（0.4.7 起）
+
+**只验证磁盘文件是不够的。** 端口补丁写完、bind mount 挂上，只说明"文件内容对"；
+audioserver 还要读策略、建主输出、填 HAL 缓冲才真正生效。这中间有个真实窗口，
+用户会看到"已切换"但实际行为没变。
+
+所以改完端口后，本模块会：
+
+1. 只在端口 flags **确实变化**时才重启音频服务（`killall audioserver`）
+2. 重启后逐次探测，要求「同一 audioserver PID + 同一观测签名**连续 3 次**」
+3. 每次都核对：`init.svc.audioserver` 在跑、`dumpsys media.audio_policy` 与
+   `media.audio_flinger` 可读、主输出存在、HAL frame count > 0、
+   **dumpsys 里实际加载的端口 flags 与我们写入的位掩码一致**
+4. 上限 30 秒 / 20 次（双保险，慢机型不会无限等）
+
+结果的语义（WebUI「音频框架」一行 + `status` 的 `audio_ready=`）：
+
+| 值 | 含义 | 处置 |
+|---|---|---|
+| `passed` | 已确认加载，且 flags 与写入一致 | `verified=1` |
+| `failed` / `timeout` | 尝试过但没通过 | 保留模式，`verified=0` 并显示原因 |
+| `stale` | 上次记录已过期（音频服务重启过 / 换过开机） | 需要重新切换才有结论 |
+| `unverified` | dumpsys 读不到或格式认不出 | 不断言，`verified=0` |
+
+只有 **flags 确实不符** 或 **音频服务起不来** 才回滚；读不到、格式不认、
+等待超时只记 `unverified` —— 区别"证明错了"与"无法验证"，
+避免在 dumpsys 输出格式不同的机型上把好配置回滚掉。
+
+> 边界：`passed` 只代表**框架加载了配置**，不代表能出声，也不代表 Dolby 正在处理。
+> 该结论来自主机侧离线夹具 + 真机实测，dumpsys 格式差异仍需在具体机型上确认。
 
 ### 事务与开机护栏
 

@@ -37,14 +37,17 @@ set_permissions() {
   # 用 [ -f ] 保护，避免文件缺失时 chmod 报错中断安装。
   for f in $MODPATH/hyper-audio $MODPATH/action.sh $MODPATH/uninstall.sh \
            $MODPATH/webui/helper.sh \
-           $MODPATH/bin/runtime.sh $MODPATH/bin/start_daemon.sh \
+           $MODPATH/bin/runtime.sh $MODPATH/bin/audio_ready.sh \
+           $MODPATH/bin/start_daemon.sh \
            $MODPATH/bin/detect_tuning.sh; do
     [ -f "$f" ] && chmod 0755 "$f"
   done
 
-  # patch_ports.awk 由 awk 读取（不需要执行位），但显式设一遍 0644，
+  # 这两个 awk 脚本由 awk 读取（不需要执行位），但显式设一遍 0644，
   # 避免不同管理器对 zip 内权限的处理差异。
-  [ -f "$MODPATH/bin/patch_ports.awk" ] && chmod 0644 "$MODPATH/bin/patch_ports.awk"
+  for f in $MODPATH/bin/patch_ports.awk $MODPATH/bin/check_audio_ready.awk; do
+    [ -f "$f" ] && chmod 0644 "$f"
+  done
 }
 
 # ── 不再遮蔽任何系统音频库（重要）────────────────────────────
