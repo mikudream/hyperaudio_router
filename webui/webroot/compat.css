@@ -51,3 +51,11 @@
 #pane-status, #pane-dolby, #pane-low { padding-bottom: 8px; }
 /* 列表项在卡片里左右也留出内边距 */
 .list .item { padding-left: 0; padding-right: 0; }
+/* DOLBY-SPACING：杜比链路页的说明文字与添加框是嵌套在 #dolby-add-wrap 里的，
+   之前用的 `.card > .add-row` 直接子代选择器匹配不到，所以左右仍是 0。 */
+.card .hint { padding-left: 20px; padding-right: 20px; }
+.card .hint:first-child { padding-top: 16px; }
+#dolby-add-wrap, #dolby-list { padding-left: 20px; padding-right: 20px; }
+#dolby-add-wrap .add-row { margin: 12px 0 4px; padding: 0; }
+#dolby-add-wrap .list { padding-left: 0; padding-right: 0; }
+.preference-card > .hint { padding: 2px 20px 16px; }
