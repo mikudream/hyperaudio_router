@@ -3,5 +3,5 @@ name=HyperAudio Switch（通用版）
 version=2.0.0
 versionCode=20000
 author=deepseek-flash
-description=【应用版】全局固定低延迟（fast track，不卡顿），仅名单内的应用启用音效：其音轨回落到普通混音轨，经 Dolby 效果链处理。新增应用无需重启，杀掉应用重开即可。
+description=通用机型的 HyperOS 音频模块：在原生与音效两种通路间切换，可调低延迟与音频参数；界面与 HyperAudio Switch 3.0 一致。
 credits=See CREDITS.md（来源与致谢）
