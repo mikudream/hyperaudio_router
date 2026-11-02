@@ -36,3 +36,18 @@
 }
 .savebar .btn { flex: 1; pointer-events: auto; }
 .main { padding-bottom: 110px; }
+/* ---------- 间距：v3.0 的间距来自特定的组合类（.mode-card>.hint 等），
+   我们直接把说明文字/标题放在 .card 里，需要自己补内边距，否则贴边。 ---------- */
+.card > .card-title { padding: 18px 20px 8px; margin: 0; }
+.card > .hint { padding: 2px 20px 16px; margin: 0; }
+.card > .add-row { padding: 0 20px 6px; margin: 10px 0 0; }
+.card > .list { padding: 0 20px 10px; }
+.card > .btn { margin: 6px 20px 18px; }
+.card > .row > .btn { margin: 0; }
+.card > .pill, .card-title > .pill { margin-left: 8px; }
+.section-title { margin: 20px 8px 8px; padding: 0; }
+.section-title h2 { font-size: 13px; font-weight: 500; color: var(--fg-dim, #626873); }
+/* 页签内容整体下留白，避免被 dock 压住 */
+#pane-status, #pane-dolby, #pane-low { padding-bottom: 8px; }
+/* 列表项在卡片里左右也留出内边距 */
+.list .item { padding-left: 0; padding-right: 0; }
