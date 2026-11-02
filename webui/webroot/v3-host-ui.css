@@ -1,0 +1,7 @@
+/* Retain the tested host protocol: native avoidance or measured edge insets.
+   Do not reset insets on navigation or an unchanged theme. */
+:root {--ha-safe-top:38px;--ha-safe-bottom:0px;--ha-safe-left:0px;--ha-safe-right:0px;--ha-nav-height:74px;--ha-nav-gap:12px}
+.app {padding-top:var(--ha-safe-top);padding-left:var(--ha-safe-left);padding-right:var(--ha-safe-right)}
+.main {padding-bottom:calc(var(--ha-nav-height) + var(--ha-nav-gap) + var(--ha-safe-bottom) + 24px)}
+.ft {bottom:calc(var(--ha-nav-gap) + var(--ha-safe-bottom));padding-left:calc(24px + var(--ha-safe-left));padding-right:calc(24px + var(--ha-safe-right))}
+.toast {bottom:calc(var(--ha-nav-height) + var(--ha-nav-gap) + var(--ha-safe-bottom) + 12px)}

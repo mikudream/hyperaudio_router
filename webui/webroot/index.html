@@ -7,27 +7,32 @@
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#000" media="(prefers-color-scheme: dark)" />
   <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)" />
-  <link rel="stylesheet" type="text/css" href="./style.css" />
+  <!-- 样式全部来自 HyperAudio Switch v3.0 的界面资源（离线、无外部依赖），
+       最后一份 compat.css 只补 v3.0 没有的、由 app.js 动态生成的列表元素。 -->
+  <link rel="stylesheet" type="text/css" href="./v3-style.css" />
+  <link rel="stylesheet" type="text/css" href="./v3-material3.css" />
+  <link rel="stylesheet" type="text/css" href="./v3-navigation-layout.css" />
+  <link rel="stylesheet" type="text/css" href="./v3-host-ui.css" />
+  <link rel="stylesheet" type="text/css" href="./compat.css" />
   <title>低延迟音效路由</title>
 </head>
 
 <body>
   <div class="app">
-
     <header class="hd">
       <div class="hd-title">
         <h1>低延迟音效路由</h1>
         <div class="hd-sub" id="sub">正在读取配置…</div>
-        <div class="hd-badge" id="runBadge">—</div>
+        <div class="hd-badge" id="runBadge" hidden>—</div>
       </div>
     </header>
 
-    <!-- 旧的模式切换组件：本版本不使用，保留节点供 app.js 访问但完全隐藏 -->
+    <!-- 旧模式切换组件：本版本不使用，保留节点供 app.js 访问但完全隐藏 -->
     <div hidden>
-      <div class="section-title"><h2>工作模式</h2><span id="toggleLabel"></span></div>
+      <span id="toggleLabel"></span>
       <div class="mode-tabs" id="modeTabs">
-        <button class="mode-tab" id="tab-sound" data-mode="sound" type="button"><b>音效模式</b></button>
-        <button class="mode-tab" id="tab-fast" data-mode="fast" type="button"><b>低延迟模式</b></button>
+        <button class="mode-tab" id="tab-sound" data-mode="sound" type="button">音效模式</button>
+        <button class="mode-tab" id="tab-fast" data-mode="fast" type="button">低延迟模式</button>
       </div>
       <p class="hint" id="modeDesc"></p>
       <div id="modeMsg" class="mode-msg" hidden></div>
@@ -38,63 +43,61 @@
 
     <main class="main">
 
-      <div class="tabs" role="tablist">
-        <button class="tab active" id="tab-status" type="button" role="tab">状态</button>
-        <button class="tab" id="tab-dolby" type="button" role="tab">杜比链路</button>
-        <button class="tab" id="tab-low" type="button" role="tab">低延迟链路</button>
+      <div class="tabs3" role="tablist">
+        <button class="tab3 active" id="tab-status" type="button" role="tab">状态</button>
+        <button class="tab3" id="tab-dolby" type="button" role="tab">杜比链路</button>
+        <button class="tab3" id="tab-low" type="button" role="tab">低延迟链路</button>
       </div>
 
-      <!-- ===== 一：状态 ===== -->
-      <div id="pane-status">
+      <div class="page" id="pane-status">
+        <div class="section-title"><h2>模块状态</h2></div>
         <section class="card preference-card">
-          <div class="card-title">模块状态</div>
           <div class="row">
             <span class="copy">
               <b>杜比链路</b>
               <small>名单内应用回落普通轨，经 Dolby 效果链</small>
             </span>
-            <span class="value" id="dolby-state">检测中…</span>
+            <span id="dolby-state" style="font-size:14px">检测中…</span>
           </div>
           <p class="hint" id="dolby-why" hidden></p>
           <div class="row">
             <span class="copy"><b>调音来源</b></span>
-            <span class="value" id="tuning-src">检测中…</span>
+            <span id="tuning-src" style="font-size:14px">检测中…</span>
           </div>
           <div class="row" id="tuning-ver-row" hidden>
             <span class="copy"><b>模块版本</b></span>
-            <span class="value" id="tuning-ver">—</span>
+            <span id="tuning-ver" style="font-size:14px">—</span>
           </div>
         </section>
 
+        <div class="section-title"><h2>运行状态</h2></div>
         <section class="card preference-card">
-          <div class="card-title">运行状态</div>
           <div class="row">
             <span class="copy">
               <b>音频框架</b>
               <small>音频服务是否已加载当前配置</small>
             </span>
-            <span class="value" id="audio-ready">—</span>
+            <span id="audio-ready" style="font-size:14px">—</span>
           </div>
           <p class="hint" id="audio-ready-why" hidden></p>
         </section>
 
-        <section class="card" id="card-recover" hidden>
-          <div class="card-title">需要恢复</div>
+        <section class="card preference-card" id="card-recover" hidden>
+          <div class="row"><span class="copy"><b>需要恢复</b></span></div>
           <p class="hint" id="recoverWhy"></p>
-          <button class="btn primary" id="btn-recover" type="button">恢复到系统原始配置</button>
+          <div class="row"><button class="btn primary" id="btn-recover" type="button">恢复到系统原始配置</button></div>
         </section>
       </div>
 
-      <!-- ===== 二：杜比链路 ===== -->
-      <div id="pane-dolby" hidden>
+      <div class="page" id="pane-dolby" hidden>
+        <div class="section-title">
+          <h2>杜比链路的应用</h2>
+          <span class="pill" id="dolby-count">0 项</span>
+        </div>
         <section class="card preference-card" id="card-dolby" hidden>
-          <div class="card-title">
-            杜比链路的应用
-            <span class="pill" id="dolby-count">0 项</span>
-          </div>
-          <p class="hint">
-            名单内的应用音轨会回落到普通混音轨，经过 Dolby 效果链；
-            其余应用保持低延迟。添加后无需重启，杀掉应用重开即可。
+          <p class="hint" style="padding:14px 0 0">
+            名单内的应用音轨会回落到普通混音轨，经过 Dolby 效果链；其余应用保持低延迟。
+            添加后无需重启，杀掉应用重开即可。
           </p>
 
           <label class="row" id="dolby-enable-row" hidden>
@@ -102,7 +105,10 @@
               <b>启用杜比链路</b>
               <small>关闭后所有应用都走低延迟链路</small>
             </span>
-            <input type="checkbox" id="f-dolby-on" class="sw" />
+            <span class="switch">
+              <input type="checkbox" id="f-dolby-on" class="sw" />
+              <span class="switch-track"></span>
+            </span>
           </label>
 
           <div id="dolby-add-wrap" hidden>
@@ -116,17 +122,18 @@
         </section>
       </div>
 
-      <!-- ===== 三：低延迟链路 ===== -->
-      <div id="pane-low" hidden>
+      <div class="page" id="pane-low" hidden>
+        <div class="section-title"><h2>低延迟链路设置</h2></div>
         <section class="card preference-card" id="card-fast" hidden>
-          <div class="card-title">低延迟链路设置</div>
-
           <label class="row">
             <span class="copy">
               <b>启用守护进程</b>
               <small>enable：总开关</small>
             </span>
-            <input type="checkbox" id="f-enable" class="sw" />
+            <span class="switch">
+              <input type="checkbox" id="f-enable" class="sw" />
+              <span class="switch-track"></span>
+            </span>
           </label>
 
           <label class="row">
@@ -134,29 +141,32 @@
               <b>仅名单内生效</b>
               <small>only_whitelist：只提升名单内应用的音频线程</small>
             </span>
-            <input type="checkbox" id="f-only" class="sw" />
+            <span class="switch">
+              <input type="checkbox" id="f-only" class="sw" />
+              <span class="switch-track"></span>
+            </span>
           </label>
 
           <div class="row">
             <span class="copy"><b>HAL 优先级</b><small>hal_priority</small></span>
-            <input type="number" id="f-hal" min="1" max="99" />
+            <input class="number-input" type="number" id="f-hal" min="1" max="99" />
           </div>
           <div class="row">
             <span class="copy"><b>音频线程优先级</b><small>audio_priority</small></span>
-            <input type="number" id="f-audio" min="1" max="99" />
+            <input class="number-input" type="number" id="f-audio" min="1" max="99" />
           </div>
           <div class="row">
             <span class="copy"><b>应用线程优先级</b><small>app_priority</small></span>
-            <input type="number" id="f-app" min="1" max="99" />
+            <input class="number-input" type="number" id="f-app" min="1" max="99" />
           </div>
         </section>
 
+        <div class="section-title">
+          <h2>低延迟链路的应用</h2>
+          <span class="pill" id="wl-count">0 项</span>
+        </div>
         <section class="card preference-card" id="card-whitelist" hidden>
-          <div class="card-title">
-            低延迟链路的应用
-            <span class="pill" id="wl-count">0 项</span>
-          </div>
-          <p class="hint">
+          <p class="hint" style="padding:14px 0 0">
             名单内的应用在前台时，其音频线程会被提升为实时优先级（SCHED_FIFO）。
           </p>
           <div class="add-row">
@@ -167,17 +177,17 @@
           <div id="wl-list" class="list"></div>
         </section>
 
-        <section class="card">
-          <div class="card-title">诊断</div>
-          <p class="hint">导出只读报告（挂载、端口 flags、音频就绪、日志尾部），不改任何设置。</p>
-          <button class="btn sm" id="btn-diag" type="button">导出诊断报告</button>
+        <div class="section-title"><h2>支持</h2></div>
+        <section class="card preference-card">
+          <p class="hint" style="padding:14px 0 0">导出只读报告（挂载、端口 flags、音频就绪、日志尾部），不改任何设置。</p>
+          <div class="row"><button class="btn" id="btn-diag" type="button">导出诊断报告</button></div>
         </section>
       </div>
 
     </main>
 
     <footer class="ft">
-      <button class="btn ghost" id="btn-reload" type="button">重新读取</button>
+      <button class="btn secondary" id="btn-reload" type="button">重新读取</button>
       <button class="btn primary" id="btn-save" type="button">保存并生效</button>
     </footer>
   </div>

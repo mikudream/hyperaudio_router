@@ -135,7 +135,7 @@ $allowed = @(
   '^system/lib64/libaaudio_internal(_builder)?\.so$',
   '^zygisk/arm64-v8a\.so$','^zygisk/(abi\.h\.patch|patch_mflags_offset\.py)$',
   '^webui/helper\.sh$',
-  '^webroot/(index\.html|app\.js|style\.css)$'
+  '^webroot/(index\.html|app\.js|style\.css|compat\.css|v3-[a-z0-9-]+\.css)$'
 )
 $unknown = @()
 foreach ($f in [System.IO.Directory]::EnumerateFiles($stage, '*', [System.IO.SearchOption]::AllDirectories)) {
