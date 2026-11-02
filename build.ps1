@@ -127,7 +127,7 @@ foreach ($f in $forbidden) {
 # A2) every staged file must match the known-good layout. Anything unexpected
 # aborts the build, so extra/.xml/.json payloads or stray notes cannot ship.
 $allowed = @(
-  '^module\.prop$','^customize\.sh$','^post-fs-data\.sh$','^service\.sh$','^system\.prop$','^action\.sh$','^uninstall\.sh$',
+  '^module\.prop$','^customize\.sh$','^post-fs-data\.sh$','^service\.sh$','^system\.prop$','^uninstall\.sh$',
   '^CREDITS\.md$','^config\.toml$','^hyper-audio$',
   '^META-INF/com/google/android/update-binary$','^META-INF/com/google/android/updater-script$',
   '^bin/(runtime|audio_ready|start_daemon|detect_tuning|diagnose)\.sh$','^bin/(patch_ports|check_audio_ready)\.awk$',
