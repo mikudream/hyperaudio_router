@@ -924,9 +924,13 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 })();
-/* RUN-STATE：状态页三行状态（杜比链路注入 / 低延迟守护进程 / 音频框架）与两个数量。
-   独立于 bind()，按 id 直接绘制；颜色用 ok/bad 两个类（绿/红）。 */
+/* RUN-STATE：状态页三行状态与两个数量。
+   独立于 bind()，直接按 id 绘制，5 秒刷新。
+   注意：必须用本页自己的 sh() 封装（它内部处理 ksu.exec 的返回形式），
+   直接调 ksu.exec(cmd, opts, timeout, cb) 的回调在这台设备上不会被调用。 */
 (function () {
+  var HELPER = '/system/bin/sh /data/adb/modules/hyperaudio/webui/helper.sh';
+
   function setState(id, text, ok) {
     var el = document.getElementById(id);
     if (!el) return;
@@ -934,40 +938,46 @@ document.addEventListener('DOMContentLoaded', function () {
     el.classList.remove('ok', 'bad');
     el.classList.add(ok ? 'ok' : 'bad');
   }
-  function num(v) { var n = parseInt(v, 10); return isNaN(n) ? null : n; }
 
-  function paint() {
-    if (typeof ksu === 'undefined' || !ksu.exec) return;
-    var HELPER = '/system/bin/sh /data/adb/modules/hyperaudio/webui/helper.sh';
-
-    /* 低延迟守护进程 + 音频框架：来自 status */
-    ksu.exec(HELPER + ' status', '{}', 60, function (_, out) {
+  function paintStatus() {
+    if (typeof sh !== 'function') return;
+    sh(HELPER + ' status', 60000).then(function (r) {
+      var out = (r && r.out) ? String(r.out) : '';
       if (!out) return;
-      var lines = String(out).split('\u001f');
-      lines.forEach(function (ln) {
-        var i = ln.indexOf('='); if (i < 0) return;
+      var wlCount = 0;
+      out.split('\u001f').forEach(function (ln) {
+        var i = ln.indexOf('=');
+        if (i < 0) {
+          if (ln === 'whitelist_begin' || ln === 'whitelist_end' || ln === '') return;
+          wlCount++;
+          return;
+        }
         var k = ln.slice(0, i), v = ln.slice(i + 1).replace(/[\r\n]+$/, '');
         if (k === 'running') setState('st-daemon', v === '1' ? '运行中' : '未运行', v === '1');
         if (k === 'audio_ready') {
-          var map = { passed: ['已确认加载', true], failed: ['加载失败', false], timeout: ['等待超时', false], stale: ['记录已过期', false], unverified: ['未能确认', false] };
+          var map = {
+            passed: ['已确认加载', true], failed: ['加载失败', false],
+            timeout: ['等待超时', false], stale: ['记录已过期', false],
+            unverified: ['未能确认', false]
+          };
           var m = map[v] || ['未知', false];
           setState('audio-ready', m[0], m[1]);
         }
-        if (k === 'whitelist_begin') return;
-      });
-      var wl = String(out).split('\u001f').filter(function (s) {
-        return s && s.indexOf('=') < 0 && s !== 'whitelist_begin' && s !== 'whitelist_end';
       });
       var c = document.getElementById('cnt-low');
-      if (c) c.textContent = (num(document.getElementById('wl-count') && document.getElementById('wl-count').textContent) || wl.length) + ' 个';
-    }, '{}');
+      if (c) c.textContent = wlCount + ' 个';
+    }).catch(function () { });
+  }
 
-    /* 杜比链路：来自 dolby */
-    ksu.exec(HELPER + ' dolby', '{}', 60, function (_, out) {
+  function paintDolby() {
+    if (typeof sh !== 'function') return;
+    sh(HELPER + ' dolby', 60000).then(function (r) {
+      var out = (r && r.out) ? String(r.out) : '';
       if (!out) return;
       var kv = {};
-      String(out).split('\u001f').forEach(function (ln) {
-        var i = ln.indexOf('='); if (i > 0) kv[ln.slice(0, i)] = ln.slice(i + 1).replace(/[\r\n]+$/, '');
+      out.split('\u001f').forEach(function (ln) {
+        var i = ln.indexOf('=');
+        if (i > 0) kv[ln.slice(0, i)] = ln.slice(i + 1).replace(/[\r\n]+$/, '');
       });
       var payload = kv['dolby_payload'] === '1';
       var comp = kv['dolby_companion'] === '1';
@@ -976,9 +986,10 @@ document.addEventListener('DOMContentLoaded', function () {
       else setState('st-zygisk', '未内置', false);
       var cd = document.getElementById('cnt-dolby');
       if (cd) cd.textContent = (parseInt(kv['dolby_count'], 10) || 0) + ' 个';
-    }, '{}');
+    }).catch(function () { });
   }
 
+  function paint() { paintStatus(); paintDolby(); }
   document.addEventListener('DOMContentLoaded', function () {
     paint();
     setInterval(paint, 5000);
