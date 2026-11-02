@@ -1,0 +1,58 @@
+/* Full-width standard navigation and the optional floating shell have their
+   own geometry. Host insets are consumed once, outside the measured bar. */
+:root[data-nav-floating="false"] {--ha-nav-gap:0px;}
+:root[data-nav-floating="false"] .ft {
+  bottom:0;padding:0 var(--ha-safe-right,0px) var(--ha-safe-bottom,0px) var(--ha-safe-left,0px);
+  background:var(--nav-solid);border-top:1px solid var(--line);
+}
+:root[data-nav-floating="false"] .bottom-nav {
+  width:100%;max-width:600px;margin:0 auto;padding:0;
+  border:0;border-radius:0;box-shadow:none;
+  background:transparent;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;
+}
+:root[data-nav-floating="false"] .nav-indicator,
+:root[data-nav-floating="false"] .nav-glass-shell {display:none;}
+:root[data-nav-floating="false"] .nav-item {min-height:68px;border-radius:0;padding:8px 8px;gap:4px;}
+:root[data-ui-style="miuix"][data-nav-floating="false"] .nav-icon {width:54px;height:30px;border-radius:999px;}
+:root[data-ui-style="miuix"][data-nav-floating="false"] .nav-item.active .nav-icon {background:var(--accent-soft);}
+/* Material 3 baseline navigation: 80px container, 64x32 active indicator,
+   24px icons, 12/16 labels. The standard bar is opaque and edge-to-edge. */
+:root[data-ui-style="md3"][data-nav-floating="false"] .ft {background:var(--md-surface-container);border:0;}
+:root[data-ui-style="md3"][data-nav-floating="false"] .bottom-nav {min-height:80px;border-radius:0;box-shadow:none;background:transparent;}
+:root[data-ui-style="md3"][data-nav-floating="false"] .nav-item {min-height:80px;padding:12px 8px 16px;gap:4px;}
+:root[data-ui-style="md3"][data-nav-floating="false"] .nav-icon {width:64px;height:32px;border-radius:16px;}
+.appearance-icon {display:flex;align-items:center;justify-content:center;flex:none;width:26px;height:26px;color:var(--fg);}
+.appearance-icon .design-icon {display:block;flex:none;width:24px;height:24px;fill:currentColor;stroke:none;}
+.appearance-icon .design-icon[data-icon-style="md3"] {display:none;}
+:root[data-ui-style="md3"] .appearance-icon {width:24px;height:24px;color:var(--md-on-surface-variant);}
+:root[data-ui-style="md3"] .appearance-icon .design-icon[data-icon-style="miuix"] {display:none;}
+:root[data-ui-style="md3"] .appearance-icon .design-icon[data-icon-style="md3"] {display:block;}
+.appearance-card .row {column-gap:12px;}
+.appearance-card .copy {min-width:0;}
+.appearance-card .glass-options .row {min-height:76px;}
+.appearance-card #floating-row {border-top:1px solid var(--line);}
+:root[data-ui-style="md3"] .appearance-card #floating-row {border-top-color:transparent;}
+:root[data-ui-style="md3"] .appearance-card .row {column-gap:16px;}
+:root[data-ui-style="md3"] .appearance-card .glass-options .row {min-height:72px;}
+.appearance-card .floating-copy small {font-size:12px;}
+.readonly-effect .value {font-size:14px;}
+.paired-icon {display:flex;align-items:center;justify-content:center;width:24px;height:24px;}
+.paired-icon .design-icon {display:block;width:100%;height:100%;fill:currentColor;stroke:none;}
+.paired-icon .design-icon[data-icon-style="md3"] {display:none;}
+:root[data-ui-style="md3"] .paired-icon .design-icon[data-icon-style="miuix"] {display:none;}
+:root[data-ui-style="md3"] .paired-icon .design-icon[data-icon-style="md3"] {display:block;}
+#btn-reload .paired-icon {width:24px;height:24px;}
+@media(max-width:360px){
+  .appearance-card .row {column-gap:10px;padding-left:16px;padding-right:16px;}
+  :root[data-ui-style="md3"] .appearance-card .row {column-gap:12px;}
+  .appearance-card .copy>b {font-size:15px;}
+  .appearance-card .copy>small {font-size:11px;}
+}
+
+/* Mode symbols use actual theme-specific paths. Miuix custom contours match
+   the Regular family visually; MD3 retains the official filled SVG geometry. */
+.mode-icon .mode-symbol {display:block;flex:none;width:26px;height:26px;stroke:none;fill:currentColor;}
+.mode-icon .mode-symbol[data-icon-style="miuix"] {fill:none;}
+.mode-icon .mode-symbol[data-icon-style="md3"] {display:none;}
+:root[data-ui-style="md3"] .mode-icon .mode-symbol[data-icon-style="miuix"] {display:none;}
+:root[data-ui-style="md3"] .mode-icon .mode-symbol[data-icon-style="md3"] {display:block;width:18px;height:18px;}

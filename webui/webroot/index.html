@@ -1,134 +1,283 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#000" media="(prefers-color-scheme: dark)" />
-  <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)" />
-  <link rel="stylesheet" href="./v3-style.css" />
-  <link rel="stylesheet" href="./compat.css" />
-  <title>低延迟音效路由</title>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" id="page-theme-color" content="#f5f6f8"/>
+<meta name="color-scheme" content="light dark"/>
+<meta name="ha-webui-build" content="26101606"/>
+<script src="./assets/26101606/appearance-init.js"></script>
+<link rel="stylesheet" href="./assets/26101606/style.css"/>
+<link rel="stylesheet" href="./assets/26101606/host-ui.css"/>
+<link rel="stylesheet" href="./assets/26101606/liquid.css"/>
+<link rel="stylesheet" href="./assets/26101606/material3.css"/>
+<link rel="stylesheet" href="./assets/26101606/navigation-layout.css"/>
+<link rel="stylesheet" href="./assets/26101606/about.css"/>
+<script src="./assets/26101606/theme-init.js"></script>
+<title>HyperAudio Switch</title>
+
+<!--
+Third-party icon notice:
+Material Symbols Rounded / Copyright Google LLC / Apache-2.0.
+SVG adaptations by HyperAudio Switch: converted Miuix vectors and adjusted icon sizing/color; original paths and notices retained.
+Miuix Regular / Copyright 2025 compose-miuix-ui contributors / Apache-2.0.
+Miuix PathNode geometry converted to inline SVG; original viewport preserved.
+
+Complete Apache License 2.0 texts are provided in:
+vendor/miuix-icons-LICENSE.txt and vendor/material-symbols-LICENSE.txt.
+The About page retains copyright notices and all three complete licenses.
+-->
 </head>
-
 <body>
-  <div class="app">
-    <header class="hd">
-      <div class="hd-title">
-        <h1>低延迟音效路由</h1>
-        <div class="hd-sub" id="sub">正在读取…</div>
-      </div>
-    </header>
-
-    <main class="main">
-
-      <div class="page" id="page-status">
-        <div class="section-title"><h2>运行状态</h2></div>
-        <section class="card preference-card">
-          <div class="row">
-            <span class="copy"><b>杜比链路注入</b></span>
-            <span class="value" id="st-zygisk">—</span>
-          </div>
-          <div class="row">
-            <span class="copy"><b>低延迟守护进程</b></span>
-            <span class="value" id="st-daemon">—</span>
-          </div>
-          <div class="row">
-            <span class="copy"><b>音频框架</b></span>
-            <span class="value" id="st-audio">—</span>
-          </div>
-        </section>
-
-        <div class="section-title"><h2>链路应用</h2></div>
-        <section class="card preference-card">
-          <div class="row">
-            <span class="copy"><b>杜比链路应用</b></span>
-            <span class="value" id="cnt-dolby">—</span>
-          </div>
-          <div class="row">
-            <span class="copy"><b>低延迟链路应用</b></span>
-            <span class="value" id="cnt-low">—</span>
-          </div>
-        </section>
-
-        <div class="section-title"><h2>调音状态</h2></div>
-        <section class="card preference-card">
-          <div class="row">
-            <span class="copy"><b>调音来源</b></span>
-            <span class="value" id="tuning-src">—</span>
-          </div>
-          <div class="row">
-            <span class="copy"><b>模块版本</b></span>
-            <span class="value" id="tuning-ver">—</span>
-          </div>
-        </section>
-
-        <div class="section-title"><h2>问题检测</h2></div>
-        <section class="card preference-card">
-          <div class="row">
-            <span class="copy"><b>诊断</b></span>
-            <button class="btn sm" id="btn-diag" type="button">导出报告</button>
-          </div>
-        </section>
-
-        <div class="section-title"><h2>模块信息</h2></div>
-        <section class="card preference-card">
-          <div class="row"><span class="copy"><b>版本</b></span><span class="value" id="info-ver">—</span></div>
-          <div class="row"><span class="copy"><b>作者</b></span><span class="value" id="info-author">—</span></div>
-        </section>
-      </div>
-
-      <div class="page" id="page-dolby" hidden>
-        <div class="section-title"><h2>杜比链路的应用</h2><span class="pill" id="dolby-count">0 项</span></div>
-        <section class="card preference-card">
-          <p class="hint">名单内的应用走杜比效果链：音轨回落到普通混音轨，经过 Dolby 处理；其余应用保持低延迟。添加后杀掉应用重开即可生效。<br />请勿加入实时低延迟音游——它们依赖快速轨时序，转普通轨会慢放或卡顿。</p>
-          <div class="add-row">
-            <input type="text" id="dolby-input" placeholder="输入包名，如 com.xxx.game" autocomplete="off"
-              autocapitalize="off" spellcheck="false" />
-            <button class="btn sm primary" id="dolby-add" type="button">添加</button>
-          </div>
-          <div class="list" id="dolby-list"></div>
-        </section>
-      </div>
-
-      <div class="page" id="page-low" hidden>
-        <div class="section-title"><h2>低延迟链路的应用</h2><span class="pill" id="low-count">0 项</span></div>
-        <section class="card preference-card">
-          <p class="hint">名单内的应用在前台播放时，其音频线程会被提升到实时优先级（SCHED_FIFO），降低卡顿与爆音。该优化只作用于名单内的应用。</p>
-          <div class="add-row">
-            <input type="text" id="low-input" placeholder="输入包名，如 com.xxx.game" autocomplete="off"
-              autocapitalize="off" spellcheck="false" />
-            <button class="btn sm primary" id="low-add" type="button">添加</button>
-          </div>
-          <div class="list" id="low-list"></div>
-        </section>
-      </div>
-
-    </main>
-
-    <footer class="ft">
-      <nav class="bottom-nav" id="dock">
-        <span class="nav-indicator"></span>
-        <button class="nav-item active" data-page="page-status" type="button">
-          <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M4 13h4l3 6 4-14 3 8h2" /></svg></span>
-          <span>状态</span>
-        </button>
-        <button class="nav-item" data-page="page-dolby" type="button">
-          <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12h3l2-5 3 10 2-5h4" /></svg></span>
-          <span>杜比链路</span>
-        </button>
-        <button class="nav-item" data-page="page-low" type="button">
-          <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M13 3 6 13h5l-1 8 7-11h-5l1-7z" /></svg></span>
-          <span>低延迟链路</span>
-        </button>
-      </nav>
-    </footer>
+<div class="app">
+<header class="hd">
+  <div class="app-toolbar" id="titleBar">
+    <div class="toolbar-inner">
+      <button class="icon-button back-button" id="btn-about-back" aria-label="返回设置" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5-7 7 7 7"/></svg></button>
+      <div class="compact-title" id="compactTitle" aria-hidden="true">HyperAudio Switch</div>
+      <button class="icon-button" id="btn-reload" aria-label="重新读取当前状态" title="重新读取">
+        <span class="paired-icon icon" aria-hidden="true"><svg class="design-icon" data-icon-style="miuix" viewBox="0 0 1225.2 1225.2" aria-hidden="true"><g transform="translate(0 1225.2) scale(1 -1)"><path d="M1025.1 245.1 L1004.1 272.1 Q998.1 280.1 998.1 287.6 Q998.1 295.1 1005.1 304.1 Q1066.1 385.1 1092.6 481.1 Q1119.1 577.1 1107.6 675.6 Q1096.1 774.1 1044.1 862.1 Q988.1 958.1 899.1 1020.6 Q810.1 1083.1 702.6 1103.1 Q595.1 1123.1 485.1 1095.1 Q471.1 1091.1 466.1 1079.6 Q461.1 1068.1 467.1 1057.1 L483.1 1030.1 Q489.1 1018.1 496.1 1015.6 Q503.1 1013.1 515.1 1015.1 Q605.1 1035.1 692.6 1017.6 Q780.1 1000.1 852.6 949.1 Q925.1 898.1 970.1 819.1 Q1012.1 747.1 1022.6 666.6 Q1033.1 586.1 1012.6 508.6 Q992.1 431.1 945.1 367.1 Q942.1 363.1 937.6 363.1 Q933.1 363.1 929.1 368.1 L913.1 388.1 Q907.1 395.1 898.1 397.1 Q889.1 399.1 881.1 394.1 Q873.1 389.1 869.1 375.1 L831.1 232.1 Q828.1 220.1 834.6 211.1 Q841.1 202.1 854.1 202.1 L1008.1 206.1 Q1019.1 206.1 1025.1 212.6 Q1031.1 219.1 1031.1 228.6 Q1031.1 238.1 1025.1 245.1 Z M744.1 166.1 L728.1 194.1 Q720.1 212.1 693.1 207.1 Q606.1 191.1 522.1 210.1 Q438.1 229.1 368.6 279.6 Q299.1 330.1 255.1 406.1 Q214.1 477.1 203.1 556.6 Q192.1 636.1 211.6 713.1 Q231.1 790.1 277.1 854.1 Q281.1 859.1 287.6 859.1 Q294.1 859.1 298.1 854.1 L317.1 831.1 Q327.1 820.1 340.1 823.1 Q353.1 826.1 357.1 840.1 L396.1 982.1 Q401.1 999.1 395.1 1009.6 Q389.1 1020.1 374.1 1019.1 L219.1 1015.1 Q209.1 1015.1 203.6 1008.6 Q198.1 1002.1 197.6 993.6 Q197.1 985.1 201.1 979.1 L219.1 954.1 Q226.1 945.1 226.6 937.6 Q227.1 930.1 222.1 923.1 Q160.1 843.1 133.1 747.1 Q106.1 651.1 117.6 551.6 Q129.1 452.1 181.1 363.1 Q235.1 269.1 322.1 207.6 Q409.1 146.1 513.6 124.1 Q618.1 102.1 724.1 126.1 Q740.1 130.1 745.6 142.6 Q751.1 155.1 744.1 166.1 Z"/></g></svg><svg class="design-icon" data-icon-style="md3" viewBox="0 -960 960 960" aria-hidden="true"><path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-70q0-17 11.5-28.5T760-800q17 0 28.5 11.5T800-760v200q0 17-11.5 28.5T760-520H560q-17 0-28.5-11.5T520-560q0-17 11.5-28.5T560-600h128q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q68 0 124.5-34.5T692-367q8-14 22.5-19.5t29.5-.5q16 5 23 21t-1 30q-41 80-117 128t-169 48Z"/></svg></span>
+        <span class="spin-xs" id="toggleSpin" hidden></span>
+      </button>
+    </div>
+  </div>
+  <div class="hd-title"><h1 id="pageTitle">HyperAudio Switch</h1><p class="hd-sub" id="sub">音频模式热切换</p></div>
+</header>
+<main class="main">
+<div class="page" id="page-mode" role="tabpanel" aria-labelledby="nav-mode">
+  <div class="section-title"><h2>工作模式</h2><span class="pill" id="runBadge">正在读取</span></div>
+  <section class="card mode-card" aria-label="工作模式">
+    <div class="mode-tabs" id="modeTabs">
+      <button class="mode-tab" data-mode="native" id="tab-native" aria-pressed="false">
+        <span class="mode-icon"><svg class="mode-symbol" data-icon-style="miuix" data-mode-symbol="native" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+  
+  
+  <g stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9.4 2.7h5.2c2.2 0 3.5 1.3 3.5 3.5v11.6c0 2.2-1.3 3.5-3.5 3.5H9.4c-2.2 0-3.5-1.3-3.5-3.5V6.2c0-2.2 1.3-3.5 3.5-3.5Z"/>
+    <path d="M10.4 5.5h3.2M10.2 18.2h3.6"/>
+  </g>
+</svg><svg class="mode-symbol" data-icon-style="md3" data-mode-symbol="native" viewBox="0 -960 960 960" aria-hidden="true" focusable="false"><path d="M280-40q-33 0-56.5-23.5T200-120v-720q0-33 23.5-56.5T280-920h400q33 0 56.5 23.5T760-840v720q0 33-23.5 56.5T680-40H280Zm0-120v40h400v-40H280Zm0-80h400v-480H280v480Zm0-560h400v-40H280v40Zm0 0v-40 40Zm0 640v40-40Z"/></svg></span>
+        <span class="mode-check" aria-hidden="true"></span><b>原生模式</b><small>保持系统播放方式</small>
+      </button>
+      <button class="mode-tab" data-mode="sound" id="tab-sound" aria-pressed="false">
+        <span class="mode-icon"><svg class="mode-symbol" data-icon-style="miuix" data-mode-symbol="sound" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+  
+  
+  <g stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 3v18M8.2 6.9v10.2M15.8 6.9v10.2"/>
+    <path d="M4.5 8.7a7 7 0 0 0 0 6.6m15-6.6a7 7 0 0 1 0 6.6"/>
+  </g>
+</svg><svg class="mode-symbol" data-icon-style="md3" data-mode-symbol="sound" viewBox="0 -960 960 960" aria-hidden="true" focusable="false"><path d="M280-280v-400q0-17 11.5-28.5T320-720q17 0 28.5 11.5T360-680v400q0 17-11.5 28.5T320-240q-17 0-28.5-11.5T280-280Zm160 160v-720q0-17 11.5-28.5T480-880q17 0 28.5 11.5T520-840v720q0 17-11.5 28.5T480-80q-17 0-28.5-11.5T440-120ZM120-440v-80q0-17 11.5-28.5T160-560q17 0 28.5 11.5T200-520v80q0 17-11.5 28.5T160-400q-17 0-28.5-11.5T120-440Zm480 160v-400q0-17 11.5-28.5T640-720q17 0 28.5 11.5T680-680v400q0 17-11.5 28.5T640-240q-17 0-28.5-11.5T600-280Zm160-160v-80q0-17 11.5-28.5T800-560q17 0 28.5 11.5T840-520v80q0 17-11.5 28.5T800-400q-17 0-28.5-11.5T760-440Z"/></svg></span>
+        <span class="mode-check" aria-hidden="true"></span><b>音效模式</b><small>让更多应用使用音效</small>
+      </button>
+    </div>
+    <p class="hint" id="modeDesc">正在读取当前模式…</p>
+  </section>
+  <div class="mode-msg notice" id="modeMsg" role="status" aria-live="polite" hidden></div>
+  <div class="notice warning" id="soundWarning" hidden>
+    <svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.1"/></svg>
+    <span>部分游戏可能出现电流声、破音或无声，遇到这些问题请切回原生模式。</span>
   </div>
 
-  <div class="toast" id="toast" hidden></div>
-  <script src="./app.js"
-    onerror="document.getElementById('sub').textContent='app.js 加载失败，请检查模块文件完整性';"></script>
-</body>
+  <section class="setting-section" id="card-fast">
+    <div class="section-title"><h2>原生模式设置</h2><span class="section-value" id="llBadge">正在读取</span></div>
+    <div class="card preference-card">
+      <label class="row switch-row">
+        <span class="copy"><b>低延迟调度</b><small>优先处理正在播放的音频</small></span>
+        <span class="switch"><input type="checkbox" id="f-enable" class="sw"/><span class="switch-track" aria-hidden="true"></span></span>
+      </label>
+      <div class="options" id="llControls" hidden>
+        <label class="row switch-row"><span class="copy"><b>按应用启用</b><small>仅在白名单内的应用播放声音时启用</small></span><span class="switch"><input type="checkbox" id="f-only" class="sw"/><span class="switch-track" aria-hidden="true"></span></span></label>
+        <label class="row" for="f-hal"><span class="copy"><b>底层音频优先级</b><small>底层声音输出（HAL）</small></span><input type="number" class="number-input" id="f-hal" min="1" max="99" value="20" inputmode="numeric"/></label>
+        <label class="row" for="f-audio"><span class="copy"><b>系统音频优先级</b><small>系统混音和声音输出</small></span><input type="number" class="number-input" id="f-audio" min="1" max="99" value="16" inputmode="numeric"/></label>
+        <label class="row" for="f-app"><span class="copy"><b>应用音频优先级</b><small>应用内的声音处理</small></span><input type="number" class="number-input" id="f-app" min="1" max="99" value="15" inputmode="numeric"/></label>
+        <details class="inline-details whitelist-details"><summary><span>应用白名单</span><span class="trailing"><span id="wl-count">0 项</span><span class="chevron" aria-hidden="true"></span></span></summary>
+          <div class="detail-content"><div class="add-row"><input type="text" id="f-newpkg" placeholder="输入应用包名" aria-label="添加应用包名" autocomplete="off" spellcheck="false"/><button class="btn small" id="btn-add">添加</button></div><div id="wl-list" class="list"></div></div>
+        </details>
+        <p class="parameter-note">优先级可设为 1–99，数值越大不一定越好。修改后请点“保存并应用”。</p>
+        <p class="draft-note" id="dirtyNote" role="status" hidden>有未保存的修改</p>
+        <div class="panel-actions"><button class="btn secondary" id="btn-ll-reset">恢复默认</button><button class="btn primary" id="btn-save">保存并应用</button></div>
+      </div>
+    </div>
+    <p class="section-note">关闭后停止调度，已保存的参数会保留。</p>
+  </section>
 
+  <section class="setting-section" id="soundSettings" hidden>
+    <div class="section-title"><h2>音效模式设置</h2><span class="section-value" id="soundBadge">正在读取</span></div>
+    <div class="card preference-card">
+      <label class="row switch-row"><span class="copy"><b>自定义音频设置</b><small>声音异常时，可尝试调整以下选项</small></span><span class="switch"><input type="checkbox" id="s-custom" class="sw"/><span class="switch-track" aria-hidden="true"></span></span></label>
+      <div class="options" id="soundControls" hidden>
+        <label class="row switch-row"><span class="copy"><b>关闭 MMAP 直通</b><small>关闭这类直通播放，尝试使用常规播放方式</small></span><span class="switch"><input type="checkbox" id="s-mmap" class="sw"/><span class="switch-track" aria-hidden="true"></span></span></label>
+        <label class="row switch-row"><span class="copy"><b>限制低延迟快速播放</b><small>限制低延迟通路的快速播放，可能增加延迟</small></span><span class="switch"><input type="checkbox" id="s-fast" class="sw"/><span class="switch-track" aria-hidden="true"></span></span></label>
+        <label class="row switch-row"><span class="copy"><b>限制 RAW 快速播放</b><small>仅限制快速播放，RAW 输出由下一项控制</small></span><span class="switch"><input type="checkbox" id="s-fast-raw" class="sw"/><span class="switch-track" aria-hidden="true"></span></span></label>
+        <label class="row switch-row"><span class="copy"><b>限制 RAW 输出</b><small>限制原始音频输出，快速播放由上一项控制</small></span><span class="switch"><input type="checkbox" id="s-raw" class="sw"/><span class="switch-track" aria-hidden="true"></span></span></label>
+        <details class="inline-details route-help"><summary><span>通路技术说明</span><span class="chevron" aria-hidden="true"></span></summary><div class="detail-content"><p>MMAP 直通：将 AAudio 的 MMAP 策略设为禁用。关闭此开关时恢复系统设置。</p><p>低延迟快速播放：移除 <code>low_latency_out</code> 的 <code>FAST</code> 标志，保留其他标志。</p><p>RAW 快速播放：移除 <code>raw_out</code> 的 <code>FAST</code> 标志，<code>RAW</code> 标志由下一项独立控制。</p><p>RAW 输出：移除 <code>raw_out</code> 的 <code>RAW</code> 标志，保留端口。此操作不会一并移除它的 <code>FAST</code> 标志。</p></div></details>
+        <p class="parameter-note warning-text" id="soundUnrestricted" hidden>关闭全部限制可能使音效不再生效。音效模式下低延迟调度暂停。</p>
+        <p class="parameter-note">修改后请点“保存并应用”，再重新打开游戏。</p>
+        <p class="draft-note" id="soundDirtyNote" role="status" hidden>有未保存的修改</p>
+        <div class="panel-actions"><button class="btn secondary" id="btn-sound-reset">恢复默认</button><button class="btn primary" id="btn-sound-save">保存并应用</button></div>
+      </div>
+    </div>
+    <p class="section-note">关闭后恢复默认设置，已保存的自定义参数会保留。</p>
+    <p class="notice" id="soundApplyState" role="status" aria-live="polite" hidden></p>
+    <p class="section-note" id="soundRecoveryHint" hidden>当前处于原生模式，保存的设置会在切换到音效模式时生效。</p>
+  </section>
+
+  <div class="section-title"><h2>音效信息</h2></div>
+  <section class="card preference-card">
+    <button class="row link-row" id="btn-show-tuning"><span class="leading-icon"><svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4zM17 8a6 6 0 0 1 0 8M19 5a10 10 0 0 1 0 14"/></svg></span><span class="copy"><b>调音来源</b><small id="sourceSummary">正在检测…</small></span><span class="chevron" aria-hidden="true"></span></button>
+    <details class="inline-details mode-help"><summary><span>模式说明</span><span class="chevron" aria-hidden="true"></span></summary>
+      <div class="detail-content"><p>原生模式使用系统原有的播放方式，可按需开启低延迟调度，优先处理正在播放的音频。</p><p>音效模式尝试让更多游戏和应用使用系统或调音模块提供的音效。杜比和低音炮是否起效仍取决于应用及当前调音。音效模式下低延迟调度暂停。</p><p>切换无需重启手机。切换后请强行停止并重新打开游戏；遇到电流声、破音或无声，请切回原生模式。</p><p>开机时使用已保存的设置。“恢复默认”会关闭当前自定义功能，并重置这一组参数，开机模式不变。</p></div>
+    </details>
+  </section>
+</div>
+
+<div class="page" id="page-settings" role="tabpanel" aria-labelledby="nav-settings" hidden>
+  <div class="section-title"><h2>界面与底栏</h2></div>
+  <section class="card preference-card appearance-card" id="appearance-card">
+    <div class="row select-row">
+      <span class="appearance-icon" data-setting-icon="style"><svg class="design-icon" data-icon-style="miuix" viewBox="0 0 1120.8 1120.8" aria-hidden="true"><g transform="translate(0 1120.8) scale(1 -1)"><path d="M416.8 890.1 Q425.3 886.9 431.5 881.0 Q437.6 875.2 439.8 867.5 Q443.3 856.5 443.3 819.8 V751.2 Q443.3 714.2 439.8 703.1 Q437.6 695.4 431.3 689.6 Q424.9 683.7 416.8 681.0 Q404.5 677.0 370.5 677.0 H359.4 H311.9 H300.9 Q266.8 677.0 254.5 681.0 Q246.0 683.7 239.7 689.6 Q233.4 695.4 231.1 703.1 Q228.0 714.9 228.0 751.2 V819.8 Q228.0 838.7 228.7 849.9 Q229.4 861.2 231.1 867.5 Q233.4 875.2 239.7 881.0 Q246.0 886.9 254.5 890.1 Q262.9 892.7 278.4 893.4 Q293.8 894.1 311.9 894.1 H359.4 Q377.5 894.1 392.9 893.4 Q408.4 892.7 416.8 890.1 Z M447.8 601.9 Q471.8 610.1 489.4 628.7 Q507.1 647.2 517.6 672.1 Q524.6 689.1 526.5 710.7 Q528.5 732.4 528.5 767.9 V803.1 Q528.5 838.6 526.5 860.0 Q524.6 881.5 517.6 898.6 Q507.1 923.4 489.4 941.9 Q471.8 960.5 447.8 969.2 Q418.8 979.2 373.4 979.2 H297.8 Q252.5 979.2 223.5 969.2 Q199.5 960.5 181.6 941.8 Q163.8 923.0 153.8 898.6 Q146.7 881.5 144.8 860.0 Q142.8 838.6 142.8 803.1 V767.9 Q142.8 732.4 144.8 710.7 Q146.7 689.1 153.8 672.1 Q163.8 647.6 181.6 628.8 Q199.5 610.1 223.5 601.9 Q251.1 591.8 297.8 591.8 H373.4 Q420.6 591.8 447.8 601.9 Z M866.3 890.1 Q874.8 886.9 881.1 881.0 Q887.4 875.2 889.7 867.5 Q891.4 861.2 892.1 849.9 Q892.8 838.7 892.8 819.8 V751.2 Q892.8 732.3 892.1 720.8 Q891.4 709.4 889.7 703.1 Q887.4 695.4 881.1 689.6 Q874.8 683.7 866.3 681.0 Q854.0 677.0 819.9 677.0 H808.8 H761.4 H750.3 Q716.2 677.0 704.0 681.0 Q695.4 683.7 689.1 689.6 Q682.9 695.4 681.0 703.1 Q677.5 714.2 677.5 751.2 V819.8 Q677.5 856.5 681.0 867.5 Q683.2 875.2 689.5 881.0 Q695.8 886.9 704.0 890.1 Q712.4 892.7 727.9 893.4 Q743.3 894.1 761.4 894.1 H808.8 Q826.9 894.1 842.4 893.4 Q857.9 892.7 866.3 890.1 Z M897.3 601.9 Q921.2 610.1 939.1 628.8 Q957.0 647.6 967.0 672.1 Q974.1 689.1 976.0 710.7 Q978.0 732.4 978.0 767.9 V803.1 Q978.0 838.6 976.0 860.0 Q974.1 881.5 967.0 898.6 Q957.0 923.0 939.1 941.8 Q921.2 960.5 897.3 969.2 Q868.2 979.2 822.9 979.2 H747.3 Q702.0 979.2 673.0 969.2 Q649.0 960.5 631.3 941.9 Q613.6 923.4 603.2 898.6 Q596.2 881.5 594.3 860.0 Q592.3 838.6 592.3 803.1 V767.9 Q592.3 732.4 594.3 710.7 Q596.2 689.1 603.2 672.1 Q613.6 647.2 631.3 628.7 Q649.0 610.1 673.0 601.9 Q700.6 591.8 747.3 591.8 H822.9 Q870.1 591.8 897.3 601.9 Z M370.5 443.8 Q404.5 443.8 416.8 439.8 Q424.9 437.1 431.3 431.2 Q437.6 425.3 439.8 417.7 Q443.3 406.6 443.3 369.6 V301.0 Q443.3 264.3 439.8 253.3 Q437.6 245.6 431.5 239.7 Q425.3 233.9 416.8 230.7 Q408.4 228.1 392.9 227.4 Q377.5 226.7 359.4 226.7 H311.9 Q293.8 226.7 278.4 227.4 Q262.9 228.1 254.5 230.7 Q246.0 233.9 239.7 239.7 Q233.4 245.6 231.1 253.3 Q228.0 265.1 228.0 301.0 V369.6 Q228.0 388.5 228.7 400.0 Q229.4 411.4 231.1 417.7 Q233.4 425.3 239.7 431.2 Q246.0 437.1 254.5 439.8 Q266.8 443.8 300.9 443.8 H311.9 H359.4 Z M447.8 151.6 Q471.8 160.3 489.4 178.9 Q507.1 197.4 517.6 222.2 Q524.6 239.3 526.5 260.8 Q528.5 282.2 528.5 317.7 V352.9 Q528.5 388.3 526.5 410.0 Q524.6 431.7 517.6 448.7 Q507.1 473.6 489.4 492.1 Q471.8 510.7 447.8 518.9 Q420.6 529.0 373.4 529.0 H297.8 Q251.1 529.0 223.5 518.9 Q199.5 510.7 181.6 491.9 Q163.8 473.2 153.8 448.7 Q146.7 431.7 144.8 410.0 Q142.8 388.3 142.8 352.9 V317.7 Q142.8 282.2 144.8 260.8 Q146.7 239.3 153.8 222.2 Q163.8 197.7 181.6 179.0 Q199.5 160.3 223.5 151.6 Q252.5 141.6 297.8 141.6 H373.4 Q418.8 141.6 447.8 151.6 Z M819.9 443.8 Q854.0 443.8 866.3 439.8 Q874.8 437.1 881.1 431.2 Q887.4 425.3 889.7 417.7 Q891.4 411.4 892.1 400.0 Q892.8 388.5 892.8 369.6 V301.0 Q892.8 282.0 892.1 270.8 Q891.4 259.6 889.7 253.3 Q887.4 245.6 881.1 239.7 Q874.8 233.9 866.3 230.7 Q857.9 228.1 842.4 227.4 Q826.9 226.7 808.8 226.7 H761.4 Q743.3 226.7 727.9 227.4 Q712.4 228.1 704.0 230.7 Q695.4 233.9 689.1 239.7 Q682.9 245.6 681.0 253.3 Q677.5 264.3 677.5 301.0 V369.6 Q677.5 406.6 681.0 417.7 Q683.2 425.3 689.5 431.2 Q695.8 437.1 704.0 439.8 Q716.2 443.8 750.3 443.8 H761.4 H808.8 Z M897.3 151.6 Q921.2 160.3 939.1 179.0 Q957.0 197.7 967.0 222.2 Q974.1 239.3 976.0 260.8 Q978.0 282.2 978.0 317.7 V352.9 Q978.0 388.3 976.0 410.0 Q974.1 431.7 967.0 448.7 Q957.0 473.2 939.1 491.9 Q921.2 510.7 897.3 518.9 Q870.1 529.0 822.9 529.0 H747.3 Q700.6 529.0 673.0 518.9 Q649.0 510.7 631.3 492.1 Q613.6 473.6 603.2 448.7 Q596.2 431.7 594.3 410.0 Q592.3 388.3 592.3 352.9 V317.7 Q592.3 282.2 594.3 260.8 Q596.2 239.3 603.2 222.2 Q613.6 197.4 631.3 178.9 Q649.0 160.3 673.0 151.6 Q702.0 141.6 747.3 141.6 H822.9 Q868.2 141.6 897.3 151.6 Z"/></g></svg><svg class="design-icon" data-icon-style="md3" viewBox="0 -960 960 960" aria-hidden="true"><path d="M638-468 468-638q-6-6-8.5-13t-2.5-15q0-8 2.5-15t8.5-13l170-170q6-6 13-8.5t15-2.5q8 0 15 2.5t13 8.5l170 170q6 6 8.5 13t2.5 15q0 8-2.5 15t-8.5 13L694-468q-6 6-13 8.5t-15 2.5q-8 0-15-2.5t-13-8.5Zm-518-92v-240q0-17 11.5-28.5T160-840h240q17 0 28.5 11.5T440-800v240q0 17-11.5 28.5T400-520H160q-17 0-28.5-11.5T120-560Zm400 400v-240q0-17 11.5-28.5T560-440h240q17 0 28.5 11.5T840-400v240q0 17-11.5 28.5T800-120H560q-17 0-28.5-11.5T520-160Zm-400 0v-240q0-17 11.5-28.5T160-440h240q17 0 28.5 11.5T440-400v240q0 17-11.5 28.5T400-120H160q-17 0-28.5-11.5T120-160Zm80-440h160v-160H200v160Zm467 48 113-113-113-113-113 113 113 113Zm-67 352h160v-160H600v160Zm-400 0h160v-160H200v160Zm160-400Zm194-65ZM360-360Zm240 0Z"/></svg></span><span class="copy"><b>界面风格</b><small>更改界面与控件样式</small></span>
+      <select id="ui-style" data-select-label="界面风格" data-select-style="compact" hidden aria-hidden="true" tabindex="-1"><option value="miuix">Miuix</option><option value="md3">Material 3</option></select>
+    </div>
+    <label class="row switch-row" id="floating-row">
+      <span class="appearance-icon" data-setting-icon="floating"><svg class="design-icon" data-icon-style="miuix" viewBox="0 0 1164.0 1164.0" aria-hidden="true"><g transform="translate(0 1164.0) scale(1 -1)"><path d="M941.7 182.3 Q993.0 208.8 1016.7 257.3 Q1031.0 284.8 1034.3 323.4 Q1037.7 362.0 1037.7 451.8 V713.1 Q1037.7 803.0 1034.3 841.6 Q1031.0 880.1 1016.7 907.6 Q992.1 958.0 941.7 982.7 Q914.2 996.9 875.6 1000.3 Q837.0 1003.6 747.2 1003.6 H415.9 Q327.0 1003.6 288.4 1000.3 Q249.8 996.9 221.4 982.7 Q172.0 957.3 147.3 907.6 Q133.0 880.1 129.7 841.6 Q126.3 803.0 126.3 713.1 V451.8 Q126.3 362.0 129.7 323.4 Q133.0 284.8 147.3 257.3 Q171.0 209.6 221.4 182.3 Q249.8 167.1 288.4 163.7 Q327.0 160.4 415.9 160.4 H747.2 Q837.0 160.4 875.6 163.7 Q914.2 167.1 941.7 182.3 Z M265.1 258.4 Q238.2 272.9 222.5 299.1 Q215.2 314.5 213.5 336.6 Q211.7 358.7 211.7 408.9 V705.1 H951.3 V408.9 Q951.3 358.5 949.6 336.5 Q947.8 314.5 940.6 299.1 Q927.7 275.5 899.0 258.4 Q883.5 251.2 862.4 249.4 Q841.3 247.7 789.2 247.7 H374.8 Q322.8 247.7 301.2 249.4 Q279.5 251.2 265.1 258.4 Z M433.3 389.6 V405.6 Q433.3 423.7 426.5 431.5 Q419.6 439.3 403.5 439.3 H327.4 Q311.4 439.3 304.5 431.5 Q297.6 423.7 297.6 405.6 V389.6 Q297.6 371.4 304.5 364.2 Q311.4 357.0 327.4 357.0 H403.5 Q419.6 357.0 426.5 364.2 Q433.3 371.4 433.3 389.6 Z M433.3 565.2 V581.2 Q433.3 599.2 426.5 607.0 Q419.6 614.8 403.5 614.8 H327.4 Q311.4 614.8 304.5 607.0 Q297.6 599.2 297.6 581.2 V565.2 Q297.6 547.1 304.5 539.7 Q311.4 532.4 327.4 532.4 H403.5 Q419.6 532.4 426.5 539.7 Q433.3 547.1 433.3 565.2 Z M649.8 389.6 V405.6 Q649.8 423.7 643.0 431.5 Q636.2 439.3 620.1 439.3 H544.0 Q527.9 439.3 521.0 431.5 Q514.2 423.7 514.2 405.6 V389.6 Q514.2 371.4 521.0 364.2 Q527.9 357.0 544.0 357.0 H620.1 Q636.2 357.0 643.0 364.2 Q649.8 371.4 649.8 389.6 Z M649.8 565.2 V581.2 Q649.8 599.2 643.0 607.0 Q636.2 614.8 620.1 614.8 H544.0 Q527.9 614.8 521.0 607.0 Q514.2 599.2 514.2 581.2 V565.2 Q514.2 547.1 521.0 539.7 Q527.9 532.4 544.0 532.4 H620.1 Q636.2 532.4 643.0 539.7 Q649.8 547.1 649.8 565.2 Z M866.4 565.2 V581.2 Q866.4 599.2 859.5 607.0 Q852.7 614.8 836.6 614.8 H760.5 Q744.4 614.8 737.5 607.0 Q730.7 599.2 730.7 581.2 V565.2 Q730.7 547.1 737.5 539.7 Q744.4 532.4 760.5 532.4 H836.6 Q852.7 532.4 859.5 539.7 Q866.4 547.1 866.4 565.2 Z M222.5 864.9 Q238.7 893.7 265.1 906.5 Q279.5 913.8 301.2 915.5 Q322.8 917.3 374.8 917.3 H789.2 Q841.3 917.3 862.4 915.5 Q883.5 913.8 899.0 906.5 Q927.0 891.8 940.6 864.9 Q946.7 852.5 949.0 835.9 Q951.3 819.2 951.3 789.5 H211.7 Q212.7 819.7 214.9 836.5 Q217.1 853.2 222.5 864.9 Z"/></g></svg><svg class="design-icon" data-icon-style="md3" viewBox="0 -960 960 960" aria-hidden="true"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-240h560v-400H200v400Zm0 80v80h560v-80H200Zm0 0v80-80Z"/></svg></span><span class="copy floating-copy"><b>悬浮底栏</b><small>让底栏以圆角形式悬浮显示</small></span>
+      <span class="switch"><input type="checkbox" id="floating-nav" class="sw"/><span class="switch-track" aria-hidden="true"></span></span>
+    </label>
+    <div id="miuix-bottom-settings" class="glass-options">
+      <div class="row select-row">
+        <span class="appearance-icon" data-setting-icon="effect"><svg class="design-icon" data-icon-style="miuix" viewBox="0 0 1306.8 1306.8" aria-hidden="true"><g transform="translate(0 1306.8) scale(1 -1)"><path d="M774.9 189.9 Q809.9 194.9 838.9 204.9 Q867.9 214.9 887.9 234.9 Q912.9 259.9 912.9 310.9 L910.9 361.9 Q910.9 367.9 909.9 373.9 Q908.9 407.9 909.4 431.9 Q909.9 455.9 914.9 473.9 Q919.9 493.9 943.4 501.4 Q966.9 508.9 1019.9 514.9 Q1073.9 520.9 1099.9 527.4 Q1125.9 533.9 1148.9 549.9 Q1172.9 566.9 1185.4 593.4 Q1197.9 619.9 1197.9 653.9 Q1197.9 783.9 1123.4 890.9 Q1048.9 997.9 923.9 1059.9 Q798.9 1121.9 652.9 1121.9 Q506.9 1121.9 381.9 1059.9 Q256.9 997.9 182.9 890.9 Q108.9 783.9 108.9 653.9 Q108.9 523.9 182.9 416.4 Q256.9 308.9 382.4 246.9 Q507.9 184.9 652.9 184.9 Q687.9 184.9 717.9 185.9 Q747.9 186.9 774.9 189.9 Z M442.9 645.9 Q442.9 672.9 423.4 692.4 Q403.9 711.9 375.9 711.9 Q347.9 711.9 328.9 692.4 Q309.9 672.9 309.9 645.9 Q309.9 617.9 328.9 598.4 Q347.9 578.9 375.9 578.9 Q403.9 578.9 423.4 598.4 Q442.9 617.9 442.9 645.9 Z M193.9 653.9 Q193.9 755.9 254.4 843.9 Q314.9 931.9 420.4 984.4 Q525.9 1036.9 652.9 1036.9 Q779.9 1036.9 885.4 984.4 Q990.9 931.9 1051.9 843.9 Q1112.9 755.9 1112.9 653.9 Q1112.9 638.9 1109.4 631.9 Q1105.9 624.9 1099.9 619.9 Q1082.9 607.9 1043.9 603.9 L1027.9 601.9 Q991.9 598.9 953.9 591.9 Q892.9 579.9 860.9 546.9 Q831.9 517.9 825.9 464.9 Q822.9 448.9 823.4 428.9 Q823.9 408.9 824.9 390.9 V381.9 L827.9 312.9 Q828.9 300.9 827.4 296.4 Q825.9 291.9 820.9 289.9 Q805.9 279.9 763.9 274.9 Q729.9 270.9 652.9 270.9 Q525.9 270.9 420.4 323.4 Q314.9 375.9 254.4 463.9 Q193.9 551.9 193.9 653.9 Z M575.9 833.9 Q575.9 860.9 556.4 880.4 Q536.9 899.9 508.9 899.9 Q480.9 899.9 461.9 880.4 Q442.9 860.9 442.9 833.9 Q442.9 805.9 461.9 786.4 Q480.9 766.9 508.9 766.9 Q536.9 766.9 556.4 786.4 Q575.9 805.9 575.9 833.9 Z M821.9 856.9 Q821.9 883.9 802.9 903.4 Q783.9 922.9 755.9 922.9 Q727.9 922.9 708.4 903.4 Q688.9 883.9 688.9 856.9 Q688.9 828.9 708.4 809.4 Q727.9 789.9 755.9 789.9 Q783.9 789.9 802.9 809.4 Q821.9 828.9 821.9 856.9 Z"/></g></svg><svg class="design-icon" data-icon-style="md3" viewBox="0 -960 960 960" aria-hidden="true"><path d="M120-380q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Zm0-160q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Zm120 340q-17 0-28.5-11.5T200-240q0-17 11.5-28.5T240-280q17 0 28.5 11.5T280-240q0 17-11.5 28.5T240-200Zm0-160q-17 0-28.5-11.5T200-400q0-17 11.5-28.5T240-440q17 0 28.5 11.5T280-400q0 17-11.5 28.5T240-360Zm0-160q-17 0-28.5-11.5T200-560q0-17 11.5-28.5T240-600q17 0 28.5 11.5T280-560q0 17-11.5 28.5T240-520Zm0-160q-17 0-28.5-11.5T200-720q0-17 11.5-28.5T240-760q17 0 28.5 11.5T280-720q0 17-11.5 28.5T240-680Zm160 340q-25 0-42.5-17.5T340-400q0-25 17.5-42.5T400-460q25 0 42.5 17.5T460-400q0 25-17.5 42.5T400-340Zm0-160q-25 0-42.5-17.5T340-560q0-25 17.5-42.5T400-620q25 0 42.5 17.5T460-560q0 25-17.5 42.5T400-500Zm0 300q-17 0-28.5-11.5T360-240q0-17 11.5-28.5T400-280q17 0 28.5 11.5T440-240q0 17-11.5 28.5T400-200Zm0-480q-17 0-28.5-11.5T360-720q0-17 11.5-28.5T400-760q17 0 28.5 11.5T440-720q0 17-11.5 28.5T400-680Zm0 580q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Zm0-720q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Zm160 480q-25 0-42.5-17.5T500-400q0-25 17.5-42.5T560-460q25 0 42.5 17.5T620-400q0 25-17.5 42.5T560-340Zm0-160q-25 0-42.5-17.5T500-560q0-25 17.5-42.5T560-620q25 0 42.5 17.5T620-560q0 25-17.5 42.5T560-500Zm0 300q-17 0-28.5-11.5T520-240q0-17 11.5-28.5T560-280q17 0 28.5 11.5T600-240q0 17-11.5 28.5T560-200Zm0-480q-17 0-28.5-11.5T520-720q0-17 11.5-28.5T560-760q17 0 28.5 11.5T600-720q0 17-11.5 28.5T560-680Zm0 580q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Zm0-720q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Zm160 620q-17 0-28.5-11.5T680-240q0-17 11.5-28.5T720-280q17 0 28.5 11.5T760-240q0 17-11.5 28.5T720-200Zm0-160q-17 0-28.5-11.5T680-400q0-17 11.5-28.5T720-440q17 0 28.5 11.5T760-400q0 17-11.5 28.5T720-360Zm0-160q-17 0-28.5-11.5T680-560q0-17 11.5-28.5T720-600q17 0 28.5 11.5T760-560q0 17-11.5 28.5T720-520Zm0-160q-17 0-28.5-11.5T680-720q0-17 11.5-28.5T720-760q17 0 28.5 11.5T760-720q0 17-11.5 28.5T720-680Zm120 300q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Zm0-160q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Z"/></svg></span><span class="copy"><b>底栏效果</b><small>选择悬浮底栏的外观</small></span>
+        <select id="glass-material" data-select-label="底栏效果" data-select-style="compact" hidden aria-hidden="true" tabindex="-1"><option value="solid">实色</option><option value="blur">背景模糊</option><option value="liquid" selected>液态玻璃</option></select>
+      </div>
+      <div class="row select-row" id="glass-strength-row">
+        <span class="appearance-icon" data-setting-icon="strength"><svg class="design-icon" data-icon-style="miuix" data-custom-icon="glass-quality" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"><path d="M13.1 3.2 5.4 4.6a3 3 0 0 0-2.4 3.5l1.1 6a3 3 0 0 0 3.5 2.4l6-1.1a3 3 0 0 0 2.4-3.5l-.2-1.2"/><path d="m6.6 9.5 2.3-3M17.9 2.5c.4 2.3 1.1 3 3.4 3.4-2.3.4-3 1.1-3.4 3.4-.4-2.3-1.1-3-3.4-3.4 2.3-.4 3-1.1 3.4-3.4Z"/><path d="M4 20.5h7.5m4 0H21"/><circle cx="13.5" cy="20.5" r="2"/></g></svg><svg class="design-icon" data-icon-style="md3" viewBox="0 -960 960 960" aria-hidden="true"><path d="M480-120q-17 0-28.5-11.5T440-160v-160q0-17 11.5-28.5T480-360q17 0 28.5 11.5T520-320v40h280q17 0 28.5 11.5T840-240q0 17-11.5 28.5T800-200H520v40q0 17-11.5 28.5T480-120Zm-320-80q-17 0-28.5-11.5T120-240q0-17 11.5-28.5T160-280h160q17 0 28.5 11.5T360-240q0 17-11.5 28.5T320-200H160Zm160-160q-17 0-28.5-11.5T280-400v-40H160q-17 0-28.5-11.5T120-480q0-17 11.5-28.5T160-520h120v-40q0-17 11.5-28.5T320-600q17 0 28.5 11.5T360-560v160q0 17-11.5 28.5T320-360Zm160-80q-17 0-28.5-11.5T440-480q0-17 11.5-28.5T480-520h320q17 0 28.5 11.5T840-480q0 17-11.5 28.5T800-440H480Zm160-160q-17 0-28.5-11.5T600-640v-160q0-17 11.5-28.5T640-840q17 0 28.5 11.5T680-800v40h120q17 0 28.5 11.5T840-720q0 17-11.5 28.5T800-680H680v40q0 17-11.5 28.5T640-600Zm-480-80q-17 0-28.5-11.5T120-720q0-17 11.5-28.5T160-760h320q17 0 28.5 11.5T520-720q0 17-11.5 28.5T480-680H160Z"/></svg></span><span class="copy"><b>玻璃质感</b><small>滑块保持清透，调整边缘高光与折射</small></span>
+        <select id="glass-strength" data-select-label="玻璃质感" data-select-style="compact" hidden aria-hidden="true" tabindex="-1"><option value="soft">柔和</option><option value="normal" selected>标准</option><option value="strong">明亮</option></select>
+      </div>
+    </div>
+    <div id="md3-bottom-settings" class="glass-options" hidden>
+      <div class="row readonly-effect">
+        <span class="appearance-icon" data-setting-icon="effect"><svg class="design-icon" data-icon-style="miuix" viewBox="0 0 1306.8 1306.8" aria-hidden="true"><g transform="translate(0 1306.8) scale(1 -1)"><path d="M774.9 189.9 Q809.9 194.9 838.9 204.9 Q867.9 214.9 887.9 234.9 Q912.9 259.9 912.9 310.9 L910.9 361.9 Q910.9 367.9 909.9 373.9 Q908.9 407.9 909.4 431.9 Q909.9 455.9 914.9 473.9 Q919.9 493.9 943.4 501.4 Q966.9 508.9 1019.9 514.9 Q1073.9 520.9 1099.9 527.4 Q1125.9 533.9 1148.9 549.9 Q1172.9 566.9 1185.4 593.4 Q1197.9 619.9 1197.9 653.9 Q1197.9 783.9 1123.4 890.9 Q1048.9 997.9 923.9 1059.9 Q798.9 1121.9 652.9 1121.9 Q506.9 1121.9 381.9 1059.9 Q256.9 997.9 182.9 890.9 Q108.9 783.9 108.9 653.9 Q108.9 523.9 182.9 416.4 Q256.9 308.9 382.4 246.9 Q507.9 184.9 652.9 184.9 Q687.9 184.9 717.9 185.9 Q747.9 186.9 774.9 189.9 Z M442.9 645.9 Q442.9 672.9 423.4 692.4 Q403.9 711.9 375.9 711.9 Q347.9 711.9 328.9 692.4 Q309.9 672.9 309.9 645.9 Q309.9 617.9 328.9 598.4 Q347.9 578.9 375.9 578.9 Q403.9 578.9 423.4 598.4 Q442.9 617.9 442.9 645.9 Z M193.9 653.9 Q193.9 755.9 254.4 843.9 Q314.9 931.9 420.4 984.4 Q525.9 1036.9 652.9 1036.9 Q779.9 1036.9 885.4 984.4 Q990.9 931.9 1051.9 843.9 Q1112.9 755.9 1112.9 653.9 Q1112.9 638.9 1109.4 631.9 Q1105.9 624.9 1099.9 619.9 Q1082.9 607.9 1043.9 603.9 L1027.9 601.9 Q991.9 598.9 953.9 591.9 Q892.9 579.9 860.9 546.9 Q831.9 517.9 825.9 464.9 Q822.9 448.9 823.4 428.9 Q823.9 408.9 824.9 390.9 V381.9 L827.9 312.9 Q828.9 300.9 827.4 296.4 Q825.9 291.9 820.9 289.9 Q805.9 279.9 763.9 274.9 Q729.9 270.9 652.9 270.9 Q525.9 270.9 420.4 323.4 Q314.9 375.9 254.4 463.9 Q193.9 551.9 193.9 653.9 Z M575.9 833.9 Q575.9 860.9 556.4 880.4 Q536.9 899.9 508.9 899.9 Q480.9 899.9 461.9 880.4 Q442.9 860.9 442.9 833.9 Q442.9 805.9 461.9 786.4 Q480.9 766.9 508.9 766.9 Q536.9 766.9 556.4 786.4 Q575.9 805.9 575.9 833.9 Z M821.9 856.9 Q821.9 883.9 802.9 903.4 Q783.9 922.9 755.9 922.9 Q727.9 922.9 708.4 903.4 Q688.9 883.9 688.9 856.9 Q688.9 828.9 708.4 809.4 Q727.9 789.9 755.9 789.9 Q783.9 789.9 802.9 809.4 Q821.9 828.9 821.9 856.9 Z"/></g></svg><svg class="design-icon" data-icon-style="md3" viewBox="0 -960 960 960" aria-hidden="true"><path d="M120-380q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Zm0-160q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Zm120 340q-17 0-28.5-11.5T200-240q0-17 11.5-28.5T240-280q17 0 28.5 11.5T280-240q0 17-11.5 28.5T240-200Zm0-160q-17 0-28.5-11.5T200-400q0-17 11.5-28.5T240-440q17 0 28.5 11.5T280-400q0 17-11.5 28.5T240-360Zm0-160q-17 0-28.5-11.5T200-560q0-17 11.5-28.5T240-600q17 0 28.5 11.5T280-560q0 17-11.5 28.5T240-520Zm0-160q-17 0-28.5-11.5T200-720q0-17 11.5-28.5T240-760q17 0 28.5 11.5T280-720q0 17-11.5 28.5T240-680Zm160 340q-25 0-42.5-17.5T340-400q0-25 17.5-42.5T400-460q25 0 42.5 17.5T460-400q0 25-17.5 42.5T400-340Zm0-160q-25 0-42.5-17.5T340-560q0-25 17.5-42.5T400-620q25 0 42.5 17.5T460-560q0 25-17.5 42.5T400-500Zm0 300q-17 0-28.5-11.5T360-240q0-17 11.5-28.5T400-280q17 0 28.5 11.5T440-240q0 17-11.5 28.5T400-200Zm0-480q-17 0-28.5-11.5T360-720q0-17 11.5-28.5T400-760q17 0 28.5 11.5T440-720q0 17-11.5 28.5T400-680Zm0 580q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Zm0-720q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Zm160 480q-25 0-42.5-17.5T500-400q0-25 17.5-42.5T560-460q25 0 42.5 17.5T620-400q0 25-17.5 42.5T560-340Zm0-160q-25 0-42.5-17.5T500-560q0-25 17.5-42.5T560-620q25 0 42.5 17.5T620-560q0 25-17.5 42.5T560-500Zm0 300q-17 0-28.5-11.5T520-240q0-17 11.5-28.5T560-280q17 0 28.5 11.5T600-240q0 17-11.5 28.5T560-200Zm0-480q-17 0-28.5-11.5T520-720q0-17 11.5-28.5T560-760q17 0 28.5 11.5T600-720q0 17-11.5 28.5T560-680Zm0 580q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Zm0-720q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Zm160 620q-17 0-28.5-11.5T680-240q0-17 11.5-28.5T720-280q17 0 28.5 11.5T760-240q0 17-11.5 28.5T720-200Zm0-160q-17 0-28.5-11.5T680-400q0-17 11.5-28.5T720-440q17 0 28.5 11.5T760-400q0 17-11.5 28.5T720-360Zm0-160q-17 0-28.5-11.5T680-560q0-17 11.5-28.5T720-600q17 0 28.5 11.5T760-560q0 17-11.5 28.5T720-520Zm0-160q-17 0-28.5-11.5T680-720q0-17 11.5-28.5T720-760q17 0 28.5 11.5T760-720q0 17-11.5 28.5T720-680Zm120 300q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Zm0-160q-8 0-14-6t-6-14q0-8 6-14t14-6q8 0 14 6t6 14q0 8-6 14t-14 6Z"/></svg></span><span class="copy"><b>底栏效果</b><small>Material 3 使用实色底栏</small></span><span class="value">实色</span>
+      </div>
+    </div>
+  </section>
+  <p class="section-note appearance-footnote">外观即时切换，声音设置保持不变。</p>
+  <div class="section-title"><h2>开机设置</h2><span class="section-value" id="bootSaved">正在读取</span></div>
+  <section class="card preference-card">
+    <div class="row select-row"><span class="copy"><b>下次开机进入</b></span><select id="boot-mode" data-select-label="下次开机进入" data-select-style="compact" hidden aria-hidden="true" tabindex="-1"><option value="native">原生模式</option><option value="sound">音效模式</option></select></div>
+    <div class="card-content"><p class="hint" id="bootDesc">开机时使用已保存的设置。</p><button class="btn primary full" id="btn-boot-save">保存开机设置</button></div>
+  </section>
+  <p class="section-note">下次开机生效，当前模式不变。</p>
+  <p class="notice warning" id="bootWarning" hidden>部分游戏可能出现电流声、破音或无声，遇到这些问题请切回原生模式。</p>
+  <p class="notice warning" id="bootGuard" hidden></p>
+
+  <div class="section-title"><h2>音效与调音</h2></div>
+  <section class="card preference-card" id="tuning-card">
+    <div class="row"><span class="copy"><b>当前模式</b></span><span class="value" id="currentMode">正在读取</span></div>
+    <div class="card-content sources-content"><h3>已启用的调音模块</h3><div id="tuning-src" class="source-list">正在检测…</div><p class="hint">这里只显示检测到的调音模块，实际音效请以播放效果为准。</p></div>
+  </section>
+
+  <div class="section-title"><h2>恢复选项</h2></div>
+  <section class="card preference-card">
+    <button class="row link-row recovery-row" id="btn-native"><span class="copy"><b>恢复原生配置</b><small>恢复原生模式，关闭低延迟，开机也使用原生模式</small></span><span class="chevron" aria-hidden="true"></span></button>
+  </section>
+  <p class="section-note">已保存的参数和应用白名单会保留。</p>
+  <div class="section-title"><h2>应用信息</h2></div>
+  <section class="card preference-card">
+    <button class="row link-row about-entry" id="btn-about"><span class="appearance-icon about-entry-icon" aria-hidden="true"><svg class="design-icon" data-icon-style="miuix" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1225.2 1225.2" fill="currentColor"><g transform="translate(0 1225.2) scale(1 -1)"><path d="M1123.1 612.1 Q1123.1 751.1 1054.6 868.1 Q986.1 985.1 869.1 1054.1 Q752.1 1123.1 613.1 1123.1 Q474.1 1123.1 357.1 1054.1 Q240.1 985.1 171.1 868.1 Q102.1 751.1 102.1 612.1 Q102.1 473.1 171.1 356.1 Q240.1 239.1 357.1 170.6 Q474.1 102.1 613.1 102.1 Q752.1 102.1 869.1 170.6 Q986.1 239.1 1054.6 356.1 Q1123.1 473.1 1123.1 612.1 Z M188.1 612.1 Q188.1 728.1 245.1 825.6 Q302.1 923.1 399.6 980.1 Q497.1 1037.1 613.1 1037.1 Q728.1 1037.1 825.6 980.1 Q923.1 923.1 980.6 825.6 Q1038.1 728.1 1038.1 612.1 Q1038.1 496.1 980.6 398.6 Q923.1 301.1 825.6 244.1 Q728.1 187.1 613.1 187.1 Q497.1 187.1 399.6 244.1 Q302.1 301.1 245.1 398.6 Q188.1 496.1 188.1 612.1 Z M667.1 848.1 Q667.1 871.1 651.6 886.6 Q636.1 902.1 613.1 902.1 Q590.1 902.1 574.1 886.1 Q558.1 870.1 558.1 848.1 Q558.1 826.1 574.6 809.6 Q591.1 793.1 613.1 793.1 Q635.1 793.1 651.1 809.1 Q667.1 825.1 667.1 848.1 Z M655.1 350.1 V709.1 Q655.1 721.1 648.1 728.6 Q641.1 736.1 626.1 736.1 H598.1 Q585.1 736.1 577.6 728.1 Q570.1 720.1 570.1 709.1 V350.1 Q570.1 337.1 578.1 330.1 Q586.1 323.1 599.1 323.1 H627.1 Q640.1 323.1 647.6 330.1 Q655.1 337.1 655.1 350.1 Z"/></g></svg><svg class="design-icon" data-icon-style="md3" aria-hidden="true" focusable="false" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"><path d="M480-280q17 0 28.5-11.5T520-320v-160q0-17-11.5-28.5T480-520q-17 0-28.5 11.5T440-480v160q0 17 11.5 28.5T480-280Zm0-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/></svg></span><span class="copy"><b>关于</b><small>HyperAudio Switch</small></span><span class="trailing"><span class="value">3.0</span><span class="chevron" aria-hidden="true"></span></span></button>
+  </section>
+</div>
+
+
+<div class="page" id="page-about" aria-label="关于 HyperAudio Switch" hidden>
+  <section class="card about-app-card" aria-label="应用信息">
+    <div class="row about-app-row">
+      <span class="about-app-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+<defs>
+ <linearGradient id="ha-app-base" x1="32" y1="12" x2="215" y2="248" gradientUnits="userSpaceOnUse"><stop stop-color="#55ABFF"/><stop offset=".5" stop-color="#3F80F6"/><stop offset="1" stop-color="#4B60DE"/></linearGradient>
+ <radialGradient id="ha-app-light" cx="0" cy="0" r="1" gradientTransform="translate(57 24) rotate(57) scale(232 229)" gradientUnits="userSpaceOnUse"><stop stop-color="#B5F2FF" stop-opacity=".42"/><stop offset="1" stop-color="#B5F2FF" stop-opacity="0"/></radialGradient>
+ <linearGradient id="ha-app-track" x1="53" y1="94" x2="200" y2="172" gradientUnits="userSpaceOnUse"><stop stop-color="#E7F7FF" stop-opacity=".42"/><stop offset="1" stop-color="#DDEAFF" stop-opacity=".19"/></linearGradient>
+ <linearGradient id="ha-app-knob" x1="151" y1="99" x2="183" y2="159" gradientUnits="userSpaceOnUse"><stop stop-color="white"/><stop offset="1" stop-color="#E8F4FF"/></linearGradient>
+</defs>
+<path d="M128 6C172 6 203 6 225 28C247 50 250 79 250 128C250 177 247 206 225 228C203 250 172 250 128 250C84 250 53 250 31 228C9 206 6 177 6 128C6 79 9 50 31 28C53 6 84 6 128 6Z" fill="url(#ha-app-base)"/>
+<path d="M128 6C172 6 203 6 225 28C247 50 250 79 250 128C250 177 247 206 225 228C203 250 172 250 128 250C84 250 53 250 31 228C9 206 6 177 6 128C6 79 9 50 31 28C53 6 84 6 128 6Z" fill="url(#ha-app-light)"/>
+<g transform="rotate(-24 128 128)">
+ <rect x="42" y="89" width="172" height="86" rx="43" fill="#214AAE" fill-opacity=".12"/>
+ <rect x="42" y="85" width="172" height="86" rx="43" fill="url(#ha-app-track)" stroke="white" stroke-opacity=".25" stroke-width="1.5"/>
+ <path d="M70 121V135M87 109V147M104 116V140" stroke="white" stroke-width="9" stroke-linecap="round"/>
+ <circle cx="169" cy="131" r="32" fill="#2B59BA" fill-opacity=".2"/>
+ <circle cx="169" cy="127" r="32" fill="url(#ha-app-knob)"/>
+ <path d="M145 110C150 103 158 99 169 99" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-opacity=".8"/>
+</g>
+</svg></span>
+      <span class="copy"><b class="about-app-name">HyperAudio Switch</b><small>音频模式热切换</small><span class="about-version">版本 3.0 · 正式版</span></span>
+    </div>
+  </section>
+  <div class="section-title"><h2>项目信息</h2></div>
+  <section class="card preference-card">
+    <button class="row link-row" id="btn-contributors"><span class="copy"><b>维护与制作</b><small>本版维护与 AI 辅助</small></span><span class="trailing"><span class="value" id="maintainer-count">2 位</span><span class="chevron" aria-hidden="true"></span></span></button>
+    <button class="row link-row" id="btn-projects"><span class="copy"><b>项目致谢</b><small>界面、交互与图标的参考来源</small></span><span class="trailing"><span class="value">8 项</span><span class="chevron" aria-hidden="true"></span></span></button>
+  </section>
+  <div class="section-title"><h2>许可与来源</h2></div>
+  <section class="card preference-card">
+    <button class="row link-row" id="btn-licenses"><span class="copy"><b>开源许可</b><small>随模块提供的代码与图标</small></span><span class="trailing"><span class="value">3 项</span><span class="chevron" aria-hidden="true"></span></span></button>
+    <button class="row link-row" id="btn-audio-origin"><span class="copy"><b>音频方案与来源</b><small>原始模块、上游方案及作者致谢</small></span><span class="chevron" aria-hidden="true"></span></button>
+    <button class="row link-row" id="btn-third-party"><span class="copy"><b>第三方声明</b><small>维护与版权说明</small></span><span class="chevron" aria-hidden="true"></span></button>
+  </section>
+  <p class="section-note about-footer">独立维护，与小米、Google 及所列项目无官方关联。</p>
+  <p class="section-note about-footer" id="webui-build">WebUI · Glass 26101606</p>
+</div>
+
+<div class="page" id="page-debug" role="tabpanel" aria-labelledby="nav-debug" hidden>
+  <div class="section-title"><h2>日志诊断</h2><span class="section-value">本地处理</span></div>
+  <section class="card preference-card">
+    <label class="row switch-row"><span class="copy"><b>启用 Debug</b><small>展开日志采集与解读</small></span><span class="switch"><input type="checkbox" id="debug-enable" class="sw"/><span class="switch-track" aria-hidden="true"></span></span></label>
+  </section>
+  <p class="section-note" id="debugHint">点击采集后才会运行，不录音、不自动上传。收起 Debug 后仍会完成采集。</p>
+  <div id="debugPanel" hidden>
+    <div class="section-title"><h2>游戏现场</h2></div>
+    <section class="card card-content">
+      <label class="field-label" for="diagTarget">游戏包名</label><input class="target-input" id="diagTarget" type="text" value="com.ironoakgames.ftk1.mtap" autocomplete="off" spellcheck="false"/>
+      <p class="hint">先选好模式并重开游戏。点击采集后返回游戏，保持出声场景约 45 秒。</p>
+      <div class="job-status"><span class="spin-xs" id="jobSpin" hidden></span><span id="jobState">未开始采集</span></div>
+      <button class="btn primary full" id="btn-delay">采集游戏日志</button>
+      <div class="panel-actions"><button class="btn secondary" id="btn-now">系统快照</button><button class="btn secondary" id="btn-job-refresh">刷新状态</button></div>
+      <details class="inline-details capture-details"><summary>采集信息<span class="chevron" aria-hidden="true"></span></summary><div class="detail-content"><div class="kv"><span>采集后台</span><b id="daemonState">正在检查</b></div><div class="kv"><span>采集质量</span><b id="captureQuality">—</b></div><div class="kv"><span>上次样本</span><b id="reportMode">—</b></div><code class="report-path" id="reportPath">报告保存在 Download 文件夹</code></div></details>
+    </section>
+    <div class="section-title"><h2>日志解读</h2></div>
+    <section class="card card-content">
+      <label class="field-label" for="debug-report-trigger">选择诊断包</label><select id="debug-report" data-select-label="选择诊断包" data-select-style="full" hidden aria-hidden="true" tabindex="-1"><option value="">暂无诊断包</option></select>
+      <div class="panel-actions"><button class="btn secondary" id="btn-reports">刷新列表</button><button class="btn primary" id="btn-analyze">解读日志</button></div>
+      <p class="hint">采集结束后可在这里查看结果，并结合实际声音排查问题。</p>
+      <div class="summary-box"><pre id="debugSummary" role="status">采集完成后显示诊断结果。</pre></div>
+    </section>
+    <div class="section-title"><h2>技术信息</h2></div>
+    <section class="card preference-card">
+      <details class="tech inline-details"><summary>音频技术状态<span class="chevron" aria-hidden="true"></span></summary><div class="card-content"><div class="kv"><span>音效配置覆盖</span><b id="overlayState">正在读取</b></div></div><pre id="statusText">—</pre></details>
+      <details class="tech inline-details"><summary>低延迟后台记录<span class="chevron" aria-hidden="true"></span></summary><pre id="llDetails">暂无记录</pre></details>
+      <details class="tech inline-details"><summary>界面与状态栏<span class="chevron" aria-hidden="true"></span></summary><div class="detail-content"><p class="hint" id="systemBarHint">正在适配状态栏…</p><pre id="hostDetails">正在检测容器接口…</pre></div></details>
+      <details class="tech inline-details"><summary>操作记录<span class="chevron" aria-hidden="true"></span></summary><pre id="operationResult">等待操作</pre></details>
+      <div class="card-content"><button class="btn secondary full" id="btn-backends">启动／重连后台</button></div>
+    </section>
+  </div>
+</div>
+</main>
+<footer class="ft">
+<nav class="bottom-nav" role="tablist" aria-label="页面导航">
+  <span class="nav-glass-shell" aria-hidden="true"></span>
+  <span class="nav-indicator" aria-hidden="true"><span class="nav-lens"></span></span>
+  <button class="nav-item active" id="nav-mode" data-page="mode" role="tab" aria-selected="true" aria-controls="page-mode"><span class="nav-icon"><span class="paired-icon icon" aria-hidden="true"><svg class="design-icon" data-icon-style="miuix" viewBox="0 0 1192.8 1192.8" aria-hidden="true"><g transform="translate(0 1192.8) scale(1 -1)"><path d="M430.4 309.4 L505.4 842.4 Q509.4 875.4 514.4 899.4 Q518.4 916.4 526.4 926.4 Q534.4 936.4 548.4 943.4 Q557.4 948.4 579.4 948.9 Q601.4 949.4 619.4 949.4 H628.4 H896.4 H909.4 Q928.4 949.4 948.9 948.9 Q969.4 948.4 981.4 943.4 Q994.4 937.4 1000.4 925.9 Q1006.4 914.4 1007.4 896.4 Q1008.4 878.4 1005.4 834.4 L985.4 482.4 Q984.4 476.4 979.9 473.9 Q975.4 471.4 968.4 475.4 Q933.4 491.4 896.4 491.4 Q851.4 491.4 813.4 468.9 Q775.4 446.4 752.9 408.4 Q730.4 370.4 730.4 325.4 Q730.4 280.4 752.9 242.4 Q775.4 204.4 813.4 181.9 Q851.4 159.4 896.4 159.4 Q938.4 159.4 975.4 179.4 Q1012.4 199.4 1035.9 233.9 Q1059.4 268.4 1061.4 310.4 L1090.4 830.4 Q1093.4 871.4 1093.4 898.4 Q1091.4 934.4 1081.4 955.4 Q1072.4 975.4 1056.9 991.4 Q1041.4 1007.4 1020.4 1018.4 Q995.4 1033.4 965.4 1033.4 H566.4 Q539.4 1033.4 512.4 1021.4 Q473.4 1002.4 449.4 966.4 Q433.4 939.4 430.4 917.4 L367.4 474.4 Q366.4 468.4 362.4 466.4 Q358.4 464.4 352.4 467.4 Q309.4 491.4 265.4 491.4 Q220.4 491.4 182.4 468.9 Q144.4 446.4 121.9 408.4 Q99.4 370.4 99.4 325.4 Q99.4 280.4 121.9 242.4 Q144.4 204.4 182.4 181.9 Q220.4 159.4 265.4 159.4 Q307.4 159.4 342.9 179.4 Q378.4 199.4 401.4 233.4 Q424.4 267.4 430.4 309.4 Z M184.4 325.4 Q184.4 358.4 208.4 382.4 Q232.4 406.4 265.4 406.4 Q298.4 406.4 322.4 382.4 Q346.4 358.4 346.4 325.4 Q346.4 295.4 323.9 269.9 Q301.4 244.4 265.4 244.4 Q232.4 244.4 208.4 268.4 Q184.4 292.4 184.4 325.4 Z M815.4 325.4 Q815.4 358.4 838.9 382.4 Q862.4 406.4 896.4 406.4 Q929.4 406.4 952.9 382.4 Q976.4 358.4 976.4 325.4 Q976.4 292.4 952.9 268.9 Q929.4 245.4 896.4 245.4 Q862.4 245.4 838.9 268.9 Q815.4 292.4 815.4 325.4 Z"/></g></svg><svg class="design-icon" data-icon-style="md3" viewBox="0 -960 960 960" aria-hidden="true"><path d="M280-280v-400q0-17 11.5-28.5T320-720q17 0 28.5 11.5T360-680v400q0 17-11.5 28.5T320-240q-17 0-28.5-11.5T280-280Zm160 160v-720q0-17 11.5-28.5T480-880q17 0 28.5 11.5T520-840v720q0 17-11.5 28.5T480-80q-17 0-28.5-11.5T440-120ZM120-440v-80q0-17 11.5-28.5T160-560q17 0 28.5 11.5T200-520v80q0 17-11.5 28.5T160-400q-17 0-28.5-11.5T120-440Zm480 160v-400q0-17 11.5-28.5T640-720q17 0 28.5 11.5T680-680v400q0 17-11.5 28.5T640-240q-17 0-28.5-11.5T600-280Zm160-160v-80q0-17 11.5-28.5T800-560q17 0 28.5 11.5T840-520v80q0 17-11.5 28.5T800-400q-17 0-28.5-11.5T760-440Z"/></svg></span></span><span class="nav-label">模式</span></button>
+  <button class="nav-item" id="nav-settings" data-page="settings" role="tab" aria-selected="false" aria-controls="page-settings"><span class="nav-icon"><span class="paired-icon icon" aria-hidden="true"><svg class="design-icon" data-icon-style="miuix" viewBox="0 0 1239.6 1239.6" aria-hidden="true"><g transform="translate(0 1239.6) scale(1 -1)"><path d="M643.8 108.3 Q653.8 110.3 666.8 116.3 Q679.8 122.3 694.8 131.3 L712.8 141.3 L993.8 299.3 Q1023.8 316.3 1037.3 324.8 Q1050.8 333.3 1059.8 343.3 Q1077.8 362.3 1084.8 386.3 Q1088.8 398.3 1089.8 418.3 Q1090.8 438.3 1090.8 465.3 V774.3 Q1090.8 801.3 1089.8 820.8 Q1088.8 840.3 1084.8 852.3 Q1077.8 875.3 1059.8 896.3 Q1051.8 905.3 1038.3 913.8 Q1024.8 922.3 1005.8 932.3 L993.8 939.3 L712.8 1098.3 Q690.8 1111.3 673.3 1119.8 Q655.8 1128.3 643.8 1130.3 Q619.8 1136.3 595.8 1130.3 Q583.8 1128.3 566.3 1119.8 Q548.8 1111.3 526.8 1098.3 L245.8 939.3 Q238.8 935.3 230.8 931.3 Q213.8 921.3 200.3 912.8 Q186.8 904.3 179.8 896.3 Q161.8 875.3 154.8 852.3 Q150.8 840.3 149.8 820.8 Q148.8 801.3 148.8 774.3 V465.3 Q148.8 438.3 149.8 418.3 Q150.8 398.3 154.8 386.3 Q161.8 362.3 179.8 343.3 Q187.8 334.3 201.8 325.3 Q215.8 316.3 234.8 305.3 L245.8 299.3 L526.8 141.3 L544.8 131.3 Q559.8 122.3 572.8 116.3 Q585.8 110.3 595.8 108.3 Q619.8 103.3 643.8 108.3 Z M234.8 438.3 V807.3 Q234.8 821.3 241.3 831.8 Q247.8 842.3 262.8 851.3 L587.8 1034.3 Q606.8 1045.3 618.3 1045.8 Q629.8 1046.3 646.8 1037.3 L966.8 857.3 Q991.8 843.3 998.8 831.3 Q1005.8 819.3 1005.8 790.3 V441.3 Q1005.8 422.3 1000.8 410.8 Q995.8 399.3 981.8 391.3 L651.8 204.3 Q632.8 193.3 620.3 193.3 Q607.8 193.3 587.8 204.3 L265.8 386.3 Q247.8 396.3 241.3 406.8 Q234.8 417.3 234.8 438.3 Z M819.8 619.3 Q819.8 674.3 792.8 719.8 Q765.8 765.3 720.3 792.3 Q674.8 819.3 619.8 819.3 Q565.8 819.3 519.8 792.3 Q473.8 765.3 446.8 719.8 Q419.8 674.3 419.8 619.3 Q419.8 565.3 446.8 519.3 Q473.8 473.3 519.8 446.3 Q565.8 419.3 619.8 419.3 Q674.8 419.3 720.3 446.3 Q765.8 473.3 792.8 519.3 Q819.8 565.3 819.8 619.3 Z M507.8 619.3 Q507.8 666.3 540.8 698.8 Q573.8 731.3 619.8 731.3 Q666.8 731.3 699.3 698.8 Q731.8 666.3 731.8 619.3 Q731.8 573.3 699.3 540.3 Q666.8 507.3 619.8 507.3 Q573.8 507.3 540.8 540.3 Q507.8 573.3 507.8 619.3 Z"/></g></svg><svg class="design-icon" data-icon-style="md3" viewBox="0 -960 960 960" aria-hidden="true"><path d="M433-80q-27 0-46.5-18T363-142l-9-66q-13-5-24.5-12T307-235l-62 26q-25 11-50 2t-39-32l-47-82q-14-23-8-49t27-43l53-40q-1-7-1-13.5v-27q0-6.5 1-13.5l-53-40q-21-17-27-43t8-49l47-82q14-23 39-32t50 2l62 26q11-8 23-15t24-12l9-66q4-26 23.5-44t46.5-18h94q27 0 46.5 18t23.5 44l9 66q13 5 24.5 12t22.5 15l62-26q25-11 50-2t39 32l47 82q14 23 8 49t-27 43l-53 40q1 7 1 13.5v27q0 6.5-2 13.5l53 40q21 17 27 43t-8 49l-48 82q-14 23-39 32t-50-2l-60-26q-11 8-23 15t-24 12l-9 66q-4 26-23.5 44T527-80h-94Zm7-80h79l14-106q31-8 57.5-23.5T639-327l99 41 39-68-86-65q5-14 7-29.5t2-31.5q0-16-2-31.5t-7-29.5l86-65-39-68-99 42q-22-23-48.5-38.5T533-694l-13-106h-79l-14 106q-31 8-57.5 23.5T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.5 38.5T427-266l13 106Zm42-180q58 0 99-41t41-99q0-58-41-99t-99-41q-59 0-99.5 41T342-480q0 58 40.5 99t99.5 41Zm-2-140Z"/></svg></span></span><span class="nav-label">设置</span></button>
+  <button class="nav-item" id="nav-debug" data-page="debug" role="tab" aria-selected="false" aria-controls="page-debug"><span class="nav-icon"><span class="paired-icon icon" aria-hidden="true"><svg class="design-icon" data-icon-style="miuix" viewBox="0 0 1266.0 1266.0" aria-hidden="true"><g transform="translate(0 1266.0) scale(1 -1)"><path d="M1001.0 272.5 Q1077.0 348.5 1115.5 448.5 Q1154.0 548.5 1150.0 656.0 Q1146.0 763.5 1096.0 861.5 Q1090.0 873.5 1077.5 875.0 Q1065.0 876.5 1056.0 867.5 L1034.0 846.5 Q1025.0 838.5 1023.5 830.0 Q1022.0 821.5 1025.0 813.5 Q1063.0 730.5 1065.5 643.5 Q1068.0 556.5 1035.5 476.5 Q1003.0 396.5 940.0 333.5 Q858.0 251.5 748.5 223.0 Q639.0 194.5 530.0 223.0 Q421.0 251.5 339.0 333.5 Q257.0 415.5 228.5 525.0 Q200.0 634.5 228.5 743.5 Q257.0 852.5 339.0 934.5 Q416.0 1010.5 517.5 1040.5 Q619.0 1070.5 722.5 1050.5 Q826.0 1030.5 908.0 962.5 L673.0 727.5 Q665.0 719.5 656.0 720.5 Q648.0 721.5 640.0 722.5 Q603.0 722.5 577.0 696.5 Q551.0 670.5 551.0 633.5 Q551.0 596.5 577.0 571.0 Q603.0 545.5 640.0 545.5 Q677.0 545.5 702.5 571.0 Q728.0 596.5 728.0 633.5 Q728.0 641.5 726.0 651.5 Q724.0 657.5 732.0 665.5 L1012.0 945.5 Q1020.0 953.5 1020.0 963.0 Q1020.0 972.5 1014.0 980.5 L1001.0 994.5 Q903.0 1092.5 771.5 1126.5 Q640.0 1160.5 508.5 1126.5 Q377.0 1092.5 279.0 994.5 Q181.0 896.5 146.5 765.0 Q112.0 633.5 146.5 502.0 Q181.0 370.5 279.0 272.5 Q377.0 174.5 508.5 140.0 Q640.0 105.5 771.5 140.0 Q903.0 174.5 1001.0 272.5 Z"/></g></svg><svg class="design-icon" data-icon-style="md3" viewBox="0 -960 960 960" aria-hidden="true"><path d="M480-120q-65 0-120.5-32T272-240h-72q-17 0-28.5-11.5T160-280q0-17 11.5-28.5T200-320h44q-3-20-3.5-40t-.5-40h-40q-17 0-28.5-11.5T160-440q0-17 11.5-28.5T200-480h40q0-20 .5-40t3.5-40h-44q-17 0-28.5-11.5T160-600q0-17 11.5-28.5T200-640h72q14-23 31.5-43t40.5-35l-37-38q-11-11-11-27.5t12-28.5q11-11 28-11t28 11l58 58q28-9 57-9t57 9l60-59q11-11 27.5-11t28.5 12q11 11 11 28t-11 28l-38 38q23 15 41.5 34.5T688-640h72q17 0 28.5 11.5T800-600q0 17-11.5 28.5T760-560h-44q3 20 3.5 40t.5 40h40q17 0 28.5 11.5T800-440q0 17-11.5 28.5T760-400h-40q0 20-.5 40t-3.5 40h44q17 0 28.5 11.5T800-280q0 17-11.5 28.5T760-240h-72q-32 56-87.5 88T480-120Zm0-80q66 0 113-47t47-113v-160q0-66-47-113t-113-47q-66 0-113 47t-47 113v160q0 66 47 113t113 47Zm-40-120h80q17 0 28.5-11.5T560-360q0-17-11.5-28.5T520-400h-80q-17 0-28.5 11.5T400-360q0 17 11.5 28.5T440-320Zm0-160h80q17 0 28.5-11.5T560-520q0-17-11.5-28.5T520-560h-80q-17 0-28.5 11.5T400-520q0 17 11.5 28.5T440-480Zm40 40Z"/></svg></span></span><span class="nav-label">Debug</span></button>
+</nav>
+</footer>
+</div>
+
+<dialog class="credits-dialog" id="credits-dialog" aria-labelledby="credits-title" aria-modal="true">
+  <header class="credits-toolbar"><button class="icon-button" id="credits-back" aria-label="返回关于"><svg class="icon credit-back-miuix" viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5-7 7 7 7"/></svg><svg class="icon credit-back-md3" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H4m7-7-7 7 7 7"/></svg></button><h2 id="credits-title">项目致谢</h2><button class="icon-button" id="credits-close" aria-label="关闭并返回关于" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header>
+  <div class="credits-body" id="credits-body" tabindex="-1"></div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script src="./assets/26101606/host-ui.js"></script><script src="./assets/26101606/system-fonts.js"></script><script src="./assets/26101606/select-menu.js"></script><script src="./assets/26101606/ui.js"></script><script src="./assets/26101606/nav-frame.js"></script><script src="./assets/26101606/nav-gestures.js"></script><script src="./assets/26101606/liquid-glass.js"></script><script src="./assets/26101606/liquid-ui.js"></script><script src="./assets/26101606/appearance.js"></script><script src="./assets/26101606/credits-data.js"></script><script src="./assets/26101606/about.js"></script><script src="./assets/26101606/app.js"></script>
+
+</body>
 </html>

@@ -1,0 +1,90 @@
+/* Position only translates; the optical child and its filter resize together. */
+.liquid-filter-defs {position:absolute;width:0;height:0;pointer-events:none}
+:root {
+ --glass-body:rgba(236,239,244,.18);--glass-border:rgba(255,255,255,.2);--glass-shadow:rgba(25,33,48,.055);
+ --glass-selection:rgba(255,255,255,.009);--glass-thumb-edge:rgba(66,86,114,.18);--glass-drop:rgba(48,68,94,.13);
+ --glass-sheen:rgba(255,255,255,.78);--glass-inner-edge:rgba(255,255,255,.46);--glass-press:rgba(255,255,255,.98);
+ --glass-rim-width:.85px;--glass-rim-boost:.8px;--glass-rim-opacity:.68;--glass-rim-active:.27;--glass-glint-active:.68;
+ --glass-edge-cool:rgba(192,217,255,.62);--glass-edge-warm:rgba(255,233,196,.34);--glass-edge-shade:rgba(79,99,130,.27);
+}
+:root[data-nav-material="liquid"][data-glass-strength="soft"] {
+ --glass-selection:rgba(255,255,255,.012);--glass-thumb-edge:rgba(66,86,114,.14);--glass-drop:rgba(48,68,94,.10);
+ --glass-sheen:rgba(255,255,255,.64);--glass-inner-edge:rgba(255,255,255,.35);
+ --glass-rim-width:.7px;--glass-rim-boost:.45px;--glass-rim-opacity:.55;--glass-rim-active:.2;--glass-glint-active:.4;
+ --glass-edge-cool:rgba(200,219,249,.38);--glass-edge-warm:rgba(255,237,208,.23);--glass-edge-shade:rgba(79,99,130,.2);
+}
+:root[data-nav-material="liquid"][data-glass-strength="strong"] {
+ --glass-selection:rgba(255,255,255,.003);--glass-thumb-edge:rgba(60,81,113,.23);--glass-drop:rgba(48,68,94,.19);
+ --glass-sheen:rgba(255,255,255,.98);--glass-inner-edge:rgba(255,255,255,.73);
+ --glass-rim-width:1.05px;--glass-rim-boost:2.3px;--glass-rim-opacity:.9;--glass-rim-active:.1;--glass-glint-active:.96;
+ --glass-edge-cool:rgba(146,197,255,.95);--glass-edge-warm:rgba(255,222,155,.75);--glass-edge-shade:rgba(64,88,125,.42);
+}
+:root[data-theme="dark"] {
+ --glass-body:rgba(22,25,31,.24);--glass-border:rgba(255,255,255,.06);--glass-shadow:rgba(0,0,0,.24);
+ --glass-selection:rgba(237,246,255,.008);--glass-thumb-edge:rgba(219,234,255,.22);--glass-drop:rgba(0,0,0,.38);
+ --glass-sheen:rgba(245,250,255,.72);--glass-inner-edge:rgba(219,236,255,.26);--glass-press:rgba(245,250,255,.98);
+ --glass-edge-shade:rgba(99,124,166,.3);
+}
+:root[data-theme="dark"][data-nav-material="liquid"][data-glass-strength="soft"] {
+ --glass-selection:rgba(237,246,255,.012);--glass-thumb-edge:rgba(219,234,255,.17);--glass-drop:rgba(0,0,0,.32);
+ --glass-sheen:rgba(245,250,255,.58);--glass-inner-edge:rgba(219,236,255,.20);
+}
+:root[data-theme="dark"][data-nav-material="liquid"][data-glass-strength="strong"] {
+ --glass-selection:rgba(237,246,255,.003);--glass-thumb-edge:rgba(219,234,255,.36);--glass-drop:rgba(0,0,0,.46);
+ --glass-sheen:rgba(245,250,255,.98);--glass-inner-edge:rgba(219,236,255,.6);
+}
+.nav-glass-shell {position:absolute;inset:0;border-radius:inherit;z-index:0;pointer-events:none;visibility:hidden}
+.nav-lens {display:none}
+:root[data-nav-material="liquid"] .nav-glass-shell {
+ visibility:visible;background:var(--glass-body);
+ -webkit-mask-image:linear-gradient(#000,#000),var(--glass-cutout);mask-image:linear-gradient(#000,#000),var(--glass-cutout);
+ -webkit-mask-size:100% 100%,calc(var(--glass-base-w) * var(--glass-growth-x,1)) calc(var(--glass-base-h) * var(--glass-growth-y,1));
+ mask-size:100% 100%,calc(var(--glass-base-w) * var(--glass-growth-x,1)) calc(var(--glass-base-h) * var(--glass-growth-y,1));
+ -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+ -webkit-mask-position:0 0,calc(6px + var(--glass-step) * (var(--glass-position,0) + .5) - var(--glass-base-w) * var(--glass-growth-x,1) / 2) calc(6px + var(--glass-base-h) * (1 - var(--glass-growth-y,1)) / 2 - var(--glass-lift,0px));
+ mask-position:0 0,calc(6px + var(--glass-step) * (var(--glass-position,0) + .5) - var(--glass-base-w) * var(--glass-growth-x,1) / 2) calc(6px + var(--glass-base-h) * (1 - var(--glass-growth-y,1)) / 2 - var(--glass-lift,0px));
+ -webkit-mask-composite:xor;mask-composite:exclude;
+}
+.bottom-nav {touch-action:pan-y pinch-zoom;-webkit-user-select:none;user-select:none}
+.bottom-nav .nav-indicator {transform:translateX(calc(var(--ha-nav-position,var(--ha-nav-index,0)) * 100%))}
+.bottom-nav[data-nav-dragging="true"] .nav-indicator {transition:none}
+.bottom-nav[data-nav-dragging="true"] .nav-item.active {color:var(--fg-dim)}
+.bottom-nav[data-nav-dragging="true"] .nav-item[data-nav-target="true"] {color:var(--accent-fg)}
+:root[data-nav-material="blur"] .bottom-nav {background:var(--glass-body);border-color:var(--glass-border);box-shadow:0 2px 14px var(--glass-shadow);-webkit-backdrop-filter:blur(6px) saturate(1.04);backdrop-filter:blur(6px) saturate(1.04)}
+:root[data-nav-material="liquid"] .bottom-nav {background:transparent;border-color:transparent;box-shadow:0 2px 14px var(--glass-shadow)}
+:root[data-nav-material="liquid"] .nav-item {z-index:auto;opacity:1}
+/* The original icons stay below the optical surface. Navigation labels are
+   foreground controls above it, so the full lower lens may refract page content
+   without pulling or duplicating the three original labels. */
+:root[data-nav-material="liquid"] .nav-icon {position:relative;z-index:1}
+:root[data-nav-material="liquid"] .nav-label {position:relative;z-index:3}
+:root[data-nav-material="liquid"] .nav-item:disabled .nav-icon,
+:root[data-nav-material="liquid"] .nav-item:disabled .nav-label {opacity:.5}
+:root[data-nav-material="liquid"] .nav-indicator {z-index:2;background:none;border:0;box-shadow:none;transition:none;transform:translateX(calc(var(--glass-position,var(--ha-nav-index,0)) * 100%))}
+:root[data-nav-material="liquid"] .nav-lens {
+ display:block;position:absolute;pointer-events:none;border-radius:calc(var(--glass-base-h) * var(--glass-growth-x,1) / 2) / calc(var(--glass-base-h) * var(--glass-growth-y,1) / 2);
+ width:calc(var(--glass-base-w) * var(--glass-growth-x,1));height:calc(var(--glass-base-h) * var(--glass-growth-y,1));
+ left:calc((100% - var(--glass-base-w) * var(--glass-growth-x,1)) / 2);
+ top:calc((100% - var(--glass-base-h) * var(--glass-growth-y,1)) / 2 - var(--glass-lift,0px));
+ background:var(--glass-selection);border:1px solid var(--glass-thumb-edge);
+ box-shadow:inset 0 1px 1px var(--glass-sheen),inset 0 0 0 1px var(--glass-inner-edge),0 calc(2px + 4px * var(--glass-activity,0)) calc(10px + 8px * var(--glass-activity,0)) var(--glass-drop);
+}
+/* Edge-only masks leave the centre optically clear, including the soft tier.
+   The darker outer hairline gives white highlights contrast on white pages. */
+:root[data-nav-material="liquid"] .nav-lens:before,
+:root[data-nav-material="liquid"] .nav-lens:after {
+ content:"";position:absolute;pointer-events:none;border-radius:inherit;
+ -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+ mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+ -webkit-mask-composite:xor;mask-composite:exclude;
+}
+:root[data-nav-material="liquid"] .nav-lens:before {
+ inset:-1px;padding:calc(var(--glass-rim-width) + var(--glass-rim-boost) * var(--glass-activity,0));
+ background:conic-gradient(from calc(var(--glass-reflect-angle,-32deg) - 48deg) at 50% 50%,transparent 0deg,var(--glass-edge-cool) 16deg,#fff 35deg 60deg,var(--glass-edge-warm) 82deg,transparent 106deg 198deg,var(--glass-edge-shade) 229deg,rgba(255,255,255,.48) 255deg,var(--glass-edge-cool) 274deg,transparent 306deg 360deg);
+ opacity:calc(var(--glass-rim-opacity) + var(--glass-rim-active) * var(--glass-activity,0));
+}
+:root[data-nav-material="liquid"] .nav-lens:after {
+ inset:2px;padding:calc(.5px + .8px * var(--glass-activity,0));
+ background:radial-gradient(ellipse at var(--glass-reflect-x,45%) var(--glass-reflect-y,12%),var(--glass-press),transparent 64%),conic-gradient(from calc(var(--glass-reflect-angle,-32deg) + 155deg),transparent 0deg 205deg,var(--glass-edge-warm) 232deg,#fff 252deg,var(--glass-edge-cool) 269deg,transparent 295deg 360deg);
+ opacity:calc(.14 + var(--glass-glint-active) * var(--glass-activity,0) + .14 * var(--glass-speed,0));
+}

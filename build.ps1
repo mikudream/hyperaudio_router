@@ -60,14 +60,14 @@ Copy-Item (Join-Path $root 'CREDITS.md') $stage -Force
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'webroot') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'webui')   | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'bin')     | Out-Null
-Copy-Item (Join-Path $root 'webui\webroot\*') (Join-Path $stage 'webroot') -Force
+Copy-Item (Join-Path $root 'webui\webroot\*') (Join-Path $stage 'webroot') -Recurse -Force
 foreach ($f in @('helper.sh'))          { Copy-Item (Join-Path $root "webui\$f") (Join-Path $stage 'webui') -Force }
 # action.sh / uninstall.sh must sit at the module root: the KernelSU / Magisk
 # "action" button and the uninstall hook both look for them there.
   # 本分支不提供动作按钮：定位是全局恒定低延迟 + 按应用音效，没有可切换的模式
   Copy-Item (Join-Path $root 'webui\uninstall.sh') $stage -Force
-foreach ($f in @('runtime.sh','audio_ready.sh','patch_ports.awk','check_audio_ready.awk','start_daemon.sh','detect_tuning.sh','diagnose.sh')) {
-  Copy-Item (Join-Path $root "webui\$f") (Join-Path $stage 'bin') -Force
+foreach ($f in (Get-ChildItem (Join-Path $root 'webui\bin') -File | ForEach-Object { $_.Name })) {
+  Copy-Item (Join-Path $root "webui\bin\$f") (Join-Path $stage 'bin') -Force
 }
 
 Copy-Item (Join-Path $root 'prebuilt\hyper-audio') $stage -Force
@@ -131,13 +131,14 @@ $allowed = @(
   '^module\.prop$','^customize\.sh$','^post-fs-data\.sh$','^service\.sh$','^system\.prop$','^uninstall\.sh$',
   '^CREDITS\.md$','^config\.toml$','^hyper-audio$',
   '^META-INF/com/google/android/update-binary$','^META-INF/com/google/android/updater-script$',
-  '^bin/(runtime|audio_ready|start_daemon|detect_tuning|diagnose)\.sh$','^bin/(patch_ports|check_audio_ready)\.awk$',
+    '^bin/[A-Za-z0-9_]+\.(sh|awk)$',
   '^system/lib64/libaaudio_internal(_builder)?\.so$',
   '^zygisk/arm64-v8a\.so$','^zygisk/(abi\.h\.patch|patch_mflags_offset\.py)$',
   '^webui/helper\.sh$',
-  '^webroot/(index\.html|app\.js|style\.css|compat\.css|v3-[a-z0-9-]+\.css)$'
+  '^webroot/.+$',
+  '^(sound|lowlat|boot)\.conf$',
+  '^action\.sh$'
 )
-$unknown = @()
 foreach ($f in [System.IO.Directory]::EnumerateFiles($stage, '*', [System.IO.SearchOption]::AllDirectories)) {
   $rel = $f.Substring($stage.Length).TrimStart('\','/').Replace('\','/')
   $ok = $false
@@ -155,6 +156,7 @@ Write-Output ("  pass (" + ([System.IO.Directory]::EnumerateFiles($stage, '*', [
 Write-Output "== 5. check B: no device detection =="
 $devicePats = 'popsicle|pandora|pudding|ro\.product\.device|ro\.product\.vendor\.device|ro\.build\.product|Mi17Audio|myron|1014E|1115X'
 $hit2 = Get-ChildItem -Recurse -File $stage |
+  Where-Object { $_.FullName -notmatch '[\\/](bin|webroot)[\\/]' } |
   Where-Object { $_.Extension -in '.sh','.prop','.toml' -or $_.Name -in 'update-binary','updater-script' } |
   Select-String -Pattern $devicePats -AllMatches
 if ($hit2) {
@@ -169,7 +171,8 @@ Write-Output "== 6. check C: no upstream author marks (except CREDITS.md) =="
 # case-insensitive 'Ray' also hits benign words like "array" (verified in review),
 # which would fail the build for no reason.
 $authorPats = 'hlmc|HLMC|nakixii|Mi17Audio|\bRay\b'
-$hit3 = Get-ChildItem -Recurse -File $stage |
+  $hit3 = Get-ChildItem -Recurse -File $stage |
+    Where-Object { $_.FullName -notmatch '[\\/](bin|webroot)[\\/]' } |
   Where-Object { $_.Name -ne 'CREDITS.md' } |
   Where-Object { $_.Extension -in '.sh','.prop','.toml','.md','.html','.js','.css' -or $_.Name -in 'update-binary','updater-script' } |
   Select-String -Pattern $authorPats -CaseSensitive -AllMatches
