@@ -1,3 +1,21 @@
+# ============================================================
+# 说明（基于 Android 17 平台的实测）
+#
+# 分两类看，别再混为一谈：
+#   1) 策略/缓冲类（period_size、buffering.ms、fast_track_multiplier、offload…）
+#      真实生效，决定 FAST 轨的缓冲与调度，是"低延迟"的主要来源。
+#   2) MMAP/ULL 解锁类（aaudio.mmap_policy、mmap_exclusive_policy、
+#      ull.playback.support）—— 在本机实测**不改变** AAudio 是否走 MMAP：
+#        · aaudio.mmap_policy 改 0 或 2 + 重启 audioserver，行为不变
+#        · ull.playback.support 置 false + 重启 audioserver，行为不变
+#      真正让任意应用都能 MMAP 的，是本模块自带的
+#      system/lib64/libaaudio_internal.so（上游预编译的解锁版本）。
+#      这些属性保留只是为兼容其它机型/版本，不要据此在 UI 上承诺"已开 MMAP"。
+#
+# 另外：vendor.audio.ull.playback.support 的注释 "Disable RAW whitelist" 是
+# 上游说法，指的是策略侧保留 RAW 标志，与客户端 MMAP 白名单不是一回事。
+# ============================================================
+
 # Enable HyperOS 4 MMAP
 persist.vendor.audio.aaudio.support=true
 # Disable RAW whitelist
@@ -67,6 +85,5 @@ ro.vendor.audio.feature.fade=false
 ro.audio.hifi=true
 ro.vendor.audio.hifi=true
 
-ro.vendor.audio.soundfx.usb=false
 ro.vendor.audio.misound.bluetooth.enable=false
 ro.vendor.audio.volumecurve.old=false

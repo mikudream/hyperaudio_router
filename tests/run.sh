@@ -82,6 +82,14 @@ echo "  -> 通过"
 else
 echo "  -> 失败"; rc=1
 fi
+# ---------------- 9. system.prop 守护 ----------------
+echo ""
+echo "############ 9. system.prop（去重、关键项、MMAP 说明）############"
+if sh "$HERE/test_system_prop.sh"; then
+echo "  -> 通过"
+else
+echo "  -> 失败"; rc=1
+fi
 if [ "$rc" = "0" ]; then
   echo "全部主机侧测试通过"
 else

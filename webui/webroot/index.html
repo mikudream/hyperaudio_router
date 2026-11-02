@@ -58,6 +58,7 @@
           </button>
         </div>
         <p class="hint" id="modeDesc"></p>
+        <p class="hint" id="mmapNote">AAudio 应用走 MMAP 直通（由模块自带的 AAudio 库解锁），该通路不经过效果链，因此不受工作模式影响。</p>
         <div id="modeMsg" class="mode-msg" hidden></div>
       </section>
 
@@ -157,7 +158,8 @@
         </div>
         <p class="hint">
           名单内的应用单独回落到普通混音轨，从而经过 Dolby 效果链；名单外保持快速轨。
-          改名单<b>不需要重启</b>，杀掉应用重开即可。
+          改名单<b>不需要重启</b>，杀掉应用重开即可。<br />
+          已知限制：走 AAudio MMAP 直通的应用不在本名单的作用范围内（该通路在更底层就已绕开效果链）。
         </p>
 
         <div class="row">
