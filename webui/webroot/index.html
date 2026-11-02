@@ -53,13 +53,13 @@
         <div class="section-title"><h2>模块状态</h2></div>
         <section class="card preference-card">
           <div class="row">
-            <span class="copy">
-              <b>杜比链路</b>
-              <small>名单内应用回落普通轨，经 Dolby 效果链</small>
-            </span>
-            <span id="dolby-state">检测中…</span>
+            <span class="copy"><b>杜比链路应用</b><small>经 Dolby 效果链的应用数</small></span>
+            <span id="cnt-dolby">—</span>
           </div>
-          <p class="hint" id="dolby-why" hidden></p>
+          <div class="row">
+            <span class="copy"><b>低延迟链路应用</b><small>提升实时优先级的应用数</small></span>
+            <span id="cnt-low">—</span>
+          </div>
           <div class="row">
             <span class="copy"><b>调音来源</b></span>
             <span id="tuning-src">检测中…</span>
@@ -68,15 +68,22 @@
             <span class="copy"><b>模块版本</b></span>
             <span id="tuning-ver">—</span>
           </div>
+          <span id="dolby-state" hidden></span>
+          <p class="hint" id="dolby-why" hidden></p>
         </section>
 
         <div class="section-title"><h2>运行状态</h2></div>
         <section class="card preference-card">
           <div class="row">
-            <span class="copy">
-              <b>音频框架</b>
-              <small>音频服务是否已加载当前配置</small>
-            </span>
+            <span class="copy"><b>杜比链路注入</b><small>zygisk 负载是否已注入目标进程</small></span>
+            <span id="st-zygisk">—</span>
+          </div>
+          <div class="row">
+            <span class="copy"><b>低延迟守护进程</b><small>hyper-audio 是否在运行</small></span>
+            <span id="st-daemon">—</span>
+          </div>
+          <div class="row">
+            <span class="copy"><b>音频框架</b><small>音频服务是否已加载当前配置</small></span>
             <span id="audio-ready">—</span>
           </div>
           <p class="hint" id="audio-ready-why" hidden></p>

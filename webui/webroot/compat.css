@@ -59,3 +59,6 @@
 #dolby-add-wrap .add-row { margin: 12px 0 4px; padding: 0; }
 #dolby-add-wrap .list { padding-left: 0; padding-right: 0; }
 .preference-card > .hint { padding: 2px 20px 16px; }
+/* 状态着色：绿色正常、红色异常 */
+.ok { color: #2e7d57 !important; font-weight: 600; }
+.bad { color: #c84343 !important; font-weight: 600; }

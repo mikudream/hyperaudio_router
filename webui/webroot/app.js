@@ -924,3 +924,63 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 })();
+/* RUN-STATE：状态页三行状态（杜比链路注入 / 低延迟守护进程 / 音频框架）与两个数量。
+   独立于 bind()，按 id 直接绘制；颜色用 ok/bad 两个类（绿/红）。 */
+(function () {
+  function setState(id, text, ok) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.classList.remove('ok', 'bad');
+    el.classList.add(ok ? 'ok' : 'bad');
+  }
+  function num(v) { var n = parseInt(v, 10); return isNaN(n) ? null : n; }
+
+  function paint() {
+    if (typeof ksu === 'undefined' || !ksu.exec) return;
+    var HELPER = '/system/bin/sh /data/adb/modules/hyperaudio/webui/helper.sh';
+
+    /* 低延迟守护进程 + 音频框架：来自 status */
+    ksu.exec(HELPER + ' status', '{}', 60, function (_, out) {
+      if (!out) return;
+      var lines = String(out).split('\u001f');
+      lines.forEach(function (ln) {
+        var i = ln.indexOf('='); if (i < 0) return;
+        var k = ln.slice(0, i), v = ln.slice(i + 1).replace(/[\r\n]+$/, '');
+        if (k === 'running') setState('st-daemon', v === '1' ? '运行中' : '未运行', v === '1');
+        if (k === 'audio_ready') {
+          var map = { passed: ['已确认加载', true], failed: ['加载失败', false], timeout: ['等待超时', false], stale: ['记录已过期', false], unverified: ['未能确认', false] };
+          var m = map[v] || ['未知', false];
+          setState('audio-ready', m[0], m[1]);
+        }
+        if (k === 'whitelist_begin') return;
+      });
+      var wl = String(out).split('\u001f').filter(function (s) {
+        return s && s.indexOf('=') < 0 && s !== 'whitelist_begin' && s !== 'whitelist_end';
+      });
+      var c = document.getElementById('cnt-low');
+      if (c) c.textContent = (num(document.getElementById('wl-count') && document.getElementById('wl-count').textContent) || wl.length) + ' 个';
+    }, '{}');
+
+    /* 杜比链路：来自 dolby */
+    ksu.exec(HELPER + ' dolby', '{}', 60, function (_, out) {
+      if (!out) return;
+      var kv = {};
+      String(out).split('\u001f').forEach(function (ln) {
+        var i = ln.indexOf('='); if (i > 0) kv[ln.slice(0, i)] = ln.slice(i + 1).replace(/[\r\n]+$/, '');
+      });
+      var payload = kv['dolby_payload'] === '1';
+      var comp = kv['dolby_companion'] === '1';
+      if (payload && comp) setState('st-zygisk', '已注入', true);
+      else if (payload) setState('st-zygisk', '负载就绪，进程未启动', false);
+      else setState('st-zygisk', '未内置', false);
+      var cd = document.getElementById('cnt-dolby');
+      if (cd) cd.textContent = (parseInt(kv['dolby_count'], 10) || 0) + ' 个';
+    }, '{}');
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    paint();
+    setInterval(paint, 5000);
+  });
+})();
