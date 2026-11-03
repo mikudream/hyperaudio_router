@@ -12,35 +12,26 @@ ll_init() {
     fi
 }
 ll_read_config() {
-    LL_ENABLED=0; LL_ONLY=0; LL_HAL=20; LL_AUDIO=16; LL_APP=15; LL_WHITE=""; LL_REV=initial
+    LL_ENABLED=0; LL_HAL=20; LL_AUDIO=16; LL_APP=15; LL_REV=initial
     local k v
     while IFS='=' read -r k v; do
         case "$k" in
-          enabled) LL_ENABLED=$v ;; only_whitelist) LL_ONLY=$v ;;
+          enabled) LL_ENABLED=$v ;;
           hal_priority) LL_HAL=$v ;; audio_priority) LL_AUDIO=$v ;; app_priority) LL_APP=$v ;;
-          whitelist) LL_WHITE=$v ;; revision) LL_REV=$v ;;
+          revision) LL_REV=$v ;;
         esac
     done < "$MODDIR/lowlat.conf"
-    ll_valid "$LL_ENABLED" "$LL_ONLY" "$LL_HAL" "$LL_AUDIO" "$LL_APP" "${LL_WHITE:--}"
+    ll_valid "$LL_ENABLED" "$LL_HAL" "$LL_AUDIO" "$LL_APP"
 }
 ll_valid() {
-    [ "$#" = 6 ] || return 1
-    case "$1:$2" in 0:0|0:1|1:0|1:1) ;; *) return 1 ;; esac
-    local p w oldifs
-    for p in "$3" "$4" "$5"; do
+    # 4 个参数：enabled、hal、audio、app（白名单已移除）
+    [ "$#" = 4 ] || return 1
+    case "$1" in 0|1) ;; *) return 1 ;; esac
+    local p
+    for p in "$2" "$3" "$4"; do
         case "$p" in ''|*[!0-9]*|0*) return 1 ;; esac
         [ "${#p}" -le 2 ] && [ "$p" -ge 1 ] && [ "$p" -le 99 ] || return 1
     done
-    [ "${#6}" -le 4096 ] || return 1
-    [ "$6" = - ] && return 0
-    case "$6" in ''|,*|*,|*,,*|*[!A-Za-z0-9_.,]*) return 1 ;; esac
-    oldifs=$IFS; IFS=,
-    for w in $6; do
-        IFS=$oldifs
-        valid_target "$w" || return 1
-        IFS=,
-    done
-    IFS=$oldifs
 }
 ll_lock() {
     local n=0 owner
@@ -137,7 +128,7 @@ ll_targets() {
         pkg=$(tr '\000' '\n' < "/proc/$p/cmdline" 2>/dev/null | head -n 1)
         pkg=${pkg%%:*}
         valid_target "$pkg" || continue
-        if [ "$LL_ONLY" = 1 ]; then case ",$LL_WHITE," in *",$pkg,"*) ;; *) continue ;; esac; fi
+        
         any=1; LL_PACKAGES="$LL_PACKAGES $pkg"
         ll_add_threads "$p" app "$LL_APP" >> "$LLROOT/wanted"
     done < "$LLROOT/clients"
@@ -267,11 +258,11 @@ ll_save() {
     ll_init || return 1
     [ "$1" = 0 ] || ll_ensure_daemon || return 1
     ll_lock || { echo error=scheduler_busy_try_again; return 1; }
-    local white=$6
-    [ "$white" != - ] || white=""
+
+
     {
-        echo "enabled=$1"; echo "only_whitelist=$2"; echo "hal_priority=$3"
-        echo "audio_priority=$4"; echo "app_priority=$5"; echo "whitelist=$white"
+        echo "enabled=$1"; echo "hal_priority=$2"
+        echo "audio_priority=$3"; echo "app_priority=$4"
         echo "revision=$(date +%s)-$$"
     } > "$MODDIR/lowlat.conf.new"
     if ! mv "$MODDIR/lowlat.conf.new" "$MODDIR/lowlat.conf"; then ll_unlock; return 1; fi
@@ -286,7 +277,7 @@ ll_save() {
 }
 ll_status() {
     ll_read_config || return 1
-    printf 'enabled=%s\nonly_whitelist=%s\nhal_priority=%s\naudio_priority=%s\napp_priority=%s\nwhitelist=%s\nrevision=%s\n' "$LL_ENABLED" "$LL_ONLY" "$LL_HAL" "$LL_AUDIO" "$LL_APP" "$LL_WHITE" "$LL_REV"
+    printf 'enabled=%s\nhal_priority=%s\naudio_priority=%s\napp_priority=%s\nrevision=%s\n' "$LL_ENABLED" "$LL_HAL" "$LL_AUDIO" "$LL_APP" "$LL_REV"
     echo "ll_daemon=$(ll_alive && echo running || echo offline)"
     local beat now
     beat=$(cat "$LLROOT/heartbeat" 2>/dev/null); now=$(date +%s)

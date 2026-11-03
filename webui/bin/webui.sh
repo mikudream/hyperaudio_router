@@ -14,12 +14,11 @@ case "$1:$2" in
     debug-analyze:*)
         [ "${#2}" -le 100 ] && printf '%s\n' "$2" | grep -Eq '^hyperaudio-(native|sound|compat|unknown)-[0-9]{8}-[0-9]{6}-[0-9]+\.tar\.gz$' || { echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1; } ;;
     ll-save:*)
-        [ "$#" = 7 ] || exit 1
-        # Digits / comma-separated package names only; validation is repeated by backend.
-        for ARG in "$2" "$3" "$4" "$5" "$6"; do
+        [ "$#" = 5 ] || exit 1
+        # 白名单已移除：参数为 enabled 与三个优先级，共 4 个数值
+        for ARG in "$2" "$3" "$4" "$5"; do
             case "$ARG" in ''|*[!0-9]*) echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1 ;; esac
-        done
-        case "$7" in ''|*[!A-Za-z0-9_.,-]*) echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1 ;; esac ;;
+        done ;;
     schedule-diagnose:*)
         [ "${#2}" -le 200 ] && printf '%s\n' "$2" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$' || { echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1; } ;;
     *) echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1 ;;

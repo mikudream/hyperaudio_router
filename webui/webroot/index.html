@@ -87,13 +87,10 @@ The About page retains copyright notices and all three complete licenses.
         <span class="switch"><input type="checkbox" id="f-enable" class="sw"/><span class="switch-track" aria-hidden="true"></span></span>
       </label>
       <div class="options" id="llControls" hidden>
-        <label class="row switch-row"><span class="copy"><b>按应用启用</b><small>仅在白名单内的应用播放声音时启用</small></span><span class="switch"><input type="checkbox" id="f-only" class="sw"/><span class="switch-track" aria-hidden="true"></span></span></label>
         <label class="row" for="f-hal"><span class="copy"><b>底层音频优先级</b><small>底层声音输出（HAL）</small></span><input type="number" class="number-input" id="f-hal" min="1" max="99" value="20" inputmode="numeric"/></label>
         <label class="row" for="f-audio"><span class="copy"><b>系统音频优先级</b><small>系统混音和声音输出</small></span><input type="number" class="number-input" id="f-audio" min="1" max="99" value="16" inputmode="numeric"/></label>
         <label class="row" for="f-app"><span class="copy"><b>应用音频优先级</b><small>应用内的声音处理</small></span><input type="number" class="number-input" id="f-app" min="1" max="99" value="15" inputmode="numeric"/></label>
-        <details class="inline-details whitelist-details"><summary><span>应用白名单</span><span class="trailing"><span id="wl-count">0 项</span><span class="chevron" aria-hidden="true"></span></span></summary>
-          <div class="detail-content"><div class="add-row"><input type="text" id="f-newpkg" placeholder="输入应用包名" aria-label="添加应用包名" autocomplete="off" spellcheck="false"/><button class="btn small" id="btn-add">添加</button></div><div id="wl-list" class="list"></div></div>
-        </details>
+        
         <p class="parameter-note">优先级可设为 1–99，数值越大不一定越好。修改后请点“保存并应用”。</p>
         <p class="draft-note" id="dirtyNote" role="status" hidden>有未保存的修改</p>
         <div class="panel-actions"><button class="btn secondary" id="btn-ll-reset">恢复默认</button><button class="btn primary" id="btn-save">保存并应用</button></div>

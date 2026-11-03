@@ -72,7 +72,7 @@ boot_run() {
         boot_finish guarded_native || return 1
         echo 'boot_fallback=native (saved low-latency configuration retained; scheduling paused)'
     else
-        # Preserve enabled, priorities and whitelist byte for byte. The existing
+          # Preserve enabled and priorities byte for byte. The existing
         # daemon schedules only in native mode; sound suspends it naturally.
         ll_resume
         boot_finish "$target" || return 1
@@ -83,6 +83,6 @@ recover_native() {
     ll_pause || return 1
     apply_mode native || return 1
     ll_read_config || return 1
-    ll_save 0 "$LL_ONLY" "$LL_HAL" "$LL_AUDIO" "$LL_APP" "${LL_WHITE:--}" || return 1
+    ll_save 0 "$LL_HAL" "$LL_AUDIO" "$LL_APP" || return 1
     boot_save native
 }
