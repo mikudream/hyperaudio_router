@@ -21,7 +21,7 @@ HyperOS 音频模块，两个版本共用一套 v3.0 架构（前端 + 后端契
 ## 2. 工作区与仓库
 
 ```
-D:\DSH\HyperAudio\
+D:\DSH\HyperAudioRouter\
 ├── repo\            ← git 仓库（唯一源码真相）
 ├── dist\            构建产物
 ├── refs\            参考资料（v3.0 原包、DolbyRouter 源码、zygisk 负载）
@@ -54,7 +54,7 @@ adb 路径 `D:\App\UotanToolbox\Bin\platform-tools\adb.exe`（经常掉线，需
 | DOM 审计 | ✅ 143 处引用可解析 |
 | **真机验证** | ❌ **从未做过** |
 
-构建产物：`D:\DSH\HyperAudio\repo\hyperaudio_module.zip`
+构建产物：`D:\DSH\HyperAudioRouter\repo\hyperaudio_module.zip`
 
 ---
 
@@ -190,11 +190,11 @@ wl-add/del       维护低延迟链路名单
 
 ```powershell
 # 构建
-cd D:\DSH\HyperAudio\repo
+cd D:\DSH\HyperAudioRouter\repo
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 
 # 主机测试（11 节）
-& 'D:\App\Git\bin\bash.exe' -lc "cd /d/DSH/HyperAudio/repo && sh tests/run.sh"
+& 'D:\App\Git\bin\bash.exe' -lc "cd /d/DSH/HyperAudioRouter/repo && sh tests/run.sh"
 
 # DOM 一致性
 & 'C:\Users\Bronya\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\node\bin\node.exe' tests\test_webui_dom.js
