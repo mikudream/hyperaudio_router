@@ -1,7 +1,7 @@
 /* router-ui.js —— 应用版"按应用"页面
  *
  * 独立实现，不依赖 v3.0 的 app.js：
- *   · 自己接管导航切换（对新增/已有的 .nav-item 都生效）
+ *   · 导航由 ui.js 统一管理（本文件只负责页面内容）
  *   · 通过 bin/webui.sh 的 rc=N|base64 契约取数据、做增删
  * 之所以独立：v3.0 的 app.js 与它自己的后端强绑定，改它风险高；
  * 而页面级功能用独立脚本接入最稳。
@@ -164,29 +164,8 @@
     });
   }
 
-  /* ---------- 导航 ---------- */
-  function setupNav() {
-    var nav = document.querySelector('.bottom-nav');
-    if (!nav) return;
-    var items = [].slice.call(nav.querySelectorAll('.nav-item'));
-    function show(page) {
-      items.forEach(function (it) {
-        var on = it.getAttribute('data-page') === page;
-        it.classList.toggle('active', on);
-        it.setAttribute('aria-selected', on ? 'true' : 'false');
-      });
-      var pages = document.querySelectorAll('.page');
-      [].forEach.call(pages, function (p) { p.hidden = (p.id !== 'page-' + page); });
-      var idx = items.map(function (i) { return i.getAttribute('data-page'); }).indexOf(page);
-      if (idx >= 0) nav.style.setProperty('--ha-nav-index', idx);
-    }
-    items.forEach(function (it) {
-      it.addEventListener('click', function () { show(it.getAttribute('data-page')); });
-    });
-  }
 
   function init() {
-    try { setupNav(); } catch (e) { }
     try {
       bindAdder('perapp-input', 'perapp-add', 'perapp-add');
       bindAdder('wl-input', 'wl-add', 'wl-add');

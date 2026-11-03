@@ -59,6 +59,7 @@ boot_run() {
     if ! ll_pause; then
         boot_mark_failure startup_scheduler_failed
         boot_finish failed
+        update_description native
         return 1
     fi
     if ! apply_mode "$target"; then
@@ -66,13 +67,15 @@ boot_run() {
         # if rollback cannot finish; never loop over a failing audio route.
         boot_mark_failure startup_apply_failed
         boot_finish failed
+        update_description native
         return 1
     fi
     if [ "$guarded" = 1 ]; then
         boot_finish guarded_native || return 1
+        update_description native
         echo 'boot_fallback=native (saved low-latency configuration retained; scheduling paused)'
     else
-        # Preserve enabled, priorities and whitelist byte for byte. The existing
+          # Preserve enabled and priorities byte for byte. The existing
         # daemon schedules only in native mode; sound suspends it naturally.
         ll_resume
         boot_finish "$target" || return 1
@@ -83,6 +86,6 @@ recover_native() {
     ll_pause || return 1
     apply_mode native || return 1
     ll_read_config || return 1
-    ll_save 0 "$LL_ONLY" "$LL_HAL" "$LL_AUDIO" "$LL_APP" "${LL_WHITE:--}" || return 1
+    ll_save 0 "$LL_HAL" "$LL_AUDIO" "$LL_APP" || return 1
     boot_save native
 }

@@ -17,6 +17,22 @@ name_mode() {
 write_mode() {
     printf '%s\n' "$1" > "$MODDIR/mode.new" && mv -f "$MODDIR/mode.new" "$MODDIR/mode"
 }
+update_description() {
+    # 让管理器的模块列表里直接看到当前模式
+    _lbl=$(name_mode "$1")
+    case "$_lbl" in 未知) return 0 ;; esac
+    _f=$MODDIR/module.prop
+    [ -f "$_f" ] || return 0
+    _t=$_f.new
+    awk -v d="description=全局切换音频模式，当前模式为：$_lbl" '
+        /^description=/ && !done { print d; done=1; next }
+        { print }
+    ' "$_f" > "$_t" 2>/dev/null || { rm -f "$_t"; return 0; }
+    mv -f "$_t" "$_f" 2>/dev/null || { rm -f "$_t"; return 0; }
+    chmod 0644 "$_f" 2>/dev/null
+    return 0
+}
+
 find_resetprop() {
     RP=$(command -v resetprop 2>/dev/null)
     [ -n "$RP" ] && return 0
@@ -165,7 +181,6 @@ apply_mode() {
         sound_effective
         log "sound apply request; mmap=$SOUND_E_MMAP fast_low=$SOUND_E_FAST fast_raw=$SOUND_E_FAST_RAW raw=$SOUND_E_RAW"
     fi
-    [ -d /data/adb/modules/hyperaudio ] && { err old_hyperaudio_still_installed; return 1; }
     find_resetprop || { err resetprop_missing; return 1; }
     PREVIOUS=$(cat "$STATE/applied" 2>/dev/null)
     NEED_RESTART=0
@@ -214,6 +229,8 @@ apply_mode() {
     log "applied $REQUEST; audio audibility and Dolby not verified"
     echo "ok=1"
     echo "mode=$REQUEST"
+    # 成功应用后同步模块描述里的当前模式
+    update_description "${REQUEST:-native}"
     echo "audio_restarted=$NEED_RESTART"
     echo "label=$(name_mode "$REQUEST")"
     echo "请强行停止并重开游戏；状态只表示操作完成，不代表杜比已验证。"

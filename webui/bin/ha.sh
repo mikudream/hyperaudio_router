@@ -97,5 +97,5 @@ case "$1" in
         ;;
     status) status ;;
     schedule-diagnose) queue_diagnostics "$2" ;;
-    *) echo 'usage: ha.sh {apply native|compat|sound|cycle|status|boot-status|boot-save native|sound|sound-status|sound-save CUSTOM MMAP FAST_LOW FAST_RAW RAW|sound-reset|diagnose|schedule-diagnose PACKAGE|diag-status|tuning|ll-status|ll-save ENABLE ONLY HAL AUDIO APP CSV|recover|start-backends}'; exit 1 ;;
+    *) echo 'usage: ha.sh {apply native|compat|sound|cycle|status|boot-status|boot-save native|sound|sound-status|sound-save CUSTOM MMAP FAST_LOW FAST_RAW RAW|sound-reset|diagnose|schedule-diagnose PACKAGE|diag-status|tuning|ll-status|ll-save ENABLE HAL AUDIO APP|recover|start-backends}'; exit 1 ;;
 esac

@@ -23,7 +23,7 @@ vendor.audio.ull.playback.support=true
 
 # Low latency configuration
 aaudio.mmap_policy=2
-aaudio.mmap_exclusive_policy=3
+aaudio.mmap_exclusive_policy=2
 aaudio.hw_burst_min_usec=1000
 vendor.audio_hal.period_size=48
 vendor.audio_hal.period_multiplier=2

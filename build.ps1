@@ -63,48 +63,32 @@ New-Item -ItemType Directory -Force -Path (Join-Path $stage 'bin')     | Out-Nul
 Copy-Item (Join-Path $root 'webui\webroot\*') (Join-Path $stage 'webroot') -Recurse -Force
 # action.sh / uninstall.sh must sit at the module root: the KernelSU / Magisk
 # "action" button and the uninstall hook both look for them there.
-  # 本分支不提供动作按钮：定位是全局恒定低延迟 + 按应用音效，没有可切换的模式
+  # This build ships no action button: fixed low-latency plus per-app sound, no mode to cycle.
   Copy-Item (Join-Path $root 'assets\uninstall.sh') $stage -Force
-  # v3.0 的配置文件由 bin 脚本读取，随包提供默认值
-  Copy-Item (Join-Path $root 'webui\*.conf') $stage -Force
+  Copy-Item (Join-Path $root 'assets\action.sh') $stage -Force
 foreach ($f in (Get-ChildItem (Join-Path $root 'webui\bin') -File | ForEach-Object { $_.Name })) {
   Copy-Item (Join-Path $root "webui\bin\$f") (Join-Path $stage 'bin') -Force
 }
 
-Copy-Item (Join-Path $root 'prebuilt\hyper-audio') $stage -Force
-Copy-Item (Join-Path $root 'prebuilt\config.toml') $stage -Force
-New-Item -ItemType Directory -Force -Path (Join-Path $stage 'system\lib64') | Out-Null
-Copy-Item (Join-Path $root 'prebuilt\libaaudio_internal.so')         (Join-Path $stage 'system\lib64') -Force
-Copy-Item (Join-Path $root 'prebuilt\libaaudio_internal_builder.so') (Join-Path $stage 'system\lib64') -Force
-# Zygisk payload: only this branch ships it (per-app switching). zygiskd loads
-# <module>/zygisk/<abi>.so, so it must sit at the module root, not under bin/.
-New-Item -ItemType Directory -Force -Path (Join-Path $stage 'zygisk') | Out-Null
-Copy-Item (Join-Path $root 'zygisk\arm64-v8a.so')           (Join-Path $stage 'zygisk') -Force
-Copy-Item (Join-Path $root 'zygisk\abi.h.patch')            (Join-Path $stage 'zygisk') -Force
-Copy-Item (Join-Path $root 'zygisk\patch_mflags_offset.py') (Join-Path $stage 'zygisk') -Force
+# Legacy payloads (hyper-audio daemon, config.toml) are unused by the v3 backend.
+# Legacy payloads (hyper-audio daemon, config.toml) are no longer packaged:
+# the v3 backend never references them.
+[System.IO.Directory]::CreateDirectory((Join-Path $stage 'system\lib64')) | Out-Null
+$libDir = Join-Path $stage 'system\lib64'
+foreach ($so in @('libaaudio_internal.so','libaaudio_internal_builder.so')) {
+  $srcSo = Join-Path $root ("prebuilt\" + $so)
+  [System.IO.File]::Copy($srcSo, (Join-Path $libDir $so), $true)
+}
+[System.IO.Directory]::CreateDirectory((Join-Path $stage 'zygisk')) | Out-Null
+  # Per-app build: zygiskd loads <module>/zygisk/<abi>.so, so it must sit at the module root.
+  foreach ($z in @('arm64-v8a.so','abi.h.patch','patch_mflags_offset.py')) {
+    $src = Join-Path $root ('zygisk\' + $z)
+      if (Test-Path $src) { [System.IO.File]::Copy($src, (Join-Path $stage ('zygisk\' + $z)), $true) }
+  }
 Copy-Item (Join-Path $root 'prebuilt\META-INF') $stage -Recurse -Force
 
 Write-Output "== 2. strip upstream author identifiers =="
-# assets/system.prop is already sanitized at the source, so no text edit is
-# needed here. The binary path still has to be rewritten.
-$cfg = Join-Path $stage 'config.toml'
-$t = [System.IO.File]::ReadAllText($cfg, $utf8NoBom)
-$t = [regex]::Replace($t, '(?m)^\s*"com\.hlmc\.phire",\r?\n', '')
-[System.IO.File]::WriteAllText($cfg, $t, $utf8NoBom)
-
-# equal-length byte replacement inside the Rust binary
-$bin = Join-Path $stage 'hyper-audio'
-$bytes = [System.IO.File]::ReadAllBytes($bin)
-$from = [System.Text.Encoding]::ASCII.GetBytes('hlmc')
-$to   = [System.Text.Encoding]::ASCII.GetBytes('user')
-$n = 0
-for ($i = 0; $i -le $bytes.Length - 4; $i++) {
-  if ($bytes[$i] -eq $from[0] -and $bytes[$i+1] -eq $from[1] -and $bytes[$i+2] -eq $from[2] -and $bytes[$i+3] -eq $from[3]) {
-    $bytes[$i] = $to[0]; $bytes[$i+1] = $to[1]; $bytes[$i+2] = $to[2]; $bytes[$i+3] = $to[3]; $n++
-  }
-}
-[System.IO.File]::WriteAllBytes($bin, $bytes)
-Write-Output "  binary: 'hlmc' -> 'user', $n occurrence(s), equal length"
+# assets/system.prop is sanitized at the source; nothing to rewrite here.
 
 Write-Output "== 3. normalize line endings and encoding =="
 Get-ChildItem -Recurse -File $stage |
@@ -185,7 +169,7 @@ if ($hit3) {
 
 # binaries: scan hyper-audio and the .so payloads as bytes, case-insensitively
 $binPats = @('hlmc', 'nakixii', 'Mi17Audio')
-$binFiles = @($bin) + @(Get-ChildItem -Recurse -File $stage -Filter '*.so' | ForEach-Object { $_.FullName })
+$binFiles = @(@($bin) + @(Get-ChildItem -Recurse -File $stage -Filter '*.so' | ForEach-Object { $_.FullName }) | Where-Object { $_ -and (Test-Path $_) })
 foreach ($bf in $binFiles) {
   $txt = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($bf)).ToLower()
   foreach ($p in $binPats) {
