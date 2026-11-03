@@ -6,9 +6,8 @@ const DESCRIPTIONS = {
   native:'使用系统原有的播放方式，可按需开启低延迟调度。',
   sound:'尝试让更多游戏和应用使用系统或调音模块提供的音效。实际效果因应用而异，切换后请重新打开游戏。'
 };
-let currentMode='native', dirty=false, bootDirty=false, whitelist=[], llTimer=null;
+let currentMode='native', dirty=false, bootDirty=false, llTimer=null;
 let llLoaded=false, llSaved=null;
-const LL_DEFAULT_WHITE='com.android.cts.verifier,com.mobileer.oboetester,org.flos.phira,com.TeamPhigrim.Phigrim,game.taptap.TeamPhigrim.Phigrim,com.PigeonGames.Phigros,com.PigeonGames.Rizline,com.leiting.ldgj,moe.low.arc,com.Arcthesia.ArcCreate,com.tunergames.paradigm,com.prpr.musedash.TapTap,com.ilongyuan.cytus2.ly.TapTap,game.taptap.ryceam,game.taptap.morizero.milthm,game.taptap.zzzProject.Notanote,game.taptap.rainyac.ukiyo,com.xd.rotaeno.tapcn,com.Noxygames.Lanota,com.gmzon.taptap.lanota,com.hermes.mk,me.mugzone.emiria,com.Reflektone.AstroDX,app.KanadeDX,net.majdata.majdataplay,com.coweye.musync.android,com.blp.bleapcn';
 let soundDirty=false, soundLoaded=false, soundPanelOpen=false, soundState='saved', soundValid=true;
 let soundSaved=null;
 let sequence=0, working=false, jobActive=false, pollTimer=null;
@@ -219,8 +218,7 @@ async function task(command) {
   try {
     await refreshStatus();await refreshSound();await refreshLowlat();await refreshJob();
     if(command.startsWith('ll-save ')&&!failed){
-      const expected=command.split(' ').slice(1);expected[5]=expected[5]==='-'?'':expected[5];
-      const actual=['enabled','only_whitelist','hal_priority','audio_priority','app_priority','whitelist'].map(k=>llSaved[k]);
+  const actual=['enabled','hal_priority','audio_priority','app_priority'].map(k=>llSaved[k]);
       if(expected.some((value,i)=>value!==actual[i])){failed=true;modeMessage('无法确认设置是否已应用，请重新读取或恢复默认。','error');toast('无法确认设置是否已应用，请查看提示。');}
       else toast('低延迟设置已保存。');
     }
@@ -245,9 +243,8 @@ async function refreshAll() {
 function validPackage(s){return s.length<=200&&/^[_A-Za-z][_A-Za-z0-9]*(\.[_A-Za-z][_A-Za-z0-9]*)+$/.test(s);}
 function markDirty(){dirty=true;$('dirtyNote').hidden=false;$('llBadge').textContent='待保存';$('llControls').hidden=!$('f-enable').checked;}
 function setLowlatFields(config){
-  $('f-enable').checked=config.enabled==='1';$('f-only').checked=config.only_whitelist==='1';
+  $('f-enable').checked=config.enabled==='1';
   $('f-hal').value=config.hal_priority;$('f-audio').value=config.audio_priority;$('f-app').value=config.app_priority;
-  whitelist=(config.whitelist||'').split(',').filter(Boolean);renderWhitelist();
   $('dirtyNote').hidden=true;$('llControls').hidden=!$('f-enable').checked;
 }
 function changeLowlatEnable(){
@@ -256,37 +253,24 @@ function changeLowlatEnable(){
   dirty=false;
   if(llSaved.enabled==='0'){setLowlatFields(llSaved);$('llBadge').textContent='关闭';return;}
   // Stop with saved values, so closing cannot commit unsaved parameter edits.
-  const command='ll-save 0 '+[llSaved.only_whitelist,llSaved.hal_priority,llSaved.audio_priority,llSaved.app_priority,llSaved.whitelist||'-'].join(' ');
+  const command='ll-save 0 '+[llSaved.hal_priority,llSaved.audio_priority,llSaved.app_priority].join(' ');
   setLowlatFields({...llSaved,enabled:'0'});task(command);
 }
 function resetLowlat(){
   if(working||!llLoaded||currentMode!=='native')return;
   dirty=false;
-  task('ll-save 0 0 20 16 15 '+LL_DEFAULT_WHITE).then(ok=>{if(ok)toast('低延迟设置已恢复默认。');});
-}
-function renderWhitelist(){
-  const list=$('wl-list');list.textContent='';$('wl-count').textContent=whitelist.length+' 项';
-  whitelist.forEach(pkg=>{
-    const row=document.createElement('div');row.className='item';
-    const meta=document.createElement('div');meta.className='meta';
-    const label=document.createElement('div');label.className='pkg';label.textContent=pkg;meta.appendChild(label);
-    const button=document.createElement('button');button.className='btn sm danger';button.textContent='移除';
-    button.addEventListener('click',()=>{whitelist=whitelist.filter(x=>x!==pkg);renderWhitelist();markDirty();});
-    row.appendChild(meta);row.appendChild(button);list.appendChild(row);
-  });
+  task('ll-save 0 20 16 15').then(ok=>{if(ok)toast('低延迟设置已恢复默认。');});
 }
 function collectLowlat(){
   const values=['f-hal','f-audio','f-app'].map(id=>$(id).value.trim());
   if(values.some(x=>!/^([1-9]|[1-9][0-9])$/.test(x)))throw new Error('优先级必须是 1–99 的整数');
-  if(whitelist.some(x=>!validPackage(x)))throw new Error('白名单包名格式错误');
-  const csv=whitelist.join(',')||'-';if(csv.length>4096)throw new Error('白名单过长');
-  return "ll-save "+[$('f-enable').checked?'1':'0',$('f-only').checked?'1':'0',...values,csv].join(' ');
+  return "ll-save "+[$('f-enable').checked?'1':'0',...values].join(' ');
 }
 async function refreshLowlat(){
   const text=await call('ll-status'),s=parse(text.split('proof_begin')[0].split('current_details_begin')[0]);
-  llLoaded=/^[01]$/.test(s.enabled||'')&&/^[01]$/.test(s.only_whitelist||'')&&['hal_priority','audio_priority','app_priority'].every(k=>/^([1-9]|[1-9][0-9])$/.test(s[k]||''));
+  llLoaded=/^[01]$/.test(s.enabled||'')&&['hal_priority','audio_priority','app_priority'].every(k=>/^([1-9]|[1-9][0-9])$/.test(s[k]||''));
   if(!llLoaded)throw new Error('未取得完整的低延迟配置，请重新读取。');
-  llSaved={enabled:s.enabled,only_whitelist:s.only_whitelist,hal_priority:s.hal_priority,audio_priority:s.audio_priority,app_priority:s.app_priority,whitelist:s.whitelist||''};
+  llSaved={enabled:s.enabled,hal_priority:s.hal_priority,audio_priority:s.audio_priority,app_priority:s.app_priority};
   if(!dirty){
     setLowlatFields(llSaved);
   }
@@ -297,18 +281,13 @@ async function refreshLowlat(){
   clearTimeout(llTimer);
   if(!document.hidden)llTimer=setTimeout(()=>{if(!working)refreshLowlat().catch(()=>{});},5000);
 }
-['f-only','f-hal','f-audio','f-app'].forEach(id=>$(id).addEventListener('change',markDirty));
+['f-hal','f-audio','f-app'].forEach(id=>$(id).addEventListener('change',markDirty));
 $('f-enable').addEventListener('change',changeLowlatEnable);
 $('btn-ll-reset').addEventListener('click',resetLowlat);
 $('s-custom').addEventListener('change',changeSoundCustom);
 SOUND_IDS.slice(1).forEach(id=>$(id).addEventListener('change',markSoundDirty));
 $('btn-sound-save').addEventListener('click',()=>saveSound());
 $('btn-sound-reset').addEventListener('click',()=>saveSound(true));
-$('btn-add').addEventListener('click',()=>{
-  const pkg=$('f-newpkg').value.trim();if(!validPackage(pkg)){toast('请输入有效包名');return;}
-  if(!whitelist.includes(pkg)){whitelist.push(pkg);whitelist.sort();renderWhitelist();markDirty();}
-  $('f-newpkg').value='';
-});
 $('btn-save').addEventListener('click',()=>{try{task(collectLowlat());}catch(e){toast(e.message);}});
 function renderBootChoice(){
   const sound=$('boot-mode').value==='sound';

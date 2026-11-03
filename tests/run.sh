@@ -93,8 +93,8 @@ fi
 # ---------------- 10. WebUI 渲染（无浏览器）----------------
 if command -v node >/dev/null 2>&1; then
   echo ""
-  echo "############ 10. WebUI 渲染冒烟（真机样本驱动）############"
-  if node "$HERE/test_webui_render.js"; then
+  echo "############ 10. WebUI 静态一致性（DOM 引用）############"
+  if node "$HERE/test_webui_dom.js"; then
   echo "  -> 通过"
   else
   echo "  -> 失败"; rc=1
