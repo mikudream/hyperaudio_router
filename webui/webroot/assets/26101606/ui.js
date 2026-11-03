@@ -45,7 +45,7 @@ window.HAUI = (() => {
     views.forEach(name=>{
       document.getElementById('page-'+name).hidden=name!==page;
     });
-    const navPage=page;
+    const navPage=page==='debug'?'settings':page;
     pages.forEach(name=>{
       const button=document.getElementById('nav-'+name);
       button.classList.toggle('active',name===navPage);
@@ -64,6 +64,7 @@ window.HAUI = (() => {
   }
   pages.forEach(page=>document.getElementById('nav-'+page).addEventListener('click',()=>show(page)));
   document.getElementById('btn-about-back').addEventListener('click',()=>show('settings'));
+  document.getElementById('btn-debug').addEventListener('click',()=>show('debug'));
   window.addEventListener('scroll',updateTitleBar,{passive:true});
   window.addEventListener('resize',updateTitleBar,{passive:true});
   window.addEventListener('resize',updateNavigationSize,{passive:true});

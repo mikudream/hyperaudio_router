@@ -114,6 +114,14 @@ write_whitelist() {
 
 # ---------------- 动作 ----------------
 
+# 名单变化后刷新 module.prop 描述（管理器的模块列表里直接可见）。
+# 在子 shell 里加载 runtime.sh，避免与本脚本的变量互相污染。
+refresh_description() {
+  [ -f "$MODDIR/bin/runtime.sh" ] || return 0
+  ( . "$MODDIR/bin/runtime.sh"; update_description ) >/dev/null 2>&1 || :
+  return 0
+}
+
 cmd_status() {
   _apps=$(perapp_apps | tr '\n' ',' | sed 's/,$//')
   _n=$(perapp_apps | wc -l | tr -d ' ')
@@ -147,11 +155,12 @@ cmd_perapp_add() {
     _moved=1
   fi
   if perapp_apps | grep -Fxq "$_p"; then
-    ok; [ "$_moved" = 1 ] && printf 'moved_from=lowlat\n'; return
+    ok; [ "$_moved" = 1 ] && printf 'moved_from=lowlat\n'; refresh_description; return
   fi
   { perapp_apps; printf '%s\n' "$_p"; } | write_perapp "$(perapp_enabled)" || bad write_failed
   ok
   [ "$_moved" = 1 ] && printf 'moved_from=lowlat\n'
+  refresh_description
   return 0
 }
 
@@ -161,12 +170,14 @@ cmd_perapp_del() {
   [ -f "$PERAPP" ] || { ok; return; }
   perapp_rm "$_p" || bad write_failed
   ok
+  refresh_description
 }
 
 cmd_perapp_enable() {
   case "$1" in 0|1) ;; *) bad bad_value ;; esac
   perapp_apps | write_perapp "$1" || bad write_failed
   ok
+  refresh_description
 }
 
 cmd_wl_add() {
@@ -177,12 +188,13 @@ cmd_wl_add() {
     perapp_rm "$_p" || bad write_failed
     _moved=1
   fi
-  wl_apps | grep -Fxq "$_p" && { ok; [ "$_moved" = 1 ] && printf 'moved_from=sound\n'; return; }
+  wl_apps | grep -Fxq "$_p" && { ok; [ "$_moved" = 1 ] && printf 'moved_from=sound\n'; refresh_description; return; }
   _csv=$(wl_apps | tr '\n' ',' | sed 's/,$//')
   case "$_csv" in '') _wl=$_p ;; *) _wl=$_csv,$_p ;; esac
   write_whitelist "$_wl" || bad write_failed
   ok
   [ "$_moved" = 1 ] && printf 'moved_from=sound\n'
+  refresh_description
   return 0
 }
 
@@ -193,6 +205,7 @@ cmd_wl_del() {
   _rest=$(wl_apps | grep -Fxv "$_p" | tr '\n' ',' | sed 's/,$//')
   write_whitelist "$_rest" || bad write_failed
   ok
+  refresh_description
 }
 
 case "$1" in

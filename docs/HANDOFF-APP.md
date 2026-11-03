@@ -67,7 +67,8 @@ adb 路径 `D:\App\UotanToolbox\Bin\platform-tools\adb.exe`（经常掉线，需
    `lowlat.conf` 的 `whitelist` 内正在放音的应用（HAL/audioserver 共享线程也只在
    这种时刻一起提升），`chrt -f` 设置后回读 `/proc` 校验，journal 记录原策略。
 3. **开机属性基线（全局）**：`system.prop` 由管理器在开机时注入，作用于整个系统，
-   无法按应用拆分，与两份名单无关。
+   无法按应用拆分，与两份名单无关。`aaudio.mmap_policy` 保持 `1`（AUTO），
+   不用 `2`（ALWAYS），避免全局强制 MMAP 破坏"按应用"语义。
 
 **明确不做**：不改端口 XML、不替换 `libaaudio_internal.so`、没有全局音效模式/模式切换/
 开机模式、不重启 audioserver、不改 `aaudio.*` 运行期属性。因此没有事务、回滚、挂载所有权、

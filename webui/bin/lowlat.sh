@@ -223,6 +223,10 @@ ll_tick_locked() {
     local f t p group priority result
     LL_OK=0; LL_FAIL=0; LL_HOK=0; LL_AOK=0; LL_POK=0; LL_PACKAGES=""
     ll_read_config || { ll_restore_all; ll_state error invalid_config; return 1; }
+    # 开启时先确认 chrt 存在，避免每个线程都报一次 denied
+    if [ "$LL_ENABLED" = 1 ] && ! command -v chrt >/dev/null 2>&1; then
+        ll_restore_all; ll_state error chrt_missing; return 1
+    fi
     # 自愈：pause 由已退出的进程留下（被打断的写入）时清除，避免永久 suspended
     if [ -f "$LLROOT/pause" ]; then
         local owner; owner=$(cat "$LLROOT/pause" 2>/dev/null)

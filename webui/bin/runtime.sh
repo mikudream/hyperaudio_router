@@ -17,7 +17,11 @@ read_mode() { echo native; }
 count_list() {
     # $1=文件 $2=键名前缀
     [ -f "$1" ] || { echo 0; return; }
-    grep -c "^[[:space:]]*$2" "$1" 2>/dev/null || echo 0
+    # grep -c 在"无匹配"时也会输出 0 但退出码为 1；不能再跟 `|| echo 0`，
+    # 否则会输出两行，拼进 module.prop 的描述会把文件写坏。
+    _n=$(grep -c "^[[:space:]]*$2" "$1" 2>/dev/null)
+    case "$_n" in ''|*[!0-9]*) _n=0 ;; esac
+    echo "$_n"
 }
 
 count_wl() {
@@ -43,7 +47,7 @@ update_description() {
     _f=$MODDIR/module.prop
     [ -f "$_f" ] || return 0
     _t=$_f.new
-    awk -v d="按应用路由：音效名单 ${_pa} 项，低延迟名单 ${_wl} 项；${_ll}。名单外的应用保持系统默认。" '
+    awk -v d="description=按应用路由：音效名单 ${_pa} 项，低延迟名单 ${_wl} 项；${_ll}。名单外的应用保持系统默认。" '
         /^description=/ && !done { print d; done=1; next }
         { print }
     ' "$_f" > "$_t" 2>/dev/null || { rm -f "$_t"; return 0; }

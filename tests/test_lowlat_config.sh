@@ -77,6 +77,17 @@ printf 'enabled=1\nhal_priority=0\nwhitelist=\n' > "$MODDIR/lowlat.conf"
 ll_read_config; ck "hal=0 使解析失败" "$?" "1"
 
 echo ""
+echo "############ 7. module.prop 描述：空名单也不能写坏文件 ############"
+printf 'id=hyperaudio\nname=test\nversion=1.0.0\ndescription=old\n' > "$MODDIR/module.prop"
+printf 'enabled=1\n' > "$MODDIR/perapp.conf"
+printf 'enabled=1\nonly_whitelist=1\nhal_priority=20\naudio_priority=16\napp_priority=15\nwhitelist=\nrevision=t\n' > "$MODDIR/lowlat.conf"
+update_description
+ck "描述只有一行" "$(grep -c '^description=' "$MODDIR/module.prop")" "1"
+ck "文件行数不变" "$(wc -l < "$MODDIR/module.prop" | tr -d ' ')" "4"
+ckc "空名单计 0 项" "$(grep '^description=' "$MODDIR/module.prop")" "音效名单 0 项"
+ckc "低延迟空名单计 0 项" "$(grep '^description=' "$MODDIR/module.prop")" "低延迟名单 0 项"
+
+echo ""
 echo "############ 结果 ############"
 printf '  通过 %s，失败 %s\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

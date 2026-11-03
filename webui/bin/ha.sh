@@ -1,5 +1,6 @@
 #!/system/bin/sh
 MODDIR=$(CDPATH= cd -- "${0%/*}/.." && pwd -P) || exit 1
+export MODDIR
 # Re-enter a predictable BusyBox shell for both root managers and terminal/WebUI.
 if [ "$HA_BUSYBOX" != 1 ]; then
     for BB in /data/adb/ksu/bin/busybox /data/adb/magisk/busybox; do
