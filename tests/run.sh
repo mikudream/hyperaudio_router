@@ -40,14 +40,17 @@ run_test test_router_sh.sh
 section "2. lowlat.sh：白名单配置解析与保存"
 run_test test_lowlat_config.sh
 
-section "3. ha.sh：桩环境冒烟"
+section "3. customize.sh：与全局版互斥"
+run_test test_install_conflict.sh
+
+section "4. ha.sh：桩环境冒烟"
 run_test test_ha_smoke.sh
 
-section "4. system.prop：去重与关键项"
+section "5. system.prop：去重与关键项"
 run_test test_system_prop.sh
 
 if command -v node >/dev/null 2>&1; then
-  section "5. WebUI 静态一致性（DOM 引用）"
+  section "6. WebUI 静态一致性（DOM 引用）"
   if node "$HERE/test_webui_dom.js"; then
     echo "  -> 通过"
   else

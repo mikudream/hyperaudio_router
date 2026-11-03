@@ -3,8 +3,24 @@ SKIPUNZIP=0
 # ---------------- 安装环境 ----------------
 [ "$BOOTMODE" = true ] || abort "请在 Magisk / KernelSU 管理器内安装，不支持 recovery。"
 
-MODROOT=/data/adb/modules
+MODROOT=${HA_MODROOT:-/data/adb/modules}
 OLD=$MODROOT/hyperaudio
+
+# ---------------- 0. 与全局版互斥 ----------------
+# 本模块与全局版共用 id=hyperaudio：安装会直接覆盖同一个模块目录，两者无法共存。
+# 全局版的特征是模块名不含 Router（HyperAudio Switch / 音频模式切换器），
+# 或安装了上游 3.0 的 hyperaudio_compat。检测到就中止，避免静默覆盖。
+if [ -d "$MODROOT/hyperaudio_compat" ]; then
+  abort "检测到全局版 HyperAudio Switch 3.0（hyperaudio_compat）。HyperAudioRouter 不能与全局版共存，请先在管理器中卸载它并重启，再安装本模块。"
+fi
+if [ -d "$OLD" ]; then
+  OLD_NAME=$(sed -n 's/^name=//p' "$OLD/module.prop" 2>/dev/null | head -n 1)
+  case "$OLD_NAME" in
+    *Router*) : ;;
+    '') ui_print "! 已存在同名模块目录但读不到模块名，按覆盖升级继续" ;;
+    *) abort "检测到全局版「$OLD_NAME」已安装。HyperAudioRouter 不能与全局版共存，请先在管理器中卸载它并重启，再安装本模块。" ;;
+  esac
+fi
 
 # ---------------- 1. 依赖：管理器 busybox ----------------
 # ha.sh 会 re-exec 管理器自带的 busybox，缺失时所有 WebUI 接口都会返回
@@ -75,9 +91,10 @@ for f in "$MODPATH"/*.sh "$MODPATH"/bin/*.sh; do
 done
 
 # ---------------- 5. 安装完成提示 ----------------
-ui_print "- HyperAudio Router（应用版）已安装"
+ui_print "- HyperAudioRouter 已安装"
 ui_print "- 音效链路：名单内应用回落到普通轨，经过 Dolby 效果链"
 ui_print "- 低延迟链路：名单内应用放音时才提升线程优先级"
 ui_print "- 两份名单之外的应用保持系统默认行为"
 ui_print "- 默认且唯一的工作方式是低延迟；没有全局音效模式"
+ui_print "- 本模块不能与全局版共存；如曾安装全局版，请先卸载并重启"
 ui_print "- KernelSU 可直接打开 WebUI；Magisk 请使用兼容的 WebUI 管理器"

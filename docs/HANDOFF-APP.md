@@ -1,7 +1,7 @@
-# HyperAudio Router（应用版）交接说明
+# HyperAudioRouter 交接说明
 
 > 写给接手这个分支的下一个会话。读完这份再动手，可以少走很多弯路。
-> 最后更新：2026-11-03，工作区已迁至 `D:\DSH\HyperAudioRouter`（`router/v2`，v2.2.0 重构）
+> 最后更新：2026-11-03，工作区已迁至 `D:\DSH\HyperAudioRouter`（`router/v2`，v2.2.1 重构）
 
 ---
 
@@ -106,6 +106,15 @@ diagnose / schedule-diagnose / diag-status / debug-*
 ---
 
 ## 5. 2.2.0 做了什么（相对 2.1.0）
+
+**2.2.1（本次）**
+
+- 模块名改为 `HyperAudioRouter`（id 仍为 `hyperaudio`）
+- 安装脚本新增互斥：检测到全局版（`/data/adb/modules/hyperaudio` 的名称不含 `Router`）
+  或上游 3.0（`hyperaudio_compat`）时直接 abort，避免静默覆盖全局版
+- 设置页新增"诊断"入口（此前 Debug 页没有任何可达路径）
+- `aaudio.mmap_policy` / `mmap_exclusive_policy` 由 `2`(ALWAYS) 改回 `1`(AUTO)
+- 修复 `module.prop` 描述被写成非法行/多行的问题
 
 **功能语义**
 
@@ -214,4 +223,4 @@ adb shell su -c "/data/adb/ksu/bin/ksud module install /sdcard/Download/hyperaud
 2. 补 zygisk 偏移的装机检测与失败提示（系统更新后音效名单会静默失效）
 3. 清理 `debug.sh` 里遗留的"模式"文案
 4. 清理 `webroot/` 下未被引用的重复资源，减小包体
-5. 更新 `发布指引.md` 的版本号/描述示例，打 `v2.2.0` 标签
+5. 更新 `发布指引.md` 的版本号/描述示例，打 `v2.2.1` 标签

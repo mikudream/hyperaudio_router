@@ -14,7 +14,7 @@
 <link rel="stylesheet" href="./assets/26101606/navigation-layout.css"/>
 <link rel="stylesheet" href="./assets/26101606/about.css"/>
 <script src="./assets/26101606/theme-init.js"></script>
-<title>HyperAudio Switch</title>
+<title>HyperAudioRouter</title>
 
 <!--
 Third-party icon notice:
@@ -34,14 +34,14 @@ The About page retains copyright notices and all three complete licenses.
   <div class="app-toolbar" id="titleBar">
     <div class="toolbar-inner">
       <button class="icon-button back-button" id="btn-about-back" aria-label="返回设置" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5-7 7 7 7"/></svg></button>
-      <div class="compact-title" id="compactTitle" aria-hidden="true">HyperAudio Switch</div>
+      <div class="compact-title" id="compactTitle" aria-hidden="true">HyperAudioRouter</div>
       <button class="icon-button" id="btn-reload" aria-label="重新读取当前状态" title="重新读取">
         <span class="paired-icon icon" aria-hidden="true"><svg class="design-icon" data-icon-style="miuix" viewBox="0 0 1225.2 1225.2" aria-hidden="true"><g transform="translate(0 1225.2) scale(1 -1)"><path d="M1025.1 245.1 L1004.1 272.1 Q998.1 280.1 998.1 287.6 Q998.1 295.1 1005.1 304.1 Q1066.1 385.1 1092.6 481.1 Q1119.1 577.1 1107.6 675.6 Q1096.1 774.1 1044.1 862.1 Q988.1 958.1 899.1 1020.6 Q810.1 1083.1 702.6 1103.1 Q595.1 1123.1 485.1 1095.1 Q471.1 1091.1 466.1 1079.6 Q461.1 1068.1 467.1 1057.1 L483.1 1030.1 Q489.1 1018.1 496.1 1015.6 Q503.1 1013.1 515.1 1015.1 Q605.1 1035.1 692.6 1017.6 Q780.1 1000.1 852.6 949.1 Q925.1 898.1 970.1 819.1 Q1012.1 747.1 1022.6 666.6 Q1033.1 586.1 1012.6 508.6 Q992.1 431.1 945.1 367.1 Q942.1 363.1 937.6 363.1 Q933.1 363.1 929.1 368.1 L913.1 388.1 Q907.1 395.1 898.1 397.1 Q889.1 399.1 881.1 394.1 Q873.1 389.1 869.1 375.1 L831.1 232.1 Q828.1 220.1 834.6 211.1 Q841.1 202.1 854.1 202.1 L1008.1 206.1 Q1019.1 206.1 1025.1 212.6 Q1031.1 219.1 1031.1 228.6 Q1031.1 238.1 1025.1 245.1 Z M744.1 166.1 L728.1 194.1 Q720.1 212.1 693.1 207.1 Q606.1 191.1 522.1 210.1 Q438.1 229.1 368.6 279.6 Q299.1 330.1 255.1 406.1 Q214.1 477.1 203.1 556.6 Q192.1 636.1 211.6 713.1 Q231.1 790.1 277.1 854.1 Q281.1 859.1 287.6 859.1 Q294.1 859.1 298.1 854.1 L317.1 831.1 Q327.1 820.1 340.1 823.1 Q353.1 826.1 357.1 840.1 L396.1 982.1 Q401.1 999.1 395.1 1009.6 Q389.1 1020.1 374.1 1019.1 L219.1 1015.1 Q209.1 1015.1 203.6 1008.6 Q198.1 1002.1 197.6 993.6 Q197.1 985.1 201.1 979.1 L219.1 954.1 Q226.1 945.1 226.6 937.6 Q227.1 930.1 222.1 923.1 Q160.1 843.1 133.1 747.1 Q106.1 651.1 117.6 551.6 Q129.1 452.1 181.1 363.1 Q235.1 269.1 322.1 207.6 Q409.1 146.1 513.6 124.1 Q618.1 102.1 724.1 126.1 Q740.1 130.1 745.6 142.6 Q751.1 155.1 744.1 166.1 Z"/></g></svg><svg class="design-icon" data-icon-style="md3" viewBox="0 -960 960 960" aria-hidden="true"><path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-70q0-17 11.5-28.5T760-800q17 0 28.5 11.5T800-760v200q0 17-11.5 28.5T760-520H560q-17 0-28.5-11.5T520-560q0-17 11.5-28.5T560-600h128q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q68 0 124.5-34.5T692-367q8-14 22.5-19.5t29.5-.5q16 5 23 21t-1 30q-41 80-117 128t-169 48Z"/></svg></span>
         <span class="spin-xs" id="toggleSpin" hidden></span>
       </button>
     </div>
   </div>
-<div class="hd-title"><h1 id="pageTitle">HyperAudio Switch</h1><p class="hd-sub" id="sub">按应用路由</p></div>
+<div class="hd-title"><h1 id="pageTitle">HyperAudioRouter</h1><p class="hd-sub" id="sub">按应用路由</p></div>
 </header>
 <main class="main">
 <div class="page" id="page-sound" role="tabpanel" aria-labelledby="nav-sound">
@@ -134,7 +134,7 @@ The About page retains copyright notices and all three complete licenses.
 </div>
 
 
-<div class="page" id="page-about" aria-label="关于 HyperAudio Switch" hidden>
+<div class="page" id="page-about" aria-label="关于 HyperAudioRouter" hidden>
   <section class="card about-app-card" aria-label="应用信息">
     <div class="row about-app-row">
       <span class="about-app-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
@@ -155,7 +155,7 @@ The About page retains copyright notices and all three complete licenses.
  <path d="M145 110C150 103 158 99 169 99" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-opacity=".8"/>
 </g>
 </svg></span>
-      <span class="copy"><b class="about-app-name">HyperAudio Switch</b><small>音频模式热切换</small><span class="about-version">版本 3.0 · 正式版</span></span>
+      <span class="copy"><b class="about-app-name">HyperAudioRouter</b><small>按应用路由</small><span class="about-version">版本 2.2.1</span></span>
     </div>
   </section>
   <div class="section-title"><h2>项目信息</h2></div>

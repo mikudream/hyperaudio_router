@@ -3,7 +3,7 @@
 window.HAUI = (() => {
   const pages=['sound','lowlat','settings','about'];
   const views=[...pages,'debug'];
-  const titles={sound:'音效',lowlat:'低延迟',settings:'设置',about:'关于',debug:'Debug'};
+  const titles={sound:'HyperAudioRouter',lowlat:'低延迟',settings:'设置',about:'关于',debug:'Debug'};
   const root=document.documentElement;
   const large=document.getElementById('pageTitle');
   const compact=document.getElementById('compactTitle');

@@ -1,9 +1,9 @@
-# HyperAudio Router（应用版）· hyperaudio
+# HyperAudioRouter · hyperaudio
 
 > HyperOS 音频模块。**同一台设备上，A 应用走 Dolby 效果链，B 应用保持低延迟通路，
 > 其余应用完全交给系统。**
 >
-> 当前版本见 `module.prop`（2.2.0）。通用版（全局切换原生/音效）在同一仓库的 `main` 分支。
+> 当前版本见 `module.prop`（2.2.1）。通用版（全局切换原生/音效）在同一仓库的 `main` 分支。
 
 ## 这是什么
 
@@ -104,7 +104,9 @@ boot / stop       开机收尾 / 卸载前还原线程策略
 
 1. 把 `hyperaudio_module.zip` 安装到 Magisk / KernelSU / APatch（管理器内安装，不支持 recovery）
 2. 安装脚本会检查管理器 busybox、提示与其它音频模块的冲突，并保留升级前的两份名单
-3. 启用模块并重启（zygisk 负载需要重启后才加载）
+3. **不能与全局版共存**：本模块与全局版（`HyperAudio Switch`）共用 id `hyperaudio`，
+   安装脚本检测到全局版或上游 `hyperaudio_compat` 会直接中止；请先卸载并重启
+4. 启用模块并重启（zygisk 负载需要重启后才加载）
 
 ### 卸载
 
@@ -151,7 +153,7 @@ repo/
 - **音效依赖 companion**：`perapp.conf` 必须能被 DolbyRouter 的 companion 读到；
   没有 companion 时音效名单不会生效，WebUI 会显示"负载就绪，进程未启动"。
 - **system.prop 是全局的**：无法按应用拆分，所有应用共享同一套参数基线。
-- **真机验证有限**：2.2.0 的改动经过主机测试与构建校验，但尚未做完整真机回归。
+- **真机验证有限**：2.2.1 的改动经过主机测试与构建校验，但尚未做完整真机回归。
 
 ## 来源与致谢
 

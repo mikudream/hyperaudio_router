@@ -1,7 +1,7 @@
 id=hyperaudio
-name=HyperAudio Router（应用版）
-version=2.2.0
-versionCode=20020
+name=HyperAudioRouter
+version=2.2.1
+versionCode=20021
 author=月见里幽瞳 / deepseek-flash
 description=按应用路由：音效名单内的应用回落到普通混音轨、经过 Dolby 效果链；低延迟名单内的应用在放音时提升音频线程优先级。两份名单之外的应用保持系统默认。
 credits=See CREDITS.md（来源与致谢）
