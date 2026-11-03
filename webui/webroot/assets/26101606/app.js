@@ -95,7 +95,6 @@ async function refreshTuning() {
   const sources=text.split(/\r?\n/).filter(l=>l.startsWith('source=')).map(l=>l.slice(7));
   $('tuning-src').textContent=sources.length?sources.join('\n'):'未发现已启用的调音模块';
   $('tuning-src').style.whiteSpace='pre-line';
-  $('sourceSummary').textContent=sources.length?'已启用 '+sources.length+' 个调音模块':'未发现已启用的调音模块';
 }
 function renderSound() {
   const custom=$('s-custom').checked;

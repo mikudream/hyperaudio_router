@@ -65,7 +65,6 @@ window.HAUI = (() => {
     paintTitleBar();
   }
   pages.forEach(page=>document.getElementById('nav-'+page).addEventListener('click',()=>show(page)));
-  document.getElementById('btn-show-tuning').addEventListener('click',()=>show('settings'));
   document.getElementById('btn-about-back').addEventListener('click',()=>show('settings'));
   window.addEventListener('scroll',updateTitleBar,{passive:true});
   window.addEventListener('resize',updateTitleBar,{passive:true});
