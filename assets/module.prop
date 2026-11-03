@@ -3,5 +3,5 @@ name=HyperAudio Switch
 version=2.0.1
 versionCode=20001
 author=月见里幽瞳 / deepseek-flash
-description=通用机型的 HyperOS 音频模块：在原生与音效两种通路间切换，可调低延迟与音频参数；界面与 HyperAudio Switch 3.0 一致。
+description=面向通用机型的 HyperOS 音频模块：原生模式保留 FAST 快速轨，并可按需把音频线程提升为实时调度以降低卡顿与爆音；音效模式改写端口标志，让声音进入系统或调音模块的效果链。支持调节优先级与音频参数，可一键恢复原生配置。
 credits=See CREDITS.md（来源与致谢）
