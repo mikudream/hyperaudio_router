@@ -12,30 +12,21 @@ if [ "$HA_BUSYBOX" != 1 ]; then
     exit 1
 fi
 [ "$(id -u)" = 0 ] || { echo error=root_required; exit 1; }
-# Bind mounts must be visible in audioserver's init namespace, not only WebUI's su shell.
-SELF_NS=$(readlink /proc/self/ns/mnt)
-INIT_NS=$(readlink /proc/1/ns/mnt)
-[ -n "$SELF_NS" ] && [ -n "$INIT_NS" ] || { echo error=cannot_read_mount_namespace; exit 1; }
-if [ "$SELF_NS" != "$INIT_NS" ]; then
-    [ "$HA_NS_TRIED" = 1 ] && { echo error=cannot_enter_init_mount_namespace; exit 1; }
-    export HA_NS_TRIED=1
-    for BB in /data/adb/ksu/bin/busybox /data/adb/magisk/busybox; do
-        [ -x "$BB" ] && exec "$BB" nsenter -t 1 -m -- "$BB" sh "$0" "$@"
-    done
-    echo error=nsenter_unavailable
-    exit 1
-fi
+# 模块不再做 bind mount / resetprop / 重启 audioserver，因此不需要进入 init 的挂载命名空间。
 . "$MODDIR/bin/runtime.sh"
 . "$MODDIR/bin/diagnostics.sh"
 . "$MODDIR/bin/sampling.sh"
 . "$MODDIR/bin/lowlat.sh"
+. "$MODDIR/bin/boot.sh"
 . "$MODDIR/bin/debug.sh"
 . "$MODDIR/bin/theme.sh"
 . "$MODDIR/bin/fonts.sh"
-BOOT_ID=$(cat /proc/sys/kernel/random/boot_id) || exit 1
+# Android offers /proc/sys/kernel/random/boot_id. HA_BOOT_ID lets host tests pin it.
+BOOT_ID=${HA_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)}
 [ -n "$BOOT_ID" ] || exit 1
-# A diagnostic worker never changes properties, mounts or audio services and does
-# not hold the mode-switch lock while collecting. Native recovery stays available.
+mkdir -p "$STATE" 2>/dev/null
+
+# 只读与后台动作：不持锁、不改状态。
 case "$1" in
     theme) theme_status; exit $? ;;
     fonts) [ "$#" = 1 ] || exit 1; font_status; exit $? ;;
@@ -45,7 +36,6 @@ case "$1" in
     rt-daemon) ll_daemon; exit $? ;;
     ll-status) ll_status; exit $? ;;
     boot-status) boot_status; exit $? ;;
-    sound-status) sound_status; exit $? ;;
     diag-daemon) diagnostic_daemon; exit $? ;;
     diagnose-target)
         valid_target "$2" || exit 1
@@ -60,22 +50,9 @@ case "$1" in
   router-status|perapp-add|perapp-del|perapp-enable|wl-add|wl-del)
     /system/bin/sh "$MODDIR/bin/router.sh" "$@"; exit $? ;;
 esac
-lock_state || { echo error=operation_in_progress; exit 1; }
-trap 'unlock_state' EXIT
-trap 'exit 130' INT TERM HUP
-prepare_boot || { err cannot_capture_boot_state; exit 1; }
+
 case "$1" in
-    apply)
-        ll_pause || exit 1
-        apply_mode "$2"; RC=$?
-        ll_resume
-        [ "$RC" != 0 ] || ll_ensure_daemon || RC=1
-        exit "$RC" ;;
-    recover)
-        recover_native ;;
-    boot-save) shift; boot_save "$@" ;;
-    sound-save) shift; sound_save "$@" ;;
-    sound-reset) sound_reset ;;
+    status) status ;;
     ll-save) shift; ll_save "$@" ;;
     start-backends)
         ll_ensure_daemon || exit 1
@@ -85,17 +62,13 @@ case "$1" in
         fi
         daemon_alive || { echo error=diagnostic_backend_not_running; exit 1; }
         echo ok=1 ;;
-    cycle)
-        case "$(read_mode)" in native) NEXT=sound ;; *) NEXT=native ;; esac
+    boot) boot_run ;;
+    stop)
+        # 卸载/禁用前调用：先把已提升的线程逐一还原，再结束调度 daemon。
         ll_pause || exit 1
-        apply_mode "$NEXT"; RC=$?
-        ll_resume
-        exit "$RC"
-        ;;
-    boot)
-        boot_run
-        ;;
-    status) status ;;
+        _p=$(cat "$LLROOT/daemon.pid" 2>/dev/null)
+        case "$_p" in ''|*[!0-9]*) ;; *) kill "$_p" 2>/dev/null; rm -f "$LLROOT/daemon.pid" ;; esac
+        echo ok=1 ;;
     schedule-diagnose) queue_diagnostics "$2" ;;
-    *) echo 'usage: ha.sh {apply native|compat|sound|cycle|status|boot-status|boot-save native|sound|sound-status|sound-save CUSTOM MMAP FAST_LOW FAST_RAW RAW|sound-reset|diagnose|schedule-diagnose PACKAGE|diag-status|tuning|ll-status|ll-save ENABLE HAL AUDIO APP|recover|start-backends}'; exit 1 ;;
+    *) echo 'usage: ha.sh {status|router-status|perapp-add|perapp-del|perapp-enable|wl-add|wl-del|ll-save ENABLE HAL AUDIO APP|ll-status|boot|boot-status|stop|diagnose|schedule-diagnose PACKAGE|diag-status|tuning|start-backends|debug-summary|debug-reports|debug-analyze NAME}'; exit 1 ;;
 esac

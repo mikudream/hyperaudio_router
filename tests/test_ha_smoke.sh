@@ -8,12 +8,8 @@
 #
 # 注意：这里不验证音频行为（那必须真机），只验证"脚本能跑起来且不报错"。
 #
-# 现状（重要）：本测试**尚未接入 run.sh**。原因是 v3.0 的 ha.sh 有两项主机无法满足的
-# 前置条件，未满足时统一返回 error=manager_busybox_missing / error=root_required：
-#   1) 必须以管理器自带的 busybox 运行（/data/adb/ksu/bin/busybox 或 magisk 的）；
-#   2) 必须 root。
-# 桩环境即便伪造 id=0、设定 HA_BUSYBOX=1，仍会因 busybox applet 语义差异而失败。
-# 保留本文件作为"依赖清单"的记录，接入前需先解决上述两点。
+# 注意：主机上用 HA_BOOT_ID / HA_BUSYBOX 两个开关绕过设备专属前置条件，
+# 其余分支（清空 /proc、启动后台、状态汇总）保持与设备一致。
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 SRC="$HERE/../webui/bin"
@@ -23,12 +19,11 @@ trap 'rm -rf "$T"' EXIT
 
 M=$T/mod
 cp "$SRC"/*.sh "$SRC"/*.awk "$M/bin/" 2>/dev/null
-printf 'id=hyperaudio\nname=test\nversion=9.9.9\nversionCode=1\n' > "$M/module.prop"
-printf 'custom=0\nmmap=1\nfast=1\nfast_raw=1\nraw=0\n' > "$M/sound.conf"
-printf 'enable=1\nonly_whitelist=1\naudio_priority=16\nhal_priority=20\napp_priority=15\n' > "$M/lowlat.conf"
-printf 'mode=native\n' > "$M/boot.conf"
+printf 'id=hyperaudio\nname=test\nversion=9.9.9\nversionCode=1\ndescription=test\n' > "$M/module.prop"
+printf 'enabled=1\nonly_whitelist=1\nhal_priority=20\naudio_priority=16\napp_priority=15\nwhitelist=com.example.game\nrevision=test\n' > "$M/lowlat.conf"
+printf 'enabled=1\napp=com.example.other\n' > "$M/perapp.conf"
 mkdir -p "$M/state"
-printf 'native\n' > "$M/mode"
+printf 'native\n' > "$M/state/applied"
 
 # ---- 设备命令桩 ----
 for c in resetprop setprop getprop killall chcon restorecon mv cp rm mkdir chmod ps logcat am dumpsys pidof id whoami uname base64 tar gzip; do
@@ -104,12 +99,12 @@ ckn() { case "$2" in *"$3"*) fail=$((fail+1)); printf '  FAIL %s (不应包含 %
 # magisk 的）。主机上没有它，会直接返回 error=manager_busybox_missing。
 # 这里用 HA_BUSYBOX=1 跳过 re-exec（脚本自己支持这个开关），保持其余逻辑不变。
 run() {
-  PATH="$T/bin:$PATH" MODDIR="$M" OUTFD=1 TMPDIR="$T/tmp" HA_BUSYBOX=1 \
+  PATH="$T/bin:$PATH" MODDIR="$M" OUTFD=1 TMPDIR="$T/tmp" HA_BUSYBOX=1 HA_BOOT_ID=smoke-boot \
     sh "$M/bin/ha.sh" "$@" 2>&1
 }
 
 echo "############ 1. 只读动作能跑完且不报错 ############"
-for act in status sound-status ll-status boot-status tuning theme diag-status; do
+for act in status ll-status boot-status tuning theme diag-status; do
   O=$(run $act); RC=$?
   ck "$act 退出码 0" "$RC" "0"
   ckn "$act 无 'not found'" "$O" "not found"
@@ -126,11 +121,11 @@ ckn "不含未展开变量" "$O" '$MODDIR'
 echo ""
 echo "############ 3. 未知动作不应崩溃 ############"
 O=$(run this-does-not-exist); RC=$?
-ckc "给出错误提示而非崩溃" "$O" "error="
+ckc "给出用法提示而非崩溃" "$O" "usage:"
 
 echo ""
 echo "############ 4. 缺配置时仍能启动 ############"
-rm -f "$M/sound.conf" "$M/lowlat.conf" "$M/boot.conf"
+rm -f "$M/lowlat.conf"
 O=$(run status); RC=$?
 ck "缺配置 running status 退出码 0" "$RC" "0"
 ckn "缺配置不抛 'No such file'" "$O" "No such file"

@@ -1,315 +1,162 @@
-# HyperAudio Switch · hyperaudio
+# HyperAudio Router（应用版）· hyperaudio
 
-> 通用机型的 HyperOS 音频模块：**在「原生 / 音效」两种工作模式间一键切换**，
-> 附带与 HyperAudio Switch 3.0 一致的 KernelSU WebUI。
+> HyperOS 音频模块。**同一台设备上，A 应用走 Dolby 效果链，B 应用保持低延迟通路，
+> 其余应用完全交给系统。**
+>
+> 当前版本见 `module.prop`（2.2.0）。通用版（全局切换原生/音效）在同一仓库的 `main` 分支。
 
-[![模块版本](https://img.shields.io/badge/version-2.0.0-blue)]()
-[![适配](https://img.shields.io/badge/机型-通用-green)]()
-[![管理器](https://img.shields.io/badge/KernelSU%20%7C%20APatch%20%7C%20Magisk-WebUI-orange)]()
-
----
-
-## 架构说明（2.0.0 起）
-
-本版本按 `HyperAudio Switch 3.0` 的前后端逻辑重构，**界面与其保持一致**
-（Miuix / Material 3、关于页、致谢页、底部导航、主题切换）。
-
-| 层 | 组成 |
-|---|---|
-| 前端 | `webroot/`（v3.0 的 44 个文件，含 `assets/<版本号>/` 资源） |
-| 后端入口 | `bin/webui.sh` → `bin/ha.sh`，返回 `rc=N\|base64` 契约 |
-| 状态机 | `bin/runtime.sh`（事务、回滚、开机护栏） |
-| 通路控制 | `bin/sound.sh` / `bin/lowlat.sh` / `bin/boot.sh` |
-| 诊断 | `bin/diagnostics.sh`、`bin/debug.sh` |
-| 根级流程 | `service.sh`（boot + start-backends）、`action.sh`（cycle） |
-
-与上游 v3.0 的差异：
-
-- **移除了安装脚本里的机型锁**（上游写死 `ro.product.device = myron`，与通用定位冲突）
-- 覆盖升级不再要求"先切回原生"，改为保留可复用配置后继续安装
-- 模块 id 统一为 `hyperaudio`
-
----
 ## 这是什么
 
-HyperOS 的音频链路里存在一对**框架层互斥**：
+模块提供两份互相独立的按应用名单：
 
-- **fast track**（FastMixer 直通）—— 延迟最低，但**绕过 AudioFlinger 效果链**，音效调音不生效；
-- **普通混音线程** —— 音频经过效果链，Dolby 等调音生效，但调度抖动更大、可能卡顿。
+| 名单 | 存储 | 作用 | 名单外应用 |
+|---|---|---|---|
+| 音效链路 | `perapp.conf` | 名单内应用的音轨被剥掉 `FAST\|PRIMARY`，回落到普通混音轨，经过 Dolby 效果链 | 不受影响 |
+| 低延迟链路 | `lowlat.conf` 的 `whitelist` | 名单内应用放音时，其音频线程（以及当时共享的 HAL/audioserver 线程）被提为 `SCHED_FIFO` | 不参与调度 |
 
-这两条路的选择由音频端口的 `FAST` 标志决定，**是全局的**，同一端口无法"对 A 应用生效、对 B 应用不生效"。
+两条链路的共同设计原则：**名单之外，模块什么都不做**。名单为空时对系统零改动。
 
-本模块把这组全局开关做成了**可切换的两种模式**，让你按场景选择：
+同一包不会同时留在两个名单里：加入一边会自动从另一边移出，并回显 `moved_from=`。
 
-| 模式 | 做什么 | 适合 |
-|---|---|---|
-| **音效模式**（默认） | 摘掉音频端口 `FAST` 标志 → 全部音频落入效果链 | 听歌、看视频、慢节奏游戏 —— 追求听感 |
-| **低延迟模式** | 保持端口原有 `FAST` 标志；可选开启调度优化，把音频线程提升为 `SCHED_FIFO` | 音游、竞速、FPS —— 追求延迟与流畅 |
+## 技术实现
 
-> 实测依据：同一游戏在两种模式下的 A/B 对比中，"摘掉 FAST"后 Dolby 调音才可闻；
-> 保留 FAST 时不卡顿但调音被绕过。详见下文「技术说明」。
+模块只做三件事，全部可按进程或按名单收敛边界：
 
----
+1. **进程内 hook（音效）**
+   zygisk 负载 `zygisk/arm64-v8a.so` 在目标进程内 hook `AudioTrack::createTrack_l`，
+   去掉 `FAST | PRIMARY` 标志。配置以 `perapp.conf` 为准，并**双写**到
+   `/data/adb/modules/dolbyrouter/perapp.conf`（负载的配置路径是编译期写死的）。
+   `mFlags` 偏移已按本机从 `0x378` 重定位到 `0x3c0`。
 
-## 功能
+2. **逐线程调度（低延迟）**
+   `bin/lowlat.sh` 的 daemon 每 5 秒读一次 `dumpsys media.audio_flinger`，只对
+   `whitelist` 内正在放音的应用提优先级；用 `chrt -f` 逐线程设置，并回读
+   `/proc/<pid>/task/<tid>/stat` 校验，journal 记录原策略以便精确还原。
+   名单内没有应用在放音时，**HAL/audioserver 的共享线程也不会被改动**。
 
-### 双模式切换
+3. **开机属性基线（全局）**
+   `system.prop` 的音频/蓝牙/offload 调优在开机时由管理器统一注入。这些属性作用于
+   整个系统、无法按应用拆分，属于"所有应用共享的基础调优"，与两份名单无关。
 
-- 切换在 WebUI 内一键完成，**约 8 秒生效**（会重启音频服务，可能有短暂静音）
-- 模式记录在 `/data/adb/modules/hyperaudio/mode`，**开机自动应用**；`service.sh` 在开机时调用 `bin/ha.sh boot` 恢复
-- 音效模式下自动暂停线程调度优化（不需要 RT 提权），低延迟模式下可重新开启
+### 明确不做的事
 
-### WebUI（KernelSU / APatch 管理器内打开）
+- ❌ 不改写 `audio_module_config_primary.xml`（无 bind mount、无端口补丁）
+- ❌ 不替换 `libaaudio_internal.so` 等系统库
+- ❌ 不提供全局"音效模式"，也没有模式切换与开机模式
+- ❌ 不重启 `audioserver`、不改 `aaudio.*` 运行期属性
+- ❌ 不做"只要在放音就提升"的全局调度
 
-- **模式切换**：两个模式按钮，当前模式高亮；切换期间按钮显示旋转动画并禁用，
-  期间界面保持可见（不遮屏），完成后提示"音频服务已重启"
-- **一键切换**：右上角按钮直接切到另一种模式；顶部徽章常显当前模式
-- **KernelSU 执行按钮**：模块卡片上的「执行」调用 `action.sh`，一键切换模式，
-  并把当前模式写进 `module.prop` 的 `description` 前缀，因此**模块列表里就能看到当前模式**
-  - 前缀形如 `【当前模式：音效模式】…`；标记文案存在 `module.prop` 的 `mode.sound` / `mode.fast` 行
-  - 每次刷新先剥掉旧前缀，反复切换不会层层叠加；开机时 `service.sh` 会补刷一次
-- **参数配置**（仅低延迟模式显示）：低延迟调度总开关与三档实时优先级（HAL / 系统 / 应用）
-- **全局生效**：开启后对**所有**正在播放的应用按上述优先级提升其音频线程为 `SCHED_FIFO`，不区分应用
-  - 注：音效模式下会**隐藏**这些低延迟设置；已保存的优先级不会丢失
-- **调音来源**：显示当前生效的第三方调音模块名与版本；**未检测到则显示「官方默认调音」**
-  - 检测遍历全部已安装模块，耗时较长，因此界面**先用默认值立即渲染**，
-    调音来源在 `status` 返回后**再异步拉取填充**（不阻塞主界面）
-  - 命中判定按「路径 + 文件名」两个条件：位于 `dolby` / `audio` / `acdbdata` 目录下，
-    或直接位于 `*/etc/` 下，且文件名符合 `dax-*` `dax_default*` `mixer_paths*` `acdb*`
-    `audio_effects_config.*` `audio_module_config_*` `resourcemanager*`
-  - 排除属路由/音量策略而非调音的文件：`audio_policy_configuration.xml`、
-    `audio_policy_engine_*`、`*volume*`、`audio_lowpower_app_list.xml`
-  - 命中多支调音模块时会列出全部目录名并提示可能互相覆盖
+因此模块没有事务回滚、挂载所有权校验那套机制——因为根本没有需要回滚的全局改写。
 
-### 音频优化（属性层）
+## WebUI
 
-| 项目 | 内容 |
-|---|---|
-| 低延迟通路 | `aaudio.mmap_policy` / `mmap_exclusive_policy` / `hw_burst_min_usec` |
-| 缓冲周期 | `vendor.audio_hal.period_size` / `period_multiplier` / `adm.buffering.ms` |
-| 蓝牙 | aptX Adaptive / LDAC / LHDC / LC3（LE Audio）编解码解锁、AAC 帧控调整 |
-| 硬件直通 | `offload.passthrough`、各 PCM 位深 offload、24/32bit/float 输出 |
-| 通路库 | `libaaudio_internal*.so`（HyperOS AAudio MMAP 实现） |
+在 KernelSU / APatch 管理器内打开。四个页面 + 一个调试视图：
 
-> 早期版本还包含「遮蔽 4 个音频策略库 + 低功耗清单」的做法，**现已彻底移除**：
-> 实测遮蔽 `*impl.so` 会让音频实现层失效 —— 音效模式下调音全无、部分音频无声，
-> 低延迟模式仍有声但调音同样失效。详见 `assets/customize.sh` 中的说明。
+- **音效**：音效链路总开关、注入状态（负载 / companion）、名单增删
+- **低延迟**：调度开关、HAL / audioserver / 应用三档优先级、名单增删、实时调度状态
+- **设置**：调音模块检测、界面与底栏外观
+- **关于**：项目信息、许可与来源
+- **Debug**（`app.js` 内启用）：诊断采集、日志解读、技术信息
 
----
+后端统一走 `bin/webui.sh <action>`：参数校验 → `bin/ha.sh` 分发 → 输出包成
+`rc=N|base64`，因为管理器的 `ksu.exec` 只回传最后一行 stdout。
+
+## 配置文件
+
+`perapp.conf`（模块根目录）：
+
+```
+enabled=1
+app=com.example.game
+app=com.example.video
+```
+
+`lowlat.conf`（模块根目录）：
+
+```
+enabled=1
+only_whitelist=1
+hal_priority=20
+audio_priority=16
+app_priority=15
+whitelist=com.example.game,com.example.music
+revision=...
+```
+
+`whitelist` 是逗号分隔的包名；`only_whitelist` 恒为 1（应用版只有按名单一种语义）。
+
+## 后端接口
+
+```
+status            只读汇总（低延迟开关、名单规模、audioserver）
+router-status     两份名单 + 负载/companion 状态
+perapp-add/del    维护音效名单（自动从低延迟名单移出）
+perapp-enable     音效链路总开关
+wl-add/del        维护低延迟名单（自动从音效名单移出）
+ll-save           保存 enabled + 三档优先级（白名单由 wl-* 维护，保存时原样保留）
+ll-status         低延迟配置 + daemon 心跳 + 最近一次调度证据
+boot / stop       开机收尾 / 卸载前还原线程策略
+```
 
 ## 安装
 
-**前置**：已安装 KernelSU / APatch / Magisk（v20.4+），已解锁并刷入 HyperOS。
-
-1. 下载本仓库 Releases 中的 `hyperaudio_module.zip`（或自行运行 `build.ps1` 生成）
-2. 在模块管理器中刷入
-3. 重启
-4. 打开管理器的 **WebUI** 入口进行配置
-
-> **通用机型**：模块内无任何机型判断，任何 HyperOS 设备均可安装。
-> 但**音效模式需要设备上存在调音模块**（提供 `audio_module_config_primary.xml`）才有实际效果；
-> 若只是想要低延迟优化，可保持低延迟模式。
+1. 把 `hyperaudio_module.zip` 安装到 Magisk / KernelSU / APatch（管理器内安装，不支持 recovery）
+2. 安装脚本会检查管理器 busybox、提示与其它音频模块的冲突，并保留升级前的两份名单
+3. 启用模块并重启（zygisk 负载需要重启后才加载）
 
 ### 卸载
 
-在模块管理器中卸载即可。模块不修改任何系统分区文件。
+管理器内卸载即可。`uninstall.sh` 会先调用 `ha.sh stop`：把已提升的线程还原为原策略，
+再结束调度 daemon，避免卸载后残留 `SCHED_FIFO` 线程。
 
-由于音效模式会用 `mount --bind` 覆盖 `/odm/etc/audio/audio_module_config_primary.xml`，
-而运行时建立的挂载**不由管理器管理**，本模块附带 `uninstall.sh`：卸载时调用 `bin/ha.sh recover`
-把端口 FAST 标志还原、摘掉该挂载并清理 `/data/local/tmp` 下的临时文件。
-仍建议**卸载后重启一次**，以彻底清除本次开机建立的所有挂载。
+## 构建与测试
 
----
+```powershell
+cd D:\DSH\HyperAudioRouter\repo
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 
-## 技术说明
-
-### 为什么两种模式互斥
-
-```
-音效模式：low_latency_out/raw_out 无 FAST
-          → 应用音频落入普通混音线程 → 经过效果链（Dolby 生效）→ HAL
-低延迟模式：low_latency_out/raw_out 带 FAST
-          → 应用音频由 FastMixer 直通混音 → 绕过效果链 → HAL
+# 主机侧测试（不随模块分发）
+& 'D:\App\Git\bin\bash.exe' -lc "cd /d/DSH/HyperAudioRouter/repo && sh tests/run.sh"
 ```
 
-端口只有一个，标志是全局的。想"对指定应用启用低延迟"在框架层做不到 ——
-实测确认 `audio_app_registry.xml` 的 `ull_app` 名单**无法剥夺**名单外应用的 ULL/MMAP 通路。
+`build.ps1` 是纯 ASCII（PowerShell 5.1 按 ANSI 解析无 BOM 文件，中文会炸）；
+打包前会做四类检查：只允许已知文件布局、禁止调音载荷、禁止机型检测、禁止上游作者署名。
 
-### 已排除的卡顿成因（供参考）
-
-在非 fast 路径上出现的卡顿，实测排除了以下原因：
-
-| 尝试 | 结果 |
-|---|---|
-| 音频线程 RT 优先级拉满（12 线程 `SCHED_FIFO/16`） | 卡顿依旧 |
-| 停用调音模块的周期性 mixer 写入守护进程 | 卡顿依旧 |
-| 加大 HAL 缓冲（period_size / adm.buffering） | 帧数未变 |
-| `underrun` 计数 | 始终为 0 —— **不是缓冲饿死**，是非 fast 路径的固有调度代价 |
-
-### 环境适配备注
-
-- 本设备（KernelSU Next）的 `ksu.exec()` **只回传 stdout 最后一行**且不支持 shell 重定向，
-  故设备端后端的输出统一用 `\x1f` 压成单行，再由 `bin/webui.sh` 包成 `rc=N|base64` 交给前端。
-- `/internal/insets.css` 在部分设备上不存在，WebUI 未依赖它，改用 CSS 变量提供状态栏留白。
-
----
+主机测试覆盖：`router.sh` 的两份名单与互斥迁移、`lowlat.sh` 的白名单配置解析与保存、
+`ha.sh` 桩环境冒烟、`system.prop` 去重与关键项、WebUI 的 DOM 引用一致性。
+**它们不能替代真机验证**（线程提权、zygisk 注入、Dolby 是否真的生效都只能在设备上验）。
 
 ## 仓库结构
 
 ```
-assets/    打包用文本与配置
-           module.prop / customize.sh / service.sh / uninstall.sh / post-fs-data.sh
-           system.prop / sound.conf / lowlat.conf / boot.conf
-webui/     源码
-           bin/           设备端后端（v3.0 逻辑）
-             ha.sh          总入口与动作分发
-             runtime.sh     模式状态机（bind 挂载 / 事务 / 回滚 / 开机护栏）
-             sound.sh       音效通路参数（MMAP 属性 + 端口 flags 改写）
-             lowlat.sh      低延迟调度（chrt 逐线程 + 归属记录 + 回滚 + 证明）
-             boot.sh        开机模式恢复与失败回退
-             webui.sh       WebUI 后端入口（rc=N|base64 契约 + 参数白名单）
-             diagnostics.sh / debug.sh / sampling.sh / theme.sh / fonts.sh
-             patch_ports.awk / active_clients.awk / check_audio_ready.awk 等
-           webroot/       与 v3.0 一致的界面（index.html / app.js / assets/<版本>/）
-           helper.sh      （已停用）旧后端，仅供历史对照，不再打包
-prebuilt/  预编译载荷：libaaudio_internal*.so、META-INF 安装入口
-tests/     主机侧测试（不随包分发，用 `sh tests/run.sh` 跑）
-tools/     维护脚本（包内前端资源引用检查等）
+repo/
+├── assets/           模块根目录脚本与配置（module.prop / customize.sh / service.sh / system.prop …）
+├── webui/bin/        机上后端（ha / runtime / lowlat / router / diagnostics / debug …）
+├── webui/webroot/    WebUI（index.html + assets/26101606/* + router-ui.js）
+├── zygisk/           zygisk 负载与 mFlags 偏移工具
+├── prebuilt/         上游预编译件（当前仅用 META-INF 安装入口）
+├── tests/            主机侧测试
+├── docs/             设计与交接文档
+└── build.ps1         构建脚本
 ```
 
-### 端口补丁是怎么做的（0.4.6 起）
+`webui/vendor-v3/` 是 v3.0 原版 WebUI 的参考快照，不参与构建。
 
-音效模式需要摘掉 `low_latency_out` / `raw_out` 的 FAST 标志，本模块的做法是：
+## 已知限制
 
-1. 找到提供 `audio_module_config_primary.xml` 的调音模块源文件（按文件名探测，不认机型）
-2. 把**生效路径上的那份文件**快照到 `state/base.xml`
-3. 用 `patch_ports.awk` 从快照生成 `state/active.xml`（只改两个端口的 flags，其余字节不动；
-   任何不支持的构造都拒绝执行）
-4. 把 `active.xml` **叠加 bind mount** 到生效路径 —— **不先 umount**
-   （失败的 umount 会让该文件彻底失挂、比 mount 失败更糟）
-
-因此：
-
-- **不写调音模块的任何文件**，升级/禁用/卸载都不会留下被改过的第三方文件
-- 卸载只需摘掉自己那一层，系统原始配置即刻恢复
-- 挂载归属用 `dev:ino` + `/proc/self/mountinfo` 判断；若发现已被别的模块替换则**拒绝动手**
-
-> 从 0.4.5 及更早版本升级上来的设备，源文件可能已被旧版**直接改过**（缺 FAST）。
-> `runtime.sh` 会在应用前识别并修复这一遗留状态；判据保守（两个端口都缺 FAST 才认定）。
-
-### 诊断导出（0.4.7 起）
-
-出问题时不用反复追问"你的模式是什么 / 层挂上了吗 / 框架加载了吗"：
-WebUI 的「调试」页里点一下，或在终端跑 `sh bin/ha.sh diagnose`，
-会生成一份**只读**报告：
-
-```
-hyperaudio-diag-<时间戳>.txt
-├─ 版本 / 模式 / applied / pending / 开机护栏 / 按应用音效是否启用
-├─ 目标路径上的挂载层（谁叠在谁上面）
-├─ 当前生效文件的端口 flags（low_latency_out / raw_out）
-├─ runtime status 原文
-├─ 音频就绪校验：期望值、观测值、结果、pid
-├─ 音频策略与混音线程摘要（含 DAP 效果链出现次数）
-├─ 调音来源、配置项（前 15 项）
-└─ 日志尾部（每个日志最多 40 行）
-```
-
-它**不写任何配置、不动挂载、不重启服务**（测试里用"跑完前后文件快照必须一致"锁住了
-这一点）。输出目录优先 `/sdcard/Download`，不可用时退到 `/data/local/tmp`；
-也可用 `HA_DIAG_DEST=<目录>` 指定。报告不含应用数据与账号信息。
-
-### 音频就绪校验（0.4.7 起）
-
-**只验证磁盘文件是不够的。** 端口补丁写完、bind mount 挂上，只说明"文件内容对"；
-audioserver 还要读策略、建主输出、填 HAL 缓冲才真正生效。这中间有个真实窗口，
-用户会看到"已切换"但实际行为没变。
-
-所以改完端口后，本模块会：
-
-1. 只在端口 flags **确实变化**时才重启音频服务（`killall audioserver`）
-2. 重启后逐次探测，要求「同一 audioserver PID + 同一观测签名**连续 3 次**」
-3. 每次都核对：`init.svc.audioserver` 在跑、`dumpsys media.audio_policy` 与
-   `media.audio_flinger` 可读、主输出存在、HAL frame count > 0、
-   **dumpsys 里实际加载的端口 flags 与我们写入的位掩码一致**
-4. 上限 30 秒 / 20 次（双保险，慢机型不会无限等）
-
-结果的语义（WebUI「音频框架」一行 + `status` 的 `audio_ready=`）：
-
-| 值 | 含义 | 处置 |
-|---|---|---|
-| `passed` | 已确认加载，且 flags 与写入一致 | `verified=1` |
-| `failed` / `timeout` | 尝试过但没通过 | 保留模式，`verified=0` 并显示原因 |
-| `stale` | 上次记录已过期（音频服务重启过 / 换过开机） | 需要重新切换才有结论 |
-| `unverified` | dumpsys 读不到或格式认不出 | 不断言，`verified=0` |
-
-只有 **flags 确实不符** 或 **音频服务起不来** 才回滚；读不到、格式不认、
-等待超时只记 `unverified` —— 区别"证明错了"与"无法验证"，
-避免在 dumpsys 输出格式不同的机型上把好配置回滚掉。
-
-> 边界：`passed` 只代表**框架加载了配置**，不代表能出声，也不代表 Dolby 正在处理。
-> 该结论来自主机侧离线夹具 + 真机实测，dumpsys 格式差异仍需在具体机型上确认。
-
-### 事务与开机护栏
-
-- `apply` 前先写 `state/pending`；**全部成功**才写 `state/applied` 与 `mode`，并清除 pending
-- 任一步失败 → 撤销全部改动、`mode` 写回 `fast`、报 `apply_failed_restored_native`；
-  回滚自身失败则报 `rollback_incomplete_reboot_required` 并**保留 pending**
-- 开机时若发现残留 `pending` 或上次开机失败记录，**强制回到原始配置**并记入
-  `state/boot.failure`，**绝不反复重试一个已知失败的配置**
-- WebUI 会在需要恢复时显示「需要恢复」卡片，提供一键 `recover`
-
-### 与 HyperAudio Switch 2.0 的差异（有意为之）
-
-参考 2.0 时**没有**采用这两点：
-
-- **不用 `setprop ctl.restart audioserver`**：本机实测重启音频服务会让调音失效，
-  因此仍用 `killall audioserver`，且**只在端口标志真的变化时**才做
-- **不在运行时改 `aaudio.*` 属性、不替换 AAudio 库**：本模块继续用 `system.prop` 与预编译库，
-  也不做"每 5 秒 dumpsys 巡检"式的常驻调度（那是 2.0 自己的取舍）
-
-### 构建
-
-```powershell
-powershell -ExecutionPolicy Bypass -File build.ps1
-# 输出 hyperaudio_module.zip
-```
-
-构建脚本会在打包前执行下列校验，任一不通过即拒绝出包：
-
-1. **文件布局白名单**：staged 目录内出现任何未预期的文件即失败。
-   （原先只按文件扩展名做内容检查，放一个 `webroot/extra.xml` 就能把机型代号、
-   作者标识、调音载荷关键词原样打进包里 —— 已实测复现并修掉。）
-2. **不得含调音载荷**：ACDB / Dolby DAX / mixer / resourcemanager / 音量曲线 等
-3. **不得含机型判断**
-4. **除 `CREDITS.md` 外不得含原作者个人标识**：文本与二进制（`*.so`）都扫
-5. **`system.prop` 必须是净化后的版本**（含特定注释、且不含上游署名注释）
-
-构建产物**逐字节可复现**：zip 条目时间戳已固定，同样内容两次构建哈希相同。
-校验失败时**不会留下任何产物**（旧包在构建开始时即被删除）。
-
----
+- **zygisk 偏移写死**：`0x3c0` 只对当前系统版本有效；系统更新后需用
+  `zygisk/patch_mflags_offset.py` 重新定位，否则 hook 会失败（表现为音效名单无效）。
+- **音效依赖 companion**：`perapp.conf` 必须能被 DolbyRouter 的 companion 读到；
+  没有 companion 时音效名单不会生效，WebUI 会显示"负载就绪，进程未启动"。
+- **system.prop 是全局的**：无法按应用拆分，所有应用共享同一套参数基线。
+- **真机验证有限**：2.2.0 的改动经过主机测试与构建校验，但尚未做完整真机回归。
 
 ## 来源与致谢
 
-本模块并非从零编写，**技术基底来自 [HyperAudio](https://github.com/2278535805/HyperAudio)（作者 HLMC Ray）**，
-并由同一作者的 [Mi17Audio](https://github.com/2278535805/Mi17Audio) v0.3.4 扩展而来：
-
-- 继承自 **HyperAudio**：`system.prop` 全部 32 条基础属性（100% 包含，仅 2 条取值微调）、
-  `odm` 兜底挂载的守卫写法、线程提权的设计思路
-  （其"遮蔽 4 个音频策略库"的做法本项目**已移除**，见上方说明）
-- 继承自 **Mi17Audio**：`libaaudio_internal*.so`、`META-INF` 安装入口、
-  蓝牙与 offload 等补充属性
-
-本项目在其基础上的改动、以及上游的许可证状况，详见 **[CREDITS.md](CREDITS.md)**。
-
-感谢原作者在 HyperOS 音频策略层所做的逆向与整理工作 —— 这是本项目得以成立的基础。
-
----
+技术基底来自 [HyperAudio](https://github.com/2278535805/HyperAudio)（作者 HLMC Ray）与
+[Mi17Audio](https://github.com/Mi17Audio)；按应用 hook 来自 DolbyRouter。
+完整来源、许可与改动说明见 `CREDITS.md`。
 
 ## 免责声明
 
-- 本项目为**个人学习与自用**性质的修改。上游两个仓库均**未声明开源许可证**（默认保留所有权利）；
-  若原作者对本项目有任何异议，请通过上游仓库 issue 或本项目 issue 联系，我会立即处理或删除。
-- 刷机有风险。请自行确认设备与系统版本，并做好数据备份。
-- 音效模式的卡顿、低延迟模式的调音缺失，都是 Android 音频框架的固有权衡，非本模块缺陷。
+刷机有风险。因使用本模块导致的设备异常、数据丢失或保修失效，由使用者自行承担。

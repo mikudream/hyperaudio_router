@@ -21,26 +21,17 @@ else
   ui_print "! 模块仍会安装，可稍后在管理器内修复后重新安装"
 fi
 
-# ---------------- 2. 重复实现：上游 3.0（id 为 hyperaudio_compat） ----------------
-if [ -d "$MODROOT/hyperaudio_compat" ]; then
-  ui_print "! 检测到另一套 HyperAudio（hyperaudio_compat）"
-  ui_print "! 两者会同时修改音频端口配置与 aaudio 属性，互相覆盖"
-  ui_print "! 建议先卸载 hyperaudio_compat 并重启后再使用本模块"
-fi
-
-# ---------------- 3. 其它可能冲突的音频模块 ----------------
-# 只做提示，不阻止安装：这些模块与本模块都会改写端口配置或音频属性。
+# ---------------- 2. 与其它音频模块的冲突提示 ----------------
+# 只做提示，不阻止安装：这些模块同样会改写端口配置或音频属性。
 CONFLICTS=""
 for d in "$MODROOT"/*; do
   [ -d "$d" ] || continue
   n=${d##*/}
   case "$n" in hyperaudio|hyperaudio_compat|modules_update) continue ;; esac
   hit=0
-  # 自带音频端口配置副本
   if [ -n "$(find "$d" -maxdepth 4 -name 'audio_module_config*.xml' 2>/dev/null | head -n 1)" ]; then
     hit=1
   fi
-  # system.prop 里改写音频相关属性
   if [ "$hit" = 0 ] && [ -f "$d/system.prop" ]; then
     grep -qE '^(aaudio\.|vendor\.audio|persist\.vendor\.audio|af\.fast_track|ro\.audio)' "$d/system.prop" 2>/dev/null && hit=1
   fi
@@ -49,35 +40,33 @@ done
 if [ -n "$CONFLICTS" ]; then
   ui_print "! 以下模块同样会修改音频配置/属性，可能与本模块冲突："
   for n in $CONFLICTS; do ui_print "!   - $n"; done
-  ui_print "! 若音效或延迟表现异常，请先只保留其中一个再测试"
+  ui_print "! 若效果异常，请先只保留其中一个再测试"
 fi
 
-# ---------------- 4. 覆盖升级：保留配置、清理中断状态 ----------------
-# 旧版（本模块历史版本）用 state/*.xml 与 config.toml；新版用 mode/state 结构。
-# 只保留能对得上的配置，其余交给新版重建，避免因模式不同而中止安装。
+# ---------------- 3. 覆盖升级：保留两个名单 ----------------
+# 名单是用户数据，升级时不能丢。其余状态交给新版重建。
 if [ -d "$OLD" ]; then
-  for f in boot.conf sound.conf lowlat.conf; do
+  for f in lowlat.conf perapp.conf; do
     [ -f "$OLD/$f" ] && cp -f "$OLD/$f" "$MODPATH/$f" 2>/dev/null
   done
-  ui_print "- 覆盖升级：已保留可复用的配置文件"
+  ui_print "- 覆盖升级：已保留两个名单与低延迟参数"
 
-  # 旧版若停在非原生模式，安装会替换模块内容，其 bind 挂载在重启前可能悬空。
-  oldmode=$(cat "$OLD/mode" 2>/dev/null)
-  if [ -n "$oldmode" ] && [ "$oldmode" != native ]; then
-    ui_print "! 旧版处于 $oldmode 模式，安装后请立即重启"
-    ui_print "! 重启前音频配置可能处于半更新状态"
+  # 旧版可能还留着端口 bind mount 或模式文件；它们在新版中没有对应物。
+  if [ -f "$OLD/mode" ] && [ "$(cat "$OLD/mode" 2>/dev/null)" != native ]; then
+    ui_print "! 旧版处于 $(cat "$OLD/mode" 2>/dev/null) 模式，安装后请立即重启"
+    ui_print "! 重启前旧版留下的端口挂载可能仍然生效"
   fi
 fi
 
-# 清掉可能遗留的中断事务与挂载归属标记：新版会重新建立，继承它们只会触发回滚
-for stale in state/transaction state/owned state/boot.pending state/boot.failure; do
+# 清掉中断事务与旧版状态标记
+for stale in state/transaction state/owned state/boot.pending state/boot.failure state/base.xml state/target state/active.xml state/applied state/boot; do
   [ -e "$MODPATH/$stale" ] && rm -f "$MODPATH/$stale" 2>/dev/null
 done
 
-# ---------------- 5. 新结构初始化 ----------------
+# ---------------- 4. 新结构初始化 ----------------
 mkdir -p "$MODPATH/state" || abort "无法创建 state 目录。"
-[ -f "$MODPATH/mode" ] || printf 'native\n' > "$MODPATH/mode"
-chmod 0644 "$MODPATH/mode" 2>/dev/null
+[ -f "$MODPATH/lowlat.conf" ] || printf 'enabled=1\nonly_whitelist=1\nhal_priority=20\naudio_priority=16\napp_priority=15\nwhitelist=\nrevision=initial\n' > "$MODPATH/lowlat.conf"
+[ -f "$MODPATH/perapp.conf" ] || printf 'enabled=1\n' > "$MODPATH/perapp.conf"
 
 # Leave webroot's permissions/context to the manager (KernelSU handles it specially).
 set_perm_recursive "$MODPATH/bin" 0 0 0755 0644
@@ -85,12 +74,10 @@ for f in "$MODPATH"/*.sh "$MODPATH"/bin/*.sh; do
   [ -f "$f" ] && set_perm "$f" 0 0 0755
 done
 
-# ---------------- 6. 安装完成提示 ----------------
-ui_print "- HyperAudio Switch 3.0 正式版"
-ui_print "- 支持 Miuix / Material 3 界面与可选悬浮底栏"
-ui_print "- 支持原生与音效模式，可调整低延迟和音频设置"
-ui_print "- 可选择开机模式，已保存的设置会保留"
-ui_print "- 启用模块后，日常切换无需重启手机；切换后请重新打开游戏"
-ui_print "- 部分游戏在音效模式下可能出现电流声、破音或无声"
-ui_print "- 安装完成后，请按管理器提示启用模块"
+# ---------------- 5. 安装完成提示 ----------------
+ui_print "- HyperAudio Router（应用版）已安装"
+ui_print "- 音效链路：名单内应用回落到普通轨，经过 Dolby 效果链"
+ui_print "- 低延迟链路：名单内应用放音时才提升线程优先级"
+ui_print "- 两份名单之外的应用保持系统默认行为"
+ui_print "- 默认且唯一的工作方式是低延迟；没有全局音效模式"
 ui_print "- KernelSU 可直接打开 WebUI；Magisk 请使用兼容的 WebUI 管理器"

@@ -1,23 +1,24 @@
 #!/system/bin/sh
 # router.sh —— 应用版（hyperaudio_router）的"按应用"后端
 #
-# 提供两个名单的读写：
-#   perapp.conf  → 杜比链路名单（经 zygisk 负载把该应用音轨剥回普通轨）
-#   config.toml  → 低延迟链路名单（daemon 只对名单内应用提线程优先级）
+# 两个名单，各自独立生效，名单外应用一律交给系统：
+#   perapp.conf  → 音效链路名单。zygisk 负载剥掉名单内应用的 FAST|PRIMARY 标志，
+#                  使其回落到普通混音轨、经过 Dolby 效果链。
+#   lowlat.conf  → 低延迟链路名单（whitelist=CSV）。只有名单内应用放音时，
+#                  daemon 才把它的音频线程提为 SCHED_FIFO。
 #
-# 输出一律为 key=value 行，供 bin/webui.sh 包成 rc=N|base64 交给前端。
+# 同一包不会同时留在两个名单里：加入一边会自动从另一边移出，并回显 moved_from=。
 # 所有写操作都是"临时文件 + mv"的原子替换；包名先校验再落盘。
-#
 # 便于主机测试：路径可用 HA_MOD_DIR 覆盖。
 
 MODDIR=${MODDIR:-${HA_MOD_DIR:-/data/adb/modules/hyperaudio}}
 PERAPP=$MODDIR/perapp.conf
-CONF=$MODDIR/config.toml
+CONF=$MODDIR/lowlat.conf
 LEGACY=/data/adb/modules/dolbyrouter/perapp.conf
 TMPD=/data/local/tmp
 
-ok()   { printf 'ok=1\n'; }
-bad()  { printf 'error=%s\n' "$1"; exit 0; }
+ok()  { printf 'ok=1\n'; }
+bad() { printf 'error=%s\n' "$1"; exit 0; }
 
 valid_pkg() {
   case "$1" in ''|*[!A-Za-z0-9_.]*) return 1 ;; esac
@@ -27,27 +28,25 @@ valid_pkg() {
   [ ${#1} -le 120 ]
 }
 
+tmpfile() { mkdir -p "$TMPD" 2>/dev/null; printf '%s/router_%s.%s' "$TMPD" "$1" "$$"; }
+
+# ---------------- 音效链路（perapp.conf） ----------------
+
 perapp_apps() {
   [ -f "$PERAPP" ] || return 0
   sed -n 's/^[[:space:]]*app[[:space:]]*=[[:space:]]*\([A-Za-z0-9_.]*\).*/\1/p' "$PERAPP" 2>/dev/null
 }
 
 perapp_enabled() {
-  [ -f "$PERAPP" ] || { printf '0'; return; }
+  [ -f "$PERAPP" ] || { printf '1'; return; }
   _e=$(sed -n 's/^[[:space:]]*enabled[[:space:]]*=[[:space:]]*\([01]\).*/\1/p' "$PERAPP" 2>/dev/null | head -1)
-  [ "$_e" = "1" ] && printf '1' || printf '0'
+  [ "$_e" = "0" ] && printf '0' || printf '1'
 }
 
-wl_apps() {
-  [ -f "$CONF" ] || return 0
-  sed -n '/^[[:space:]]*whitelist[[:space:]]*=/,/]/p' "$CONF" 2>/dev/null | grep -o '"[^"]*"' | tr -d '"'
-}
-
-# 原子写 perapp.conf，再从 stdin 读包名（一行一个）
+# 原子写 perapp.conf：第一行 enabled，随后一行一个 app=
 write_perapp() {
   _en=$1
-  _tmp="$TMPD/router_perapp.$$"
-  mkdir -p "$TMPD" 2>/dev/null
+  _tmp=$(tmpfile perapp)
   {
     printf 'enabled=%s\n' "$_en"
     while IFS= read -r _a; do
@@ -64,11 +63,64 @@ write_perapp() {
   return 0
 }
 
+perapp_rm() {
+  _p=$1
+  perapp_apps | grep -Fxv "$_p" | write_perapp "$(perapp_enabled)"
+}
+
+# ---------------- 低延迟链路（lowlat.conf） ----------------
+
+conf_val() {
+  [ -f "$CONF" ] || return 0
+  sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "$CONF" 2>/dev/null | head -1
+}
+
+wl_apps() {
+  _csv=$(conf_val whitelist)
+  case "$_csv" in ''|-) return 0 ;; esac
+  printf '%s\n' "$_csv" | tr ',' '\n' | sed '/^[[:space:]]*$/d'
+}
+
+conf_num() {
+  # $1=key $2=default；非法值回落到默认
+  _v=$(conf_val "$1")
+  case "$_v" in ''|*[!0-9]*) printf '%s' "$2"; return ;; esac
+  case "$_v" in 0*) printf '%s' "$2"; return ;; esac
+  [ "$_v" -ge 1 ] && [ "$_v" -le 99 ] && printf '%s' "$_v" || printf '%s' "$2"
+}
+
+# 原子写 lowlat.conf；保留 enabled/三个优先级，只替换白名单
+write_whitelist() {
+  _wl_csv=$1
+  _wl_en=$(conf_val enabled)
+  case "$_wl_en" in 0|1) ;; *) _wl_en=1 ;; esac
+  _wl_h=$(conf_num hal_priority 20)
+  _wl_a=$(conf_num audio_priority 16)
+  _wl_p=$(conf_num app_priority 15)
+  _tmp=$(tmpfile lowlat)
+  {
+    printf 'enabled=%s\n' "$_wl_en"
+    printf 'only_whitelist=1\n'
+    printf 'hal_priority=%s\n' "$_wl_h"
+    printf 'audio_priority=%s\n' "$_wl_a"
+    printf 'app_priority=%s\n' "$_wl_p"
+    printf 'whitelist=%s\n' "$_wl_csv"
+    printf 'revision=%s-%s\n' "$(date +%s)" "$$"
+  } > "$_tmp" 2>/dev/null || return 1
+  mv -f "$_tmp" "$CONF" 2>/dev/null || return 1
+  chmod 0644 "$CONF" 2>/dev/null
+  return 0
+}
+
+# ---------------- 动作 ----------------
+
 cmd_status() {
   _apps=$(perapp_apps | tr '\n' ',' | sed 's/,$//')
   _n=$(perapp_apps | wc -l | tr -d ' ')
   _wl=$(wl_apps | tr '\n' ',' | sed 's/,$//')
   _wn=$(wl_apps | wc -l | tr -d ' ')
+  _wle=$(conf_val enabled)
+  case "$_wle" in 0|1) ;; *) _wle=1 ;; esac
   _pay=0; [ -f "$MODDIR/zygisk/arm64-v8a.so" ] && _pay=1
   _comp=0
   ps -A 2>/dev/null | grep -q 'zn-zygisk-companion64 hyperaudio' && _comp=1
@@ -79,6 +131,7 @@ cmd_status() {
   printf 'perapp_apps=%s\n' "$_apps"
   printf 'perapp_payload=%s\n' "$_pay"
   printf 'perapp_companion=%s\n' "$_comp"
+  printf 'wl_enabled=%s\n' "$_wle"
   printf 'wl_count=%s\n' "$_wn"
   printf 'wl_apps=%s\n' "$_wl"
   printf 'ok=1\n'
@@ -87,15 +140,26 @@ cmd_status() {
 cmd_perapp_add() {
   _p=$1
   valid_pkg "$_p" || bad bad_package
-  perapp_apps | grep -qx "$_p" && { ok; return; }
+  _moved=0
+  if wl_apps | grep -Fxq "$_p"; then
+    _rest=$(wl_apps | grep -Fxv "$_p" | tr '\n' ',' | sed 's/,$//')
+    write_whitelist "$_rest" || bad write_failed
+    _moved=1
+  fi
+  if perapp_apps | grep -Fxq "$_p"; then
+    ok; [ "$_moved" = 1 ] && printf 'moved_from=lowlat\n'; return
+  fi
   { perapp_apps; printf '%s\n' "$_p"; } | write_perapp "$(perapp_enabled)" || bad write_failed
   ok
+  [ "$_moved" = 1 ] && printf 'moved_from=lowlat\n'
+  return 0
 }
 
 cmd_perapp_del() {
   _p=$1
   valid_pkg "$_p" || bad bad_package
-  perapp_apps | grep -Fxv "$_p" | write_perapp "$(perapp_enabled)" || bad write_failed
+  [ -f "$PERAPP" ] || { ok; return; }
+  perapp_rm "$_p" || bad write_failed
   ok
 }
 
@@ -108,26 +172,26 @@ cmd_perapp_enable() {
 cmd_wl_add() {
   _p=$1
   valid_pkg "$_p" || bad bad_package
-  wl_apps | grep -qx "$_p" && { ok; return; }
-  [ -f "$CONF" ] || bad no_config
-  _tmp="$TMPD/router_conf.$$"
-  awk -v p="$_p" '
-    /^[[:space:]]*whitelist[[:space:]]*=/ && !done { print; print "    \"" p "\","; done=1; next }
-    { print }
-  ' "$CONF" > "$_tmp" 2>/dev/null || bad write_failed
-  mv -f "$_tmp" "$CONF" || bad write_failed
-  chmod 0644 "$CONF" 2>/dev/null
+  _moved=0
+  if perapp_apps | grep -Fxq "$_p"; then
+    perapp_rm "$_p" || bad write_failed
+    _moved=1
+  fi
+  wl_apps | grep -Fxq "$_p" && { ok; [ "$_moved" = 1 ] && printf 'moved_from=sound\n'; return; }
+  _csv=$(wl_apps | tr '\n' ',' | sed 's/,$//')
+  case "$_csv" in '') _wl=$_p ;; *) _wl=$_csv,$_p ;; esac
+  write_whitelist "$_wl" || bad write_failed
   ok
+  [ "$_moved" = 1 ] && printf 'moved_from=sound\n'
+  return 0
 }
 
 cmd_wl_del() {
   _p=$1
   valid_pkg "$_p" || bad bad_package
-  [ -f "$CONF" ] || bad no_config
-  _tmp="$TMPD/router_conf.$$"
-  grep -Fv "\"$_p\"" "$CONF" > "$_tmp" 2>/dev/null || bad write_failed
-  mv -f "$_tmp" "$CONF" || bad write_failed
-  chmod 0644 "$CONF" 2>/dev/null
+  wl_apps | grep -Fxq "$_p" || { ok; return; }
+  _rest=$(wl_apps | grep -Fxv "$_p" | tr '\n' ',' | sed 's/,$//')
+  write_whitelist "$_rest" || bad write_failed
   ok
 }
 

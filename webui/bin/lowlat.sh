@@ -1,7 +1,13 @@
 #!/system/bin/sh
-# Verified scheduling only. No library replacement, global audio properties,
-# cgroup edits, persistent RT limits, or changes to arbitrary game main threads.
+# 低延迟链路：只把「白名单内」且正在放音的应用线程提升为 SCHED_FIFO。
+#
+# 与"全局提优先级"的关键区别：
+#   · 名单外应用一律不动（连它的线程都不会被 chrt）。
+#   · HAL / audioserver 是共享线程，只在白名单内应用确实在放音时才一起提升，
+#     名单为空或没有白名单应用出声时不碰任何系统线程。
+#   · 每次提升都回读 /proc 校验，并写 journal 记录原策略，停止时精确还原。
 LLROOT=$STATE/lowlat
+
 ll_init() {
     mkdir -p "$LLROOT/owned" || return 1
     if [ "$(cat "$LLROOT/boot" 2>/dev/null)" != "$BOOT_ID" ]; then
@@ -11,28 +17,63 @@ ll_init() {
         printf '%s\n' "$BOOT_ID" > "$LLROOT/boot"
     fi
 }
+
+# 包名校验：与 router.sh / sampling.sh 保持同一规则
+ll_pkg_ok() {
+    case "$1" in ''|*[!A-Za-z0-9_.]*) return 1 ;; esac
+    case "$1" in *.*) ;; *) return 1 ;; esac
+    case "$1" in [0-9]*|.*|*.) return 1 ;; esac
+    case "$1" in *..*) return 1 ;; esac
+    [ ${#1} -le 120 ]
+}
+
+# whitelist 为 CSV 或 '-'（空）
+ll_white_ok() {
+    local w=$1 p
+    case "$w" in ''|-) return 0 ;; esac
+    while [ -n "$w" ]; do
+        p=${w%%,*}
+        case "$w" in *,*) w=${w#*,} ;; *) w= ;; esac
+        [ -n "$p" ] || return 1
+        ll_pkg_ok "$p" || return 1
+    done
+    return 0
+}
+
 ll_read_config() {
-    LL_ENABLED=1; LL_HAL=20; LL_AUDIO=16; LL_APP=15; LL_REV=initial
+    LL_ENABLED=1; LL_ONLY=1; LL_HAL=20; LL_AUDIO=16; LL_APP=15; LL_WHITE=""; LL_REV=initial
     local k v
+    [ -f "$MODDIR/lowlat.conf" ] || return 1
     while IFS='=' read -r k v; do
         case "$k" in
+          # 应用版只有"按名单"一种语义：旧配置里的 only_whitelist=0 不再支持，
+          # 读取时忽略该字段，避免遗留配置把全局调度行为带回来。
           enabled) LL_ENABLED=$v ;;
           hal_priority) LL_HAL=$v ;; audio_priority) LL_AUDIO=$v ;; app_priority) LL_APP=$v ;;
+          whitelist) LL_WHITE=$v ;;
           revision) LL_REV=$v ;;
         esac
     done < "$MODDIR/lowlat.conf"
-    ll_valid "$LL_ENABLED" "$LL_HAL" "$LL_AUDIO" "$LL_APP"
+    ll_valid "$LL_ENABLED" 1 "$LL_HAL" "$LL_AUDIO" "$LL_APP" "${LL_WHITE:--}"
 }
+
 ll_valid() {
-    # 4 个参数：enabled、hal、audio、app（白名单已移除）
-    [ "$#" = 4 ] || return 1
+    # 6 个参数：enabled、only_whitelist、hal、audio、app、whitelist(CSV 或 -)
+    [ "$#" = 6 ] || return 1
     case "$1" in 0|1) ;; *) return 1 ;; esac
+    case "$2" in 0|1) ;; *) return 1 ;; esac
     local p
-    for p in "$2" "$3" "$4"; do
+    for p in "$3" "$4" "$5"; do
         case "$p" in ''|*[!0-9]*|0*) return 1 ;; esac
         [ "${#p}" -le 2 ] && [ "$p" -ge 1 ] && [ "$p" -le 99 ] || return 1
     done
+    ll_white_ok "$6"
 }
+
+ll_white_current() {
+    sed -n 's/^whitelist=//p' "$MODDIR/lowlat.conf" 2>/dev/null | head -1
+}
+
 ll_lock() {
     local n=0 owner
     while ! mkdir "$LLROOT/lock" 2>/dev/null; do
@@ -51,6 +92,7 @@ ll_lock() {
     echo $$ > "$LLROOT/lock/pid"
 }
 ll_unlock() { rm -f "$LLROOT/lock/pid"; rmdir "$LLROOT/lock" 2>/dev/null; }
+
 ll_stat() {
     # Fields after the LAST ') ' begin at field 3. comm may contain spaces/parentheses.
     local s
@@ -129,10 +171,12 @@ ll_targets() {
         pkg=$(tr '\000' '\n' < "/proc/$p/cmdline" 2>/dev/null | head -n 1)
         pkg=${pkg%%:*}
         valid_target "$pkg" || continue
-        
+        # 只保留白名单内的应用；名单外的应用完全不参与调度。
+        case ",$LL_WHITE," in *",$pkg,"*) ;; *) continue ;; esac
         any=1; LL_PACKAGES="$LL_PACKAGES $pkg"
         ll_add_threads "$p" app "$LL_APP" >> "$LLROOT/wanted"
     done < "$LLROOT/clients"
+    # 没有白名单应用在放音：HAL 与 audioserver 的共享线程一律不动。
     [ "$any" = 1 ] || return 0
     for p in $(pidof audioserver 2>/dev/null); do ll_add_threads "$p" audio "$LL_AUDIO" >> "$LLROOT/wanted"; done
     for p in $(pidof audiohalservice.qti android.hardware.audio.service android.hardware.audio.service-aidl 2>/dev/null); do
@@ -179,7 +223,7 @@ ll_tick_locked() {
     local f t p group priority result
     LL_OK=0; LL_FAIL=0; LL_HOK=0; LL_AOK=0; LL_POK=0; LL_PACKAGES=""
     ll_read_config || { ll_restore_all; ll_state error invalid_config; return 1; }
-    # 自愈：pause 由已退出的进程留下（被打断的 apply）时清除，避免永久 suspended
+    # 自愈：pause 由已退出的进程留下（被打断的写入）时清除，避免永久 suspended
     if [ -f "$LLROOT/pause" ]; then
         local owner; owner=$(cat "$LLROOT/pause" 2>/dev/null)
         case "$owner" in
@@ -187,7 +231,7 @@ ll_tick_locked() {
             *) kill -0 "$owner" 2>/dev/null || { rm -f "$LLROOT/pause"; echo "heal stale_pause owner=$owner" >> "$LLROOT/details.log"; } ;;
         esac
     fi
-    if [ "$LL_ENABLED" != 1 ] || [ "$(cat "$STATE/applied" 2>/dev/null)" != native ] || [ -f "$LLROOT/pause" ]; then
+    if [ "$LL_ENABLED" != 1 ] || [ -f "$LLROOT/pause" ]; then
         : > "$LLROOT/details"
         ll_restore_all || { ll_state error restore_failed; return 1; }
         if [ "$LL_ENABLED" = 1 ]; then ll_state suspended; else ll_state off; fi
@@ -224,7 +268,7 @@ ll_tick_locked() {
 }
 ll_pause() {
     ll_init || return 1
-    # 记录持有者 pid：被打断的 apply 留下的 pause 可由巡检自愈
+    # 记录持有者 pid：被打断的写入留下的 pause 可由巡检自愈
     printf '%s\n' "$$" > "$LLROOT/pause"
     ll_lock || { echo error=scheduler_busy_try_again; return 1; }
     if ! ll_restore_all; then ll_unlock; echo error=scheduler_restore_failed; return 1; fi
@@ -263,16 +307,21 @@ ll_daemon() {
     done
 }
 ll_save() {
-    ll_valid "$@" || { echo error=invalid_lowlat_parameters; return 1; }
-    [ "$(cat "$STATE/applied")" = native ] || { echo error=select_native_first; return 1; }
+    # 4 个参数：enabled hal audio app。白名单由 wl-add/wl-del 单独维护，这里原样保留。
+    [ "$#" = 4 ] || { echo error=invalid_lowlat_parameters; return 1; }
+    [ "$(cat "$STATE/applied" 2>/dev/null)" = native ] || [ ! -f "$STATE/applied" ] || { echo error=select_native_first; return 1; }
     ll_init || return 1
+    _saved_white=$(ll_white_current)
+    ll_valid "$1" 1 "$2" "$3" "$4" "${_saved_white:--}" || { echo error=invalid_lowlat_parameters; return 1; }
     [ "$1" = 0 ] || ll_ensure_daemon || return 1
     ll_lock || { echo error=scheduler_busy_try_again; return 1; }
-
-
     {
-        echo "enabled=$1"; echo "hal_priority=$2"
-        echo "audio_priority=$3"; echo "app_priority=$4"
+        echo "enabled=$1"
+        echo "only_whitelist=1"
+        echo "hal_priority=$2"
+        echo "audio_priority=$3"
+        echo "app_priority=$4"
+        echo "whitelist=$_saved_white"
         echo "revision=$(date +%s)-$$"
     } > "$MODDIR/lowlat.conf.new"
     if ! mv "$MODDIR/lowlat.conf.new" "$MODDIR/lowlat.conf"; then ll_unlock; return 1; fi
@@ -282,12 +331,16 @@ ll_save() {
     ll_unlock
     echo saved=1
     cat "$LLROOT/status"
-    echo '设置已保存；仅标为 verified 的线程已通过内核状态回读。等待状态请启动游戏并播放声音。'
+    echo '设置已保存；仅标为 verified 的线程已通过内核状态回读。名单为空时不会改动任何系统线程。'
     return "$rc"
 }
 ll_status() {
-    ll_read_config || return 1
-    printf 'enabled=%s\nhal_priority=%s\naudio_priority=%s\napp_priority=%s\nrevision=%s\n' "$LL_ENABLED" "$LL_HAL" "$LL_AUDIO" "$LL_APP" "$LL_REV"
+    if ! ll_read_config; then
+        echo error=invalid_lowlat_config
+        return 1
+    fi
+    printf 'enabled=%s\nonly_whitelist=%s\nhal_priority=%s\naudio_priority=%s\napp_priority=%s\nwhitelist=%s\nrevision=%s\n' \
+        "$LL_ENABLED" "$LL_ONLY" "$LL_HAL" "$LL_AUDIO" "$LL_APP" "$LL_WHITE" "$LL_REV"
     echo "ll_daemon=$(ll_alive && echo running || echo offline)"
     local beat now
     beat=$(cat "$LLROOT/heartbeat" 2>/dev/null); now=$(date +%s)

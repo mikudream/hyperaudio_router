@@ -1,10 +1,9 @@
-/* router-ui.js —— 应用版"按应用"页面
+/* router-ui.js —— 两个名单的页面（音效 / 低延迟）
  *
- * 独立实现，不依赖 v3.0 的 app.js：
+ * 独立实现，不依赖 app.js：
  *   · 导航由 ui.js 统一管理（本文件只负责页面内容）
  *   · 通过 bin/webui.sh 的 rc=N|base64 契约取数据、做增删
- * 之所以独立：v3.0 的 app.js 与它自己的后端强绑定，改它风险高；
- * 而页面级功能用独立脚本接入最稳。
+ *   · 名单互斥由 router.sh 保证：加入一边会自动从另一边移出，并回显 moved_from=
  */
 (function () {
   'use strict';
@@ -107,14 +106,23 @@
 
   var state = { perapp: [], wl: [] };
 
+  function movedHint(kv) {
+    if (kv['moved_from'] === 'lowlat') return '已从低延迟名单移出';
+    if (kv['moved_from'] === 'sound') return '已从音效名单移出';
+    return '';
+  }
+
   function refresh() {
     return call('router-status').then(function (r) {
       var m = parseKV(r.text);
       state.perapp = listOf(m['perapp_apps']);
       state.wl = listOf(m['wl_apps']);
 
-      setCount('perapp-count', state.perapp.length);
+      setCount('soundCount', state.perapp.length);
       setCount('wl-count', state.wl.length);
+
+      var toggle = $('perapp-enable');
+      if (toggle) toggle.checked = m['perapp_enabled'] === '1';
 
       var st = $('perapp-state');
       if (st) {
@@ -154,7 +162,8 @@
           return;
         }
         input.value = '';
-        toast('已添加');
+        var hint = movedHint(parseKV(x.text));
+        toast(hint ? ('已添加，' + hint) : '已添加');
         refresh();
       });
     }
@@ -164,11 +173,29 @@
     });
   }
 
+  function bindToggle() {
+    var toggle = $('perapp-enable');
+    if (!toggle) return;
+    toggle.addEventListener('change', function () {
+      var want = toggle.checked ? '1' : '0';
+      toggle.disabled = true;
+      call('perapp-enable ' + want).then(function (x) {
+        toggle.disabled = false;
+        if (x.rc !== 0 || /error=/.test(x.text)) {
+          toggle.checked = !toggle.checked;
+          toast('切换失败，请稍后重试');
+          return;
+        }
+        toast(toggle.checked ? '音效链路已开启' : '音效链路已关闭，所有应用保持系统默认');
+      });
+    });
+  }
 
   function init() {
     try {
       bindAdder('perapp-input', 'perapp-add', 'perapp-add');
       bindAdder('wl-input', 'wl-add', 'wl-add');
+      bindToggle();
     } catch (e) { }
     refresh();
     setInterval(refresh, 5000);

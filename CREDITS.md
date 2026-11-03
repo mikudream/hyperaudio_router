@@ -79,50 +79,18 @@ Rust 守护进程 `hyper-audio`。
 
 ## 借鉴与参考
 
-### HyperAudio Switch 的 `patch_ports.awk`
+本分支（应用版）**不再改写端口配置、不替换 AAudio 库、也不提供全局音效模式**，
+因此 2.0/3.0 的 `patch_ports.awk`、`audio_ready.sh`、`check_audio_ready.awk`
+及其事务/挂载/回滚机制已从本分支移除；这些做法仍保留在通用版（`main` 分支）中。
 
-本模块 `bin/patch_ports.awk` **移植自 [HyperAudio Switch](https://github.com/2278535805/HyperAudio)**
-（模块 ID `hyperaudio_compat`；2.0 署名 HLMC离开、月见里幽瞳、海希安的城主、ChatGPT 6 Astra，
-3.0 起由 月见里幽瞳 / 海希安的城主 维护）中的同名文件，
-并已在其基础上删去与本模块无关的 `compat` 模式语义、保留 3.0 新增的 `report_flags` 模式。
-该文件是一个**有界 XML 起始标签编辑器**：只改写 `low_latency_out` / `raw_out` 两个 output
-端口的 `flags` 属性，其余字节保持不变；遇到不支持的构造（DOCTYPE、未闭合注释/属性、
-端口缺失或重复、未知 flag 组合、已被改过的配置）一律 fail-closed（非零退出且不产生任何输出）。
+按应用路由的两条链路分别继承自：
 
-### 音频就绪校验（HyperAudio Switch 3.0）
-
-本模块的 `bin/audio_ready.sh` 与 `bin/check_audio_ready.awk` **移植自 HyperAudio Switch 3.0**
-（`bin/audio_ready.sh`、`bin/check_audio_ready.awk`）的同名实现。它们解决的是同一个真问题：
-重启音频服务后，**进程换了不等于配置被加载了** —— 策略还没读、主输出还没建、HAL 缓冲还没填。
-原实现的做法是：轮询 `dumpsys media.audio_policy` / `media.audio_flinger`，要求
-「同一 PID + 同一观测签名连续 3 次」才判定就绪，并把 dumpsys 里**实际加载的端口 flags**
-与按配置推导出的位掩码比对（`AUDIO_OUTPUT_FLAG_PRIMARY=0x2`、`FAST=0x4`、`RAW=0x100`）。
-
-本模块的改动（均在文件头注明）：
-
-- 模式名沿用 `sound` / `fast`（原版是 `native` / `compat` / `sound`）
-- 重启沿用本模块的 `killall audioserver`（原版用 `setprop ctl.restart audioserver`）
-- **区分「证明错了」与「无法验证」**：只有「加载的 flags 与预期确实不符」或
-  「音频服务根本没起来」才回滚；dumpsys 读不到、输出格式认不出、等待超时只记
-  `unverified` 并保留用户的模式选择，不清空、不回滚
-- 校验器增加 `policy_format_unrecognized` 原因，避免在 dumpsys 格式不同的机型上误判为故障
-- 兼容两种 dumpsys 布局（`; "primary"` 与 Handle 同行、或单独一行）
-
-### 其它参考到的设计思路
-
-以下为**思路**层面的参考，本模块按自身结构独立实现：
-
-| 设计 | 来源 | 本模块的实现 |
+| 链路 | 来源 | 本分支的实现 |
 |---|---|---|
-| 端口补丁"改自己的副本再 bind mount"、**不先 umount** | HyperAudio Switch 2.0 | `bin/runtime.sh` 的 `prepare_patch` / `install_patch` |
-| 事务标记 + 应用失败回滚到原始配置 | 同上 | `state/pending` + `apply_mode` 的失败分支 |
-| 开机护栏（上次未收尾则强制原始配置、不自动重试） | 同上 | `bin/runtime.sh` 的 `boot_run` |
-| 挂载所有权用 `dev:ino` 与 mountinfo **证明**而非信任标记 | 同上 | `mount_is_ours` / `remove_our_mount` |
-| 重启音频服务后验证框架真的加载了配置 | HyperAudio Switch 3.0 | `bin/audio_ready.sh` |
+| 进程内 hook：剥掉 `FAST\|PRIMARY`，使音轨回落普通混音轨 | DolbyRouter 的 zygisk 负载 | `zygisk/arm64-v8a.so`（按本机 `mFlags` 偏移重定位）+ `router.sh` 双写 `perapp.conf` |
+| 逐线程 `chrt` 提优先级、journal 记录原策略并精确还原 | 通用版 2.x 的 `lowlat.sh` | `bin/lowlat.sh`，并加回"只处理名单内应用"的白名单过滤 |
 
-**未采用** 2.0/3.0 的以下做法（有意取舍，详见 `README.md`）：
-`setprop ctl.restart audioserver`（本机实测会让调音失效）、
-运行时改写 `aaudio.*` 属性、替换 AAudio 库、以及每 5 秒 `dumpsys` 的常驻巡检调度。
+调音模块检测（`detect_tuning`）与诊断采集（`diagnostics.sh` / `sampling.sh`）沿用通用版实现。
 
 > 说明：双方互不隶属。2.0 是在本项目的 0.4.x 基础上继续演进的分支
 > （其 `docs/UPSTREAM_CREDITS.md` 收录了本项目的来源记录）；

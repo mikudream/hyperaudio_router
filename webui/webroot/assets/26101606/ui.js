@@ -1,17 +1,16 @@
 "use strict";
 // Page scroll positions and title presentation are independent of audio state.
 window.HAUI = (() => {
-  const pages=['mode','settings','apps','about'];
+  const pages=['sound','lowlat','settings','about'];
   const views=[...pages,'debug'];
-  const titles={mode:'HyperAudio Switch',settings:'设置',apps:'应用',about:'关于',debug:'Debug'};
+  const titles={sound:'音效',lowlat:'低延迟',settings:'设置',about:'关于',debug:'Debug'};
   const root=document.documentElement;
   const large=document.getElementById('pageTitle');
   const compact=document.getElementById('compactTitle');
-  const subtitle=document.getElementById('sub');
   const bar=document.getElementById('titleBar');
   const nav=document.querySelector('.bottom-nav');
-  let current='mode';
-  const positions={mode:0,settings:0,apps:0,about:0,debug:0};
+  let current='sound';
+  const positions={sound:0,lowlat:0,settings:0,about:0,debug:0};
   let pendingFrame=0;
   let navFrame=0;
   function measureNavigation() {
@@ -54,7 +53,6 @@ window.HAUI = (() => {
     });
     large.textContent=titles[page];
     compact.textContent=titles[page];
-    subtitle.hidden=page!=='mode';
     root.style.setProperty('--ha-nav-index',String(pages.indexOf(navPage)));
     root.dataset.subpage=String(page==='about');
     document.getElementById('btn-about-back').hidden=true;

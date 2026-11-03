@@ -15,8 +15,8 @@
 #              (system.prop base properties come from upstream HyperAudio)
 #   webui/     this project's WebUI and on-device scripts
 #   prebuilt/  upstream prebuilt artifacts, kept as-is (cannot be rebuilt):
-#              hyper-audio / libaaudio_internal.so / libaaudio_internal_builder.so
-#              config.toml / META-INF installer entry
+#              META-INF installer entry
+#   zygisk/    per-app payload (hook AudioTrack::createTrack_l)
 #   CREDITS.md attribution (shipped inside the module)
 #
 # Build steps:
@@ -52,7 +52,7 @@ Write-Output "== 1. stage module tree =="
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
 
-foreach ($f in @('module.prop','customize.sh','post-fs-data.sh','service.sh','system.prop','sound.conf','lowlat.conf','boot.conf')) {
+foreach ($f in @('module.prop','customize.sh','post-fs-data.sh','service.sh','system.prop','lowlat.conf')) {
   Copy-Item (Join-Path $root "assets\$f") $stage -Force
 }
 Copy-Item (Join-Path $root 'CREDITS.md') $stage -Force
@@ -61,25 +61,16 @@ New-Item -ItemType Directory -Force -Path (Join-Path $stage 'webroot') | Out-Nul
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'webui')   | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'bin')     | Out-Null
 Copy-Item (Join-Path $root 'webui\webroot\*') (Join-Path $stage 'webroot') -Recurse -Force
-# action.sh / uninstall.sh must sit at the module root: the KernelSU / Magisk
-# "action" button and the uninstall hook both look for them there.
-  # This build ships no action button: fixed low-latency plus per-app sound, no mode to cycle.
+# uninstall.sh must sit at the module root: the manager's uninstall hook looks for it there.
+  # This build ships no action button: there is no mode to cycle, only two app lists.
   Copy-Item (Join-Path $root 'assets\uninstall.sh') $stage -Force
-  Copy-Item (Join-Path $root 'assets\action.sh') $stage -Force
 foreach ($f in (Get-ChildItem (Join-Path $root 'webui\bin') -File | ForEach-Object { $_.Name })) {
   Copy-Item (Join-Path $root "webui\bin\$f") (Join-Path $stage 'bin') -Force
 }
 
-# Legacy payloads (hyper-audio daemon, config.toml) are unused by the v3 backend.
-# Legacy payloads (hyper-audio daemon, config.toml) are no longer packaged:
-# the v3 backend never references them.
-[System.IO.Directory]::CreateDirectory((Join-Path $stage 'system\lib64')) | Out-Null
-$libDir = Join-Path $stage 'system\lib64'
-foreach ($so in @('libaaudio_internal.so','libaaudio_internal_builder.so')) {
-  $srcSo = Join-Path $root ("prebuilt\" + $so)
-  [System.IO.File]::Copy($srcSo, (Join-Path $libDir $so), $true)
-}
-[System.IO.Directory]::CreateDirectory((Join-Path $stage 'zygisk')) | Out-Null
+# Legacy payloads (hyper-audio daemon, config.toml, libaaudio replacements) are
+# not packaged: the per-app build never replaces system libraries or ports.
+New-Item -ItemType Directory -Force -Path (Join-Path $stage 'zygisk') | Out-Null
   # Per-app build: zygiskd loads <module>/zygisk/<abi>.so, so it must sit at the module root.
   foreach ($z in @('arm64-v8a.so','abi.h.patch','patch_mflags_offset.py')) {
     $src = Join-Path $root ('zygisk\' + $z)
@@ -114,15 +105,12 @@ foreach ($f in $forbidden) {
 # aborts the build, so extra/.xml/.json payloads or stray notes cannot ship.
 $allowed = @(
   '^module\.prop$','^customize\.sh$','^post-fs-data\.sh$','^service\.sh$','^system\.prop$','^uninstall\.sh$',
-  '^CREDITS\.md$','^config\.toml$','^hyper-audio$','^mode$',
+  '^CREDITS\.md$',
   '^META-INF/com/google/android/update-binary$','^META-INF/com/google/android/updater-script$',
     '^bin/[A-Za-z0-9_]+\.(sh|awk)$',
-  '^system/lib64/libaaudio_internal(_builder)?\.so$',
   '^zygisk/arm64-v8a\.so$','^zygisk/(abi\.h\.patch|patch_mflags_offset\.py)$',
-  '^webui/helper\.sh$',
   '^webroot/.+$',
-  '^(sound|lowlat|boot)\.conf$',
-  '^action\.sh$'
+  '^lowlat\.conf$'
 )
 foreach ($f in [System.IO.Directory]::EnumerateFiles($stage, '*', [System.IO.SearchOption]::AllDirectories)) {
   $rel = $f.Substring($stage.Length).TrimStart('\','/').Replace('\','/')
