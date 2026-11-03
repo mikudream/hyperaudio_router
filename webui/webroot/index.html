@@ -120,7 +120,6 @@ The About page retains copyright notices and all three complete licenses.
     <p class="section-note" id="soundRecoveryHint" hidden>当前处于原生模式，保存的设置会在切换到音效模式时生效。</p>
   </section>
 
-  <div class="section-title"><h2>音效信息</h2></div>
   <section class="card preference-card">
     <details class="inline-details mode-help"><summary><span>模式说明</span><span class="chevron" aria-hidden="true"></span></summary>
       <div class="detail-content"><p>原生模式使用系统原有的播放方式，可按需开启低延迟调度，优先处理正在播放的音频。</p><p>音效模式尝试让更多游戏和应用使用系统或调音模块提供的音效。杜比和低音炮是否起效仍取决于应用及当前调音。音效模式下低延迟调度暂停。</p><p>切换无需重启手机。切换后请强行停止并重新打开游戏；遇到电流声、破音或无声，请切回原生模式。</p><p>开机时使用已保存的设置。“恢复默认”会关闭当前自定义功能，并重置这一组参数，开机模式不变。</p></div>
@@ -129,6 +128,27 @@ The About page retains copyright notices and all three complete licenses.
 </div>
 
 <div class="page" id="page-settings" role="tabpanel" aria-labelledby="nav-settings" hidden>
+  <div class="section-title"><h2>音效与调音</h2></div>
+  <section class="card preference-card" id="tuning-card">
+    <div class="row"><span class="copy"><b>当前模式</b></span><span class="value" id="currentMode">正在读取</span></div>
+    <div class="card-content sources-content"><h3>已启用的调音模块</h3><div id="tuning-src" class="source-list">正在检测…</div><p class="hint">这里只显示检测到的调音模块，实际音效请以播放效果为准。</p></div>
+  </section>
+
+  <div class="section-title"><h2>开机设置</h2><span class="section-value" id="bootSaved">正在读取</span></div>
+  <section class="card preference-card">
+    <div class="row select-row"><span class="copy"><b>下次开机进入</b></span><select id="boot-mode" data-select-label="下次开机进入" data-select-style="compact" hidden aria-hidden="true" tabindex="-1"><option value="native">原生模式</option><option value="sound">音效模式</option></select></div>
+    <div class="card-content"><p class="hint" id="bootDesc">开机时使用已保存的设置。</p><button class="btn primary full" id="btn-boot-save">保存开机设置</button></div>
+  </section>
+  <p class="section-note">下次开机生效，当前模式不变。</p>
+  <p class="notice warning" id="bootWarning" hidden>部分游戏可能出现电流声、破音或无声，遇到这些问题请切回原生模式。</p>
+  <p class="notice warning" id="bootGuard" hidden></p>
+
+  <div class="section-title"><h2>恢复选项</h2></div>
+  <section class="card preference-card">
+    <button class="row link-row recovery-row" id="btn-native"><span class="copy"><b>恢复原生配置</b><small>恢复原生模式，关闭低延迟，开机也使用原生模式</small></span><span class="chevron" aria-hidden="true"></span></button>
+  </section>
+  <p class="section-note">已保存的参数和应用白名单会保留。</p>
+
   <div class="section-title"><h2>界面与底栏</h2></div>
   <section class="card preference-card appearance-card" id="appearance-card">
     <div class="row select-row">
@@ -156,26 +176,6 @@ The About page retains copyright notices and all three complete licenses.
     </div>
   </section>
   <p class="section-note appearance-footnote">外观即时切换，声音设置保持不变。</p>
-  <div class="section-title"><h2>开机设置</h2><span class="section-value" id="bootSaved">正在读取</span></div>
-  <section class="card preference-card">
-    <div class="row select-row"><span class="copy"><b>下次开机进入</b></span><select id="boot-mode" data-select-label="下次开机进入" data-select-style="compact" hidden aria-hidden="true" tabindex="-1"><option value="native">原生模式</option><option value="sound">音效模式</option></select></div>
-    <div class="card-content"><p class="hint" id="bootDesc">开机时使用已保存的设置。</p><button class="btn primary full" id="btn-boot-save">保存开机设置</button></div>
-  </section>
-  <p class="section-note">下次开机生效，当前模式不变。</p>
-  <p class="notice warning" id="bootWarning" hidden>部分游戏可能出现电流声、破音或无声，遇到这些问题请切回原生模式。</p>
-  <p class="notice warning" id="bootGuard" hidden></p>
-
-  <div class="section-title"><h2>音效与调音</h2></div>
-  <section class="card preference-card" id="tuning-card">
-    <div class="row"><span class="copy"><b>当前模式</b></span><span class="value" id="currentMode">正在读取</span></div>
-    <div class="card-content sources-content"><h3>已启用的调音模块</h3><div id="tuning-src" class="source-list">正在检测…</div><p class="hint">这里只显示检测到的调音模块，实际音效请以播放效果为准。</p></div>
-  </section>
-
-  <div class="section-title"><h2>恢复选项</h2></div>
-  <section class="card preference-card">
-    <button class="row link-row recovery-row" id="btn-native"><span class="copy"><b>恢复原生配置</b><small>恢复原生模式，关闭低延迟，开机也使用原生模式</small></span><span class="chevron" aria-hidden="true"></span></button>
-  </section>
-  <p class="section-note">已保存的参数和应用白名单会保留。</p>
 </div>
 
 
