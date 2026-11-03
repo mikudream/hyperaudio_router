@@ -59,7 +59,7 @@ boot_run() {
     if ! ll_pause; then
         boot_mark_failure startup_scheduler_failed
         boot_finish failed
-            update_description native
+        update_description native
         return 1
     fi
     if ! apply_mode "$target"; then
@@ -67,12 +67,12 @@ boot_run() {
         # if rollback cannot finish; never loop over a failing audio route.
         boot_mark_failure startup_apply_failed
         boot_finish failed
-            update_description native
+        update_description native
         return 1
     fi
     if [ "$guarded" = 1 ]; then
         boot_finish guarded_native || return 1
-            update_description native
+        update_description native
         echo 'boot_fallback=native (saved low-latency configuration retained; scheduling paused)'
     else
           # Preserve enabled and priorities byte for byte. The existing

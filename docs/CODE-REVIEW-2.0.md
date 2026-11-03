@@ -196,3 +196,61 @@ verified tid=28954 group=audio requested=16 actual=FIFO/16
 
 - `audio_ready_check=unverified`：就绪判定依赖重启后的框架回读证据，本次未取得
 - `disable_mmap` 的真实效果（属性 2→1 已确认写入，但是否真的减少了 MMAP 通路未验证）
+
+## 8. 第二轮审查（2026-11-03 晚，真机可用后）
+
+### 8.1 修复：参数个数非法时前端拿不到可解析输出
+
+`webui.sh` 的参数校验有多处是**静默退出**：
+
+```sh
+[ "$#" = 5 ] || exit 1        # 不打任何输出
+```
+
+前端 `call()` 拿到空串后只能抛「返回格式异常」，用户看到的是无意义的报错。
+已统一改为先打印 `rc=1|YmFkX2NvbW1hbmQ=` 再退出，覆盖：
+
+- `fonts` 参数个数
+- `sound-save` 参数个数
+- `ll-save` 参数个数
+- 兜底的「读取类动作不接受多余参数」
+
+真机验证：
+
+```
+ll-save 1 20              -> rc=1|YmFkX2NvbW1hbmQ=
+sound-save 1              -> rc=1|YmFkX2NvbW1hbmQ=
+status extra arg here     -> rc=1|YmFkX2NvbW1hbmQ=
+fonts a b                 -> rc=1|YmFkX2NvbW1hbmQ=
+```
+
+### 8.2 修复：开机失败分支的描述同步位置
+
+`boot.sh` 里三处 `update_description native` 原本写在 `boot_finish ...` **之后**，
+而 `boot_finish` 失败时会 `return`，导致描述停留在切换前的模式。已移到其前面。
+
+### 8.3 契约核对（无问题）
+
+`ha.sh` 支持 25 个动作；`webui.sh` 放行其中 20 个（含带参数的 `debug-analyze`
+`sound-save` `ll-save` `schedule-diagnose`）。未放行的五个是内部动作：
+
+```
+cycle  boot  rt-daemon  diag-daemon  diagnose-target
+```
+
+它们只由 `service.sh` / `action.sh` / 调度器调用，UI 不应触发——符合设计。
+
+### 8.4 观察（未改）
+
+| 现象 | 评估 |
+|---|---|
+| 低延迟关闭后守护进程仍在跑（5 秒心跳 + 写状态） | 无害，仅少量 I/O；如需省电可在 enabled=0 时退出循环 |
+| `apply` 每次都重写 `module.prop` 的 description | 原子写、频率低，可接受 |
+| `ll_status` 输出里 `ll_state` 可能出现两次 | 第二次来自 `proof` 段（上次已验证的快照），UI 在 `proof_begin` 处截断，不受影响 |
+| `boot_finish guarded_native` 失败时仍跳过描述同步 | 该分支几乎不可达，暂不处理 |
+
+### 8.5 校验
+
+```
+构建 75 项 / 主机测试 11 节 / 设备：正常调用 rc=0、非法参数 rc=1|bad_command
+```
