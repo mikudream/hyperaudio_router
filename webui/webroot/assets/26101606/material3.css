@@ -92,6 +92,9 @@
 :root[data-ui-style="md3"] .parameter-note,
 :root[data-ui-style="md3"] .detail-content {font-size:14px;line-height:20px;}
 :root[data-ui-style="md3"] .section-note {margin:10px 0 0;}
+:root[data-ui-style="md3"] .preference-card>.hint {margin:16px 16px 0;}
+:root[data-ui-style="md3"] .preference-card>.section-note {margin:10px 16px 0;}
+:root[data-ui-style="md3"] .preference-card>.section-title {margin:18px 16px 10px;}
 :root[data-ui-style="md3"] .parameter-note {margin:12px 16px 0;}
 :root[data-ui-style="md3"] .notice {padding:16px;border-radius:12px;font-size:14px;line-height:20px;gap:12px;margin-top:16px;}
 :root[data-ui-style="md3"] .pill {font-size:12px;line-height:16px;padding:5px 10px;border-radius:8px;background:var(--md-secondary-container);color:var(--md-on-secondary-container);}
@@ -99,6 +102,7 @@
 :root[data-ui-style="md3"] .inline-details summary {min-height:56px;font-size:16px;line-height:24px;padding:16px;}
 :root[data-ui-style="md3"] .detail-content {padding:0 16px 16px;}
 :root[data-ui-style="md3"] .number-input {border-radius:4px 4px 0 0;border-bottom:1px solid var(--md-on-surface-variant);font-size:16px;line-height:24px;font-weight:400;}
+:root[data-ui-style="md3"] .field,
 :root[data-ui-style="md3"] .target-input,
 :root[data-ui-style="md3"] .select-popup {padding:8px 0;border-radius:4px;background:var(--md-surface-high);box-shadow:0 3px 10px #0003,0 2px 4px #0002;}
 :root[data-ui-style="md3"] .select-popup::backdrop {background:transparent;}

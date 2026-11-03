@@ -5,6 +5,7 @@ window.HAUI = (() => {
   const views=[...pages,'debug'];
   const titles={sound:'HyperAudioRouter',lowlat:'低延迟',settings:'设置',about:'关于',debug:'Debug'};
   const root=document.documentElement;
+  root.style.setProperty('--ha-nav-count',String(pages.length));
   const large=document.getElementById('pageTitle');
   const compact=document.getElementById('compactTitle');
   const bar=document.getElementById('titleBar');

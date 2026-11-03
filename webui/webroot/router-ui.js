@@ -129,7 +129,7 @@
         var payload = m['perapp_payload'] === '1';
         var comp = m['perapp_companion'] === '1';
         st.textContent = (payload && comp) ? '已注入' : (payload ? '负载就绪，进程未启动' : '未内置');
-        st.className = (payload && comp) ? 'ok' : 'bad';
+        st.className = 'value ' + ((payload && comp) ? 'ok' : 'bad');
       }
 
       renderBox('perapp-list', state.perapp, function (p) {

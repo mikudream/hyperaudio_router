@@ -2,6 +2,9 @@
 // Entirely local visual preferences; no root or host layout commands.
 (() => {
   const root=document.documentElement,nav=document.querySelector('.bottom-nav'),positionFrame=document.querySelector('.nav-indicator'),lens=positionFrame.querySelector('.nav-lens'),shell=nav.querySelector('.nav-glass-shell');
+  // 导航项数量由 DOM 决定：指示器宽度、位置换算和拖拽上限都必须跟着它走，
+  // 不能写死 3（原来 4 个 tab 时会错位、最后一个 tab 拖不过去）。
+  const navCount=Math.max(1,nav.querySelectorAll('.nav-item').length);
   const material=document.getElementById('glass-material'),strength=document.getElementById('glass-strength');
   const key='hyperaudio.liquid-test1';
   const frames=window.HANavFrames;
@@ -22,7 +25,7 @@
     angle:-32,angleTarget:-32,angleVelocity:0,shineX:.45,shineXTarget:.45,shineXVelocity:0,
     shineY:.12,shineYTarget:.12,shineYVelocity:0,pace:0,paceTarget:0,paceVelocity:0,
     dragVelocity:0,lastSampleTime:0,lastSamplePosition:0,lastInput:0,hitX:.5,hitY:.35};
-  function selected(){return Math.max(0,Math.min(2,parseFloat(root.style.getPropertyValue('--ha-nav-index'))||0));}
+  function selected(){return Math.max(0,Math.min(navCount-1,parseFloat(root.style.getPropertyValue('--ha-nav-index'))||0));}
   const clamp=(a,b,v)=>Math.max(a,Math.min(b,v));
   function paintMotion(){
     put('--glass-activity',clamp(0,1,(motion.scale-1)/.30).toFixed(5));
@@ -79,7 +82,7 @@
       if(Math.abs(motion[target]-motion[value])<tolerance&&Math.abs(motion[velocity])<tolerance*10){motion[value]=motion[target];motion[velocity]=0;}
       if(motion[value]!==motion[target]||motion[velocity]!==0)moving=true;
     }
-    motion.scale=clamp(.99,1.36,motion.scale);motion.position=clamp(0,2,motion.position);paintMotion();
+    motion.scale=clamp(.99,1.36,motion.scale);motion.position=clamp(0,navCount-1,motion.position);paintMotion();
     if(moving||Math.abs(motion.dragVelocity)>.004)motion.frame=scheduleMotion();else motion.time=0;
   }
   function animate(scale=motion.scaleTarget){

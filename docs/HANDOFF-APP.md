@@ -1,7 +1,7 @@
 # HyperAudioRouter 交接说明
 
 > 写给接手这个分支的下一个会话。读完这份再动手，可以少走很多弯路。
-> 最后更新：2026-11-03，工作区已迁至 `D:\DSH\HyperAudioRouter`（`router/v2`，v2.2.1 重构）
+> 最后更新：2026-11-03，工作区已迁至 `D:\DSH\HyperAudioRouter`（`router/v2`，v2.2.2 WebUI 修复）
 
 ---
 
@@ -106,6 +106,16 @@ diagnose / schedule-diagnose / diag-status / debug-*
 ---
 
 ## 5. 2.2.0 做了什么（相对 2.1.0）
+
+**2.2.2（WebUI 修复，实机反馈）**
+
+- 底栏蓝色指示器宽度写死 `/3`、liquid 引擎把位置 clamp 到 2：按实际 tab 数
+  （4）计算宽度与上限，`--ha-nav-count` 由 `ui.js` 写入
+- 包名输入框用的 `.field` 类在 CSS 中不存在：补齐与 `.target-input` 同级的样式
+- 卡内 `.hint` / `.section-note` / `.section-title` 没有内边距（文字贴边）：
+  统一为 20px，并补 Material 3 的 16px 覆盖
+- `名单为空` 的 `.empty` 没有样式：补齐内边距，并给列表行加分隔线
+- 注入状态补 `.value` 右对齐与成功/异常颜色
 
 **2.2.1（本次）**
 
