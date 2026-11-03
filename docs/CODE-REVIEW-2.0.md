@@ -138,3 +138,61 @@ disable_mmap() {
 | 包内 `whitelist` 字样 | 无 |
 | 包内 `hyper-audio` / `config.toml` | 无（本次移除） |
 | 构建条目 | 76 项 |
+
+## 7. 真机验证结果（2026-11-03，Android 17 / KSU-Next）
+
+安装方式：`ksud module install` → 重启生效。以下均为设备实测输出。
+
+### 7.1 首轮发现的致命缺陷（已修）
+
+`runtime.sh` 第 168 行有一处针对"旧版模块并存"的拦截：
+
+```sh
+[ -d /data/adb/modules/hyperaudio ] && { err old_hyperaudio_still_installed; return 1; }
+```
+
+v3.0 原本检查的是旧 id（`hyperaudio_compat`）。把模块 id 统一为 `hyperaudio` 后，
+这条检查**指向模块自身**，于是每次 `apply` 都直接失败：开机日志报
+`error=old_hyperaudio_still_installed`，`boot_guard=startup_apply_failed`、
+`boot_result=failed`，音效模式完全不可用。
+
+已删除该检查。修复后开机：`boot_guard=none`、`boot_result=native`、`ok=1`。
+
+### 7.2 模式切换（实测通过）
+
+| 阶段 | low_latency_out | raw_out | MMAP 属性 |
+|---|---|---|---|
+| 原生 | 0x0006 (PRIMARY+FAST) | 0x0104 (FAST+RAW) | 2 / 2 |
+| 音效 | 0x0002 (PRIMARY) | 0x0000 (NONE) | 1 / 1 |
+| 切回原生 | 0x0006 | 0x0104 | 2 / 2（已还原） |
+
+`state/owned` 在切回原生后被清理，bind 挂载无残留。
+
+### 7.3 低延迟调度（实测通过）
+
+开启（`ll-save 1 20 16 15`）后播放网易云音乐：
+
+```
+ll_state=verified  ll_verified=14  ll_failed=0
+ll_hal=1  ll_audio=10  ll_app=3   ll_packages=com.netease.cloudmusic
+verified tid=30265 group=hal   requested=20 actual=FIFO/20
+verified tid=31885 group=app   requested=15 actual=FIFO/15
+verified tid=28954 group=audio requested=16 actual=FIFO/16
+```
+
+关闭后 `owned` 归零、`DAP_offloadV3` 回到 `SCHED_OTHER`，还原路径干净。
+（`FastMixer` / `AudioOut_D` 仍为 FIFO，那是 AudioFlinger 自设的实时线程，本模块未争抢。）
+
+### 7.4 由此发现并修复的第二个问题
+
+初版 `ll_hal=0`：本机 HAL 线程名统一是 `audiohalservice`，不含端口名，
+因此原有 `low_latency*|raw_out*|mmap_no_irq*|deep_buffer*` 规则一个都匹配不到。
+实际承担播放的是 `DAP_offloadV3`（杜比 offload 线程）。
+
+已把 `AudioOut_*|AudioIn_*|out_*|agm_*|DAP*` 纳入 HAL 组匹配。修复后 `ll_hal=1`，
+`DAP_offloadV3` 被提到 `FIFO/20`。
+
+### 7.5 仍未验证
+
+- `audio_ready_check=unverified`：就绪判定依赖重启后的框架回读证据，本次未取得
+- `disable_mmap` 的真实效果（属性 2→1 已确认写入，但是否真的减少了 MMAP 通路未验证）

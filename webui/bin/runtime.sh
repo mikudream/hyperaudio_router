@@ -165,7 +165,6 @@ apply_mode() {
         sound_effective
         log "sound apply request; mmap=$SOUND_E_MMAP fast_low=$SOUND_E_FAST fast_raw=$SOUND_E_FAST_RAW raw=$SOUND_E_RAW"
     fi
-    [ -d /data/adb/modules/hyperaudio ] && { err old_hyperaudio_still_installed; return 1; }
     find_resetprop || { err resetprop_missing; return 1; }
     PREVIOUS=$(cat "$STATE/applied" 2>/dev/null)
     NEED_RESTART=0

@@ -108,7 +108,8 @@ ll_add_threads() {
         IFS= read -r name < "$td/comm" 2>/dev/null || continue
         match=0
         case "$group:$name" in
-          hal:low_latency*|hal:raw_out*|hal:mmap_no_irq*|hal:deep_buffer*) match=1 ;;
+          # 端口名式（AOSP 系）与厂商线程名（AudioOut_*/agm_*/DAP*）都算 HAL 组
+          hal:low_latency*|hal:raw_out*|hal:mmap_no_irq*|hal:deep_buffer*|hal:AudioOut_*|hal:AudioIn_*|hal:out_*|hal:agm_*|hal:DAP*) match=1 ;;
           audio:FastMixer*|audio:AudioOut_*|audio:AudioMix*|audio:AAudio_*) match=1 ;;
           app:AudioTrack*|app:AAudio_*|app:FMOD\ mixer*|app:FMOD\ stream*|app:Audio\ Mixer*|app:UnityAudio*) match=1 ;;
         esac
