@@ -179,6 +179,14 @@ ll_tick_locked() {
     local f t p group priority result
     LL_OK=0; LL_FAIL=0; LL_HOK=0; LL_AOK=0; LL_POK=0; LL_PACKAGES=""
     ll_read_config || { ll_restore_all; ll_state error invalid_config; return 1; }
+    # 自愈：pause 由已退出的进程留下（被打断的 apply）时清除，避免永久 suspended
+    if [ -f "$LLROOT/pause" ]; then
+        local owner; owner=$(cat "$LLROOT/pause" 2>/dev/null)
+        case "$owner" in
+            '') : ;;
+            *) kill -0 "$owner" 2>/dev/null || { rm -f "$LLROOT/pause"; echo "heal stale_pause owner=$owner" >> "$LLROOT/details.log"; } ;;
+        esac
+    fi
     if [ "$LL_ENABLED" != 1 ] || [ "$(cat "$STATE/applied" 2>/dev/null)" != native ] || [ -f "$LLROOT/pause" ]; then
         : > "$LLROOT/details"
         ll_restore_all || { ll_state error restore_failed; return 1; }
@@ -216,7 +224,8 @@ ll_tick_locked() {
 }
 ll_pause() {
     ll_init || return 1
-    touch "$LLROOT/pause"
+    # 记录持有者 pid：被打断的 apply 留下的 pause 可由巡检自愈
+    printf '%s\n' "$$" > "$LLROOT/pause"
     ll_lock || { echo error=scheduler_busy_try_again; return 1; }
     if ! ll_restore_all; then ll_unlock; echo error=scheduler_restore_failed; return 1; fi
     LL_OK=0; LL_FAIL=0; ll_read_config; ll_state suspended
