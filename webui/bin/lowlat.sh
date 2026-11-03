@@ -12,7 +12,7 @@ ll_init() {
     fi
 }
 ll_read_config() {
-    LL_ENABLED=0; LL_HAL=20; LL_AUDIO=16; LL_APP=15; LL_REV=initial
+    LL_ENABLED=1; LL_HAL=20; LL_AUDIO=16; LL_APP=15; LL_REV=initial
     local k v
     while IFS='=' read -r k v; do
         case "$k" in
