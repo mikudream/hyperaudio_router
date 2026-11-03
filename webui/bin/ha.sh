@@ -48,7 +48,7 @@ case "$1" in
     diagnose) run_diagnostics; exit $? ;;
     diag-status) diag_status; exit $? ;;
     tuning) detect_tuning; exit $? ;;
-  router-status|perapp-add|perapp-del|perapp-enable|wl-add|wl-del)
+  router-status|perapp-add|perapp-del|wl-add|wl-del)
     /system/bin/sh "$MODDIR/bin/router.sh" "$@"; exit $? ;;
 esac
 
@@ -71,5 +71,5 @@ case "$1" in
         case "$_p" in ''|*[!0-9]*) ;; *) kill "$_p" 2>/dev/null; rm -f "$LLROOT/daemon.pid" ;; esac
         echo ok=1 ;;
     schedule-diagnose) queue_diagnostics "$2" ;;
-    *) echo 'usage: ha.sh {status|router-status|perapp-add|perapp-del|perapp-enable|wl-add|wl-del|ll-save ENABLE HAL AUDIO APP|ll-status|boot|boot-status|stop|diagnose|schedule-diagnose PACKAGE|diag-status|tuning|start-backends|debug-summary|debug-reports|debug-analyze NAME}'; exit 1 ;;
+    *) echo 'usage: ha.sh {status|router-status|perapp-add|perapp-del|wl-add|wl-del|ll-save HAL AUDIO APP|ll-status|boot|boot-status|stop|diagnose|schedule-diagnose PACKAGE|diag-status|tuning|start-backends|debug-summary|debug-reports|debug-analyze NAME}'; exit 1 ;;
 esac

@@ -3,7 +3,7 @@
 > HyperOS 音频模块。**同一台设备上，A 应用走 Dolby 效果链，B 应用保持低延迟通路，
 > 其余应用完全交给系统。**
 >
-> 当前版本见 `module.prop`（2.2.2）。通用版（全局切换原生/音效）在同一仓库的 `main` 分支。
+> 当前版本见 `module.prop`（2.2.3）。通用版（全局切换原生/音效）在同一仓库的 `main` 分支。
 
 ## 这是什么
 
@@ -54,8 +54,8 @@
 
 在 KernelSU / APatch 管理器内打开。四个页面 + 一个调试视图：
 
-- **音效**：音效链路总开关、注入状态（负载 / companion）、名单增删
-- **低延迟**：调度开关、HAL / audioserver / 应用三档优先级、名单增删、实时调度状态
+- **音效**：注入状态（负载 / companion）、名单增删（加入即生效）
+- **低延迟**：HAL / audioserver / 应用三档优先级、名单增删（加入即生效）、实时调度状态
 - **设置**：调音模块检测、界面与底栏外观
 - **关于**：项目信息、许可与来源
 - **Debug**（设置 → 诊断打开）：诊断采集、日志解读、技术信息
@@ -76,8 +76,6 @@ app=com.example.video
 `lowlat.conf`（模块根目录）：
 
 ```
-enabled=1
-only_whitelist=1
 hal_priority=20
 audio_priority=16
 app_priority=15
@@ -85,17 +83,17 @@ whitelist=com.example.game,com.example.music
 revision=...
 ```
 
-`whitelist` 是逗号分隔的包名；`only_whitelist` 恒为 1（应用版只有按名单一种语义）。
+`whitelist` 是逗号分隔的包名。**没有总开关**：名单非空即调度，名单为空即不动。
+旧版遗留的 `enabled` / `only_whitelist` 字段会被忽略。
 
 ## 后端接口
 
 ```
-status            只读汇总（低延迟开关、名单规模、audioserver）
+status            只读汇总（名单规模、audioserver）
 router-status     两份名单 + 负载/companion 状态
 perapp-add/del    维护音效名单（自动从低延迟名单移出）
-perapp-enable     音效链路总开关
 wl-add/del        维护低延迟名单（自动从音效名单移出）
-ll-save           保存 enabled + 三档优先级（白名单由 wl-* 维护，保存时原样保留）
+ll-save           保存三档优先级（白名单由 wl-* 维护，保存时原样保留）
 ll-status         低延迟配置 + daemon 心跳 + 最近一次调度证据
 boot / stop       开机收尾 / 卸载前还原线程策略
 ```
@@ -153,7 +151,7 @@ repo/
 - **音效依赖 companion**：`perapp.conf` 必须能被 DolbyRouter 的 companion 读到；
   没有 companion 时音效名单不会生效，WebUI 会显示"负载就绪，进程未启动"。
 - **system.prop 是全局的**：无法按应用拆分，所有应用共享同一套参数基线。
-- **真机验证有限**：2.2.2 的改动经过主机测试与构建校验，但尚未做完整真机回归。
+- **真机验证有限**：2.2.3 的改动经过主机测试与构建校验，但尚未做完整真机回归。
 
 ## 来源与致谢
 

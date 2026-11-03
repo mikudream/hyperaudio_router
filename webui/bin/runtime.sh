@@ -30,24 +30,14 @@ count_wl() {
     case "$_c" in ''|-) echo 0 ;; *) printf '%s\n' "$_c" | tr ',' '\n' | sed '/^$/d' | wc -l | tr -d ' ' ;; esac
 }
 
-ll_enabled() {
-    _e=$(sed -n 's/^enabled=//p' "$MODDIR/lowlat.conf" 2>/dev/null | head -1)
-    case "$_e" in 0) echo 0 ;; *) echo 1 ;; esac
-}
-
 update_description() {
     # 管理器模块列表里直接显示两条链路的当前规模
     _pa=$(count_list "$MODDIR/perapp.conf" 'app=')
     _wl=$(count_wl)
-    if [ "$(ll_enabled)" = 1 ]; then
-        _ll='低延迟调度已开启'
-    else
-        _ll='低延迟调度已关闭'
-    fi
     _f=$MODDIR/module.prop
     [ -f "$_f" ] || return 0
     _t=$_f.new
-    awk -v d="description=按应用路由：音效名单 ${_pa} 项，低延迟名单 ${_wl} 项；${_ll}。名单外的应用保持系统默认。" '
+    awk -v d="description=按应用路由：音效名单 ${_pa} 项，低延迟名单 ${_wl} 项；加入名单即生效。" '
         /^description=/ && !done { print d; done=1; next }
         { print }
     ' "$_f" > "$_t" 2>/dev/null || { rm -f "$_t"; return 0; }
@@ -60,7 +50,6 @@ status() {
     echo "mode=native"
     echo "applied=native"
     echo "audioserver=$(pidof audioserver 2>/dev/null)"
-    echo "ll_enabled=$(ll_enabled)"
     echo "perapp_count=$(count_list "$MODDIR/perapp.conf" 'app=')"
     echo "wl_count=$(count_wl)"
     boot_status

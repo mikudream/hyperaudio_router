@@ -2,12 +2,11 @@
 MODDIR=${0%/*}/..
 case "$1:$2" in
     fonts:) [ "$#" = 1 ] || { echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1; } ;;
-    status:|router-status:|perapp-add:|perapp-del:|perapp-enable:|wl-add:|wl-del:|diagnose:|diag-status:|tuning:|ll-status:|boot-status:|start-backends:|theme:|debug-summary:|debug-reports:|perapp-enable:0|perapp-enable:1) ;;
+    status:|router-status:|perapp-add:|perapp-del:|wl-add:|wl-del:|diagnose:|diag-status:|tuning:|ll-status:|boot-status:|start-backends:|theme:|debug-summary:|debug-reports:) ;;
     ll-save:*)
-        [ "$#" = 5 ] || { echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1; }
-        # 参数：enabled hal audio app（白名单由 wl-add/wl-del 单独维护）
-        case "$2" in 0|1) ;; *) echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1 ;; esac
-        for ARG in "$3" "$4" "$5"; do
+        [ "$#" = 4 ] || { echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1; }
+        # 参数：hal audio app（名单由 wl-add/wl-del 维护；没有总开关）
+        for ARG in "$2" "$3" "$4"; do
             case "$ARG" in ''|*[!0-9]*|0*) echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1 ;; esac
             { [ "${#ARG}" -le 2 ] && [ "$ARG" -ge 1 ] && [ "$ARG" -le 99 ]; } || { echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1; }
         done ;;

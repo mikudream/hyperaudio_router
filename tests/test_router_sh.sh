@@ -16,7 +16,7 @@ ckn() { case "$2" in *"$3"*) fail=$((fail+1)); printf '  FAIL %s (不应包含 %
 setup() {
   M=$T/mod
   rm -rf "$M"; mkdir -p "$M/zygisk"
-  printf 'enabled=1\nonly_whitelist=1\nhal_priority=20\naudio_priority=16\napp_priority=15\nwhitelist=\nrevision=initial\n' > "$M/lowlat.conf"
+  printf 'hal_priority=20\naudio_priority=16\napp_priority=15\nwhitelist=\nrevision=initial\n' > "$M/lowlat.conf"
   printf 'x' > "$M/zygisk/arm64-v8a.so"
 }
 
@@ -25,11 +25,12 @@ run() { MODDIR="$M" sh "$RS" "$@" 2>&1; }
 echo "############ 1. 初始 status ############"
 setup
 O=$(run router-status)
-ckc "杜比链路默认开启" "$O" "perapp_enabled=1"
 ckc "杜比计数=0" "$O" "perapp_count=0"
 ckc "低延迟计数=0" "$O" "wl_count=0"
-ckc "低延迟开关" "$O" "wl_enabled=1"
 ckc "负载存在" "$O" "perapp_payload=1"
+ckc "无 enable 字段" "$O" "ok=1"
+ckn "不再暴露总开关" "$O" "perapp_enabled"
+ckn "不再暴露低延迟开关" "$O" "wl_enabled"
 
 echo ""
 echo "############ 2. 音效名单增删 ############"
@@ -69,10 +70,7 @@ ck "低延迟白名单已清空" "$(grep '^whitelist=' "$M/lowlat.conf")" "white
 echo ""
 echo "############ 5. 白名单写入保留优先级 ############"
 setup
-O=$(run perapp-enable 1)
 cat > "$M/lowlat.conf" <<'EOF'
-enabled=0
-only_whitelist=1
 hal_priority=33
 audio_priority=22
 app_priority=11
@@ -80,11 +78,10 @@ whitelist=
 revision=test
 EOF
 O=$(run wl-add com.d.one)
-ck "enabled 保持 0" "$(grep '^enabled=' "$M/lowlat.conf")" "enabled=0"
 ck "hal 保持 33" "$(grep '^hal_priority=' "$M/lowlat.conf")" "hal_priority=33"
 ck "audio 保持 22" "$(grep '^audio_priority=' "$M/lowlat.conf")" "audio_priority=22"
 ck "app 保持 11" "$(grep '^app_priority=' "$M/lowlat.conf")" "app_priority=11"
-ckc "only_whitelist 被强制为 1" "$(cat "$M/lowlat.conf")" "only_whitelist=1"
+ckc "白名单写入" "$(cat "$M/lowlat.conf")" "whitelist=com.d.one"
 
 echo ""
 echo "############ 6. 包名校验 ############"
@@ -96,12 +93,9 @@ for bad in '' 'a b' 'a;b' '1abc' '.x' 'a.' 'a..b'; do
 done
 
 echo ""
-echo "############ 7. enable 取值校验 ############"
-O=$(run perapp-enable 2)
-ckc "非法值被拒" "$O" "error=bad_value"
-O=$(run perapp-enable 0)
-ckc "关闭返回 ok" "$O" "ok=1"
-ck "enabled 已写入 0" "$(grep '^enabled=' "$M/perapp.conf")" "enabled=0"
+echo "############ 7. 已移除的开关动作 ############"
+O=$(run perapp-enable 1)
+ckc "perapp-enable 已不存在" "$O" "error=bad_action"
 
 echo ""
 echo "############ 8. 未知动作 ############"

@@ -45,7 +45,7 @@ function buttons() {
   ['btn-delay','btn-now'].forEach(id=>{const e=$(id);if(e)e.disabled=working||jobActive;});
   const spin=$('toggleSpin');if(spin)spin.hidden=!working;
   const analyze=$('btn-analyze');if(analyze)analyze.disabled=working||!$('debug-report').value;
-  ['btn-save','btn-ll-reset','f-enable'].forEach(id=>{const e=$(id);if(e)e.disabled=working||!llLoaded;});
+  ['btn-save','btn-ll-reset'].forEach(id=>{const e=$(id);if(e)e.disabled=working||!llLoaded;});
   document.querySelectorAll('input, select').forEach(e=>{e.disabled=working;});
   if(window.HASelectMenus)window.HASelectMenus.refresh();
 }
@@ -66,65 +66,49 @@ function markDirty(){
   dirty=true;
   $('dirtyNote').hidden=false;
   $('llBadge').textContent='待保存';
-  $('llControls').hidden=!$('f-enable').checked;
 }
 function setLowlatFields(config){
-  $('f-enable').checked=config.enabled==='1';
   $('f-hal').value=config.hal_priority;
   $('f-audio').value=config.audio_priority;
   $('f-app').value=config.app_priority;
   $('dirtyNote').hidden=true;
-  $('llControls').hidden=!$('f-enable').checked;
-}
-function changeLowlatEnable(){
-  if(working||!llLoaded)return;
-  if($('f-enable').checked){markDirty();return;}
-  dirty=false;
-  if(llSaved.enabled==='0'){setLowlatFields(llSaved);$('llBadge').textContent='关闭';return;}
-  // Stop with saved values, so closing cannot commit unsaved parameter edits.
-  const command='ll-save 0 '+[llSaved.hal_priority,llSaved.audio_priority,llSaved.app_priority].join(' ');
-  setLowlatFields({...llSaved,enabled:'0'});
-  task(command);
 }
 function resetLowlat(){
   if(working||!llLoaded)return;
   dirty=false;
-  task('ll-save 0 20 16 15').then(ok=>{if(ok)toast('低延迟设置已恢复默认。');});
+  task('ll-save 20 16 15').then(ok=>{if(ok)toast('低延迟设置已恢复默认。');});
 }
 function collectLowlat(){
   const values=['f-hal','f-audio','f-app'].map(id=>$(id).value.trim());
   if(values.some(x=>!/^([1-9]|[1-9][0-9])$/.test(x)))throw new Error('优先级必须是 1–99 的整数');
-  return "ll-save "+[$('f-enable').checked?'1':'0',...values].join(' ');
+  return "ll-save "+values.join(' ');
 }
 async function refreshLowlat(){
   const text=await call('ll-status');
   const s=parse(text.split('proof_begin')[0].split('current_details_begin')[0]);
-  llLoaded=/^[01]$/.test(s.enabled||'')&&['hal_priority','audio_priority','app_priority'].every(k=>/^([1-9]|[1-9][0-9])$/.test(s[k]||''));
+  llLoaded=['hal_priority','audio_priority','app_priority'].every(k=>/^([1-9]|[1-9][0-9])$/.test(s[k]||''));
   if(!llLoaded)throw new Error('未取得完整的低延迟配置，请重新读取。');
-  llSaved={enabled:s.enabled,hal_priority:s.hal_priority,audio_priority:s.audio_priority,app_priority:s.app_priority};
+  llSaved={hal_priority:s.hal_priority,audio_priority:s.audio_priority,app_priority:s.app_priority};
   if(!dirty)setLowlatFields(llSaved);
   const live=s.ll_daemon==='running'&&Number(s.ll_age)<=20;
   const details=$('llDetails');if(details)details.textContent=text;
-  const active=s.enabled==='1';
   const white=(s.whitelist||'').trim();
   const empty=white===''||white==='-';
-  const badge=empty&&active?'名单为空':s.ll_state==='verified'?'已生效':s.ll_state==='waiting'?'等待放音':s.ll_state==='no_matching_threads'?'未匹配线程':s.ll_state==='partial'?'部分成功':s.ll_state==='error'?'调度失败':s.ll_state==='suspended'?'已暂停':'已开启';
-  $('llBadge').textContent=dirty?'待保存':!active?'关闭':!live?'后台未就绪':badge;
+  const badge=empty?'名单为空':s.ll_state==='verified'?'已生效':s.ll_state==='waiting'?'等待放音':s.ll_state==='no_matching_threads'?'未匹配线程':s.ll_state==='partial'?'部分成功':s.ll_state==='error'?'调度失败':s.ll_state==='suspended'?'已暂停':'调度中';
+  $('llBadge').textContent=dirty?'待保存':!live?'后台未就绪':badge;
   const notes={
     verified:'已生效：名单内应用的音频线程已提升到实时优先级。',
     waiting:'等待名单内应用开始放音。',
     no_matching_threads:'名单内应用正在放音，但没有匹配到可提升的音频线程。',
     partial:'部分线程提升失败，详见 Debug 中的低延迟记录。',
     error:'调度失败，详见 Debug 中的低延迟记录。',
-    suspended:'调度已暂停。',
-    off:'低延迟调度已关闭，所有应用保持系统默认。'
+    suspended:'调度已暂停。'
   };
-  $('llStateText').textContent=empty&&active?'名单为空：不会改动任何系统线程。':(notes[s.ll_state]||'等待调度结果…');
+  $('llStateText').textContent=empty?'名单为空：不会改动任何系统线程。':(notes[s.ll_state]||'等待调度结果…');
   clearTimeout(llTimer);
   if(!document.hidden)llTimer=setTimeout(()=>{if(!working)refreshLowlat().catch(()=>{});},5000);
 }
 ['f-hal','f-audio','f-app'].forEach(id=>$(id).addEventListener('change',markDirty));
-$('f-enable').addEventListener('change',changeLowlatEnable);
 $('btn-ll-reset').addEventListener('click',resetLowlat);
 $('btn-save').addEventListener('click',()=>{try{task(collectLowlat());}catch(e){toast(e.message);}});
 $('btn-backends').addEventListener('click',()=>task('start-backends'));
@@ -157,7 +141,7 @@ function operationHint(message){
 async function task(command) {
   if(working)return false;
   let expected=null;
-  if(command.startsWith('ll-save '))expected=command.split(/\s+/).slice(1,5).map(Number);
+  if(command.startsWith('ll-save '))expected=command.split(/\s+/).slice(1,4).map(Number);
   working=true;buttons();
   if(command==='diagnose')$('jobState').textContent='正在采集系统快照，请稍候…';
   if(command.startsWith('debug-analyze '))$('debugSummary').textContent='正在本地读取并解读日志…';
@@ -183,7 +167,7 @@ async function task(command) {
     await refreshJob();
   }catch(e){failed=true;$('operationResult').textContent+='\n'+e.message;}
   if(expected&&!failed){
-    const actual=[Number(llSaved.enabled),Number(llSaved.hal_priority),Number(llSaved.audio_priority),Number(llSaved.app_priority)];
+    const actual=[Number(llSaved.hal_priority),Number(llSaved.audio_priority),Number(llSaved.app_priority)];
     if(expected.some((value,i)=>value!==actual[i])){failed=true;toast('无法确认设置已应用，请重新读取。');}
   }
   working=false;buttons();

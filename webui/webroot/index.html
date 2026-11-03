@@ -47,18 +47,14 @@ The About page retains copyright notices and all three complete licenses.
 <div class="page" id="page-sound" role="tabpanel" aria-labelledby="nav-sound">
   <div class="section-title"><h2>音效链路</h2><span class="pill" id="soundCount">0 项</span></div>
   <section class="card preference-card">
-    <p class="hint">名单内的应用音轨回落到普通混音轨，经过 Dolby 效果链；名单外的应用保持系统默认，不会被改动。</p>
-    <label class="row switch-row">
-      <span class="copy"><b>音效链路</b><small>关闭后所有应用都保持系统默认</small></span>
-      <span class="switch"><input type="checkbox" id="perapp-enable" class="sw"/><span class="switch-track" aria-hidden="true"></span></span>
-    </label>
+    <p class="hint">加入名单即生效：名单内的应用音轨回落到普通混音轨，经过 Dolby 效果链；名单外的应用保持系统默认，不会被改动。</p>
     <div class="row"><span class="copy"><b>注入状态</b></span><span class="value" id="perapp-state">—</span></div>
     <div class="row">
       <input class="field" id="perapp-input" type="text" placeholder="输入包名，如 com.xxx.game" />
       <button class="btn primary" id="perapp-add" type="button">添加</button>
     </div>
     <div id="perapp-list"></div>
-    <p class="section-note">加入音效名单的应用会自动从低延迟名单移出。</p>
+    <p class="section-note">移出名单即恢复系统默认。加入音效名单的应用会自动从低延迟名单移出。</p>
   </section>
   <p class="section-note">请勿把实时音游加入音效名单：普通混音轨的延迟高于低延迟通路。</p>
 </div>
@@ -66,11 +62,8 @@ The About page retains copyright notices and all three complete licenses.
 <div class="page" id="page-lowlat" role="tabpanel" aria-labelledby="nav-lowlat" hidden>
   <div class="section-title"><h2>低延迟链路</h2><span class="section-value" id="llBadge">正在读取</span></div>
   <section class="card preference-card">
-    <label class="row switch-row">
-      <span class="copy"><b>低延迟调度</b><small>只处理名单内正在放音的应用</small></span>
-      <span class="switch"><input type="checkbox" id="f-enable" class="sw"/><span class="switch-track" aria-hidden="true"></span></span>
-    </label>
-    <div class="options" id="llControls" hidden>
+    <p class="hint">加入名单即生效：名单内的应用在放音时，其音频线程会被提升到实时优先级；名单为空时不会改动任何系统线程。</p>
+    <div class="options" id="llControls">
       <label class="row" for="f-hal"><span class="copy"><b>底层音频优先级</b><small>底层声音输出（HAL），仅在名单内应用放音时提升</small></span><input type="number" class="number-input" id="f-hal" min="1" max="99" value="20" inputmode="numeric"/></label>
       <label class="row" for="f-audio"><span class="copy"><b>系统音频优先级</b><small>系统混音和声音输出</small></span><input type="number" class="number-input" id="f-audio" min="1" max="99" value="16" inputmode="numeric"/></label>
       <label class="row" for="f-app"><span class="copy"><b>应用音频优先级</b><small>应用内的声音处理线程</small></span><input type="number" class="number-input" id="f-app" min="1" max="99" value="15" inputmode="numeric"/></label>
@@ -155,7 +148,7 @@ The About page retains copyright notices and all three complete licenses.
  <path d="M145 110C150 103 158 99 169 99" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-opacity=".8"/>
 </g>
 </svg></span>
-      <span class="copy"><b class="about-app-name">HyperAudioRouter</b><small>按应用路由</small><span class="about-version">版本 2.2.2</span></span>
+      <span class="copy"><b class="about-app-name">HyperAudioRouter</b><small>按应用路由</small><span class="about-version">版本 2.2.3</span></span>
     </div>
   </section>
   <div class="section-title"><h2>项目信息</h2></div>

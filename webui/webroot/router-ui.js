@@ -121,9 +121,6 @@
       setCount('soundCount', state.perapp.length);
       setCount('wl-count', state.wl.length);
 
-      var toggle = $('perapp-enable');
-      if (toggle) toggle.checked = m['perapp_enabled'] === '1';
-
       var st = $('perapp-state');
       if (st) {
         var payload = m['perapp_payload'] === '1';
@@ -173,29 +170,10 @@
     });
   }
 
-  function bindToggle() {
-    var toggle = $('perapp-enable');
-    if (!toggle) return;
-    toggle.addEventListener('change', function () {
-      var want = toggle.checked ? '1' : '0';
-      toggle.disabled = true;
-      call('perapp-enable ' + want).then(function (x) {
-        toggle.disabled = false;
-        if (x.rc !== 0 || /error=/.test(x.text)) {
-          toggle.checked = !toggle.checked;
-          toast('切换失败，请稍后重试');
-          return;
-        }
-        toast(toggle.checked ? '音效链路已开启' : '音效链路已关闭，所有应用保持系统默认');
-      });
-    });
-  }
-
   function init() {
     try {
       bindAdder('perapp-input', 'perapp-add', 'perapp-add');
       bindAdder('wl-input', 'wl-add', 'wl-add');
-      bindToggle();
     } catch (e) { }
     refresh();
     setInterval(refresh, 5000);

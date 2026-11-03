@@ -41,33 +41,29 @@ ll_white_ok() {
 }
 
 ll_read_config() {
-    LL_ENABLED=1; LL_ONLY=1; LL_HAL=20; LL_AUDIO=16; LL_APP=15; LL_WHITE=""; LL_REV=initial
+    # 没有总开关：名单非空即调度，名单为空即不动。旧版的 enabled/only_whitelist 忽略。
+    LL_HAL=20; LL_AUDIO=16; LL_APP=15; LL_WHITE=""; LL_REV=initial
     local k v
     [ -f "$MODDIR/lowlat.conf" ] || return 1
     while IFS='=' read -r k v; do
         case "$k" in
-          # 应用版只有"按名单"一种语义：旧配置里的 only_whitelist=0 不再支持，
-          # 读取时忽略该字段，避免遗留配置把全局调度行为带回来。
-          enabled) LL_ENABLED=$v ;;
           hal_priority) LL_HAL=$v ;; audio_priority) LL_AUDIO=$v ;; app_priority) LL_APP=$v ;;
           whitelist) LL_WHITE=$v ;;
           revision) LL_REV=$v ;;
         esac
     done < "$MODDIR/lowlat.conf"
-    ll_valid "$LL_ENABLED" 1 "$LL_HAL" "$LL_AUDIO" "$LL_APP" "${LL_WHITE:--}"
+    ll_valid "$LL_HAL" "$LL_AUDIO" "$LL_APP" "${LL_WHITE:--}"
 }
 
 ll_valid() {
-    # 6 个参数：enabled、only_whitelist、hal、audio、app、whitelist(CSV 或 -)
-    [ "$#" = 6 ] || return 1
-    case "$1" in 0|1) ;; *) return 1 ;; esac
-    case "$2" in 0|1) ;; *) return 1 ;; esac
+    # 4 个参数：hal、audio、app、whitelist(CSV 或 -)
+    [ "$#" = 4 ] || return 1
     local p
-    for p in "$3" "$4" "$5"; do
+    for p in "$1" "$2" "$3"; do
         case "$p" in ''|*[!0-9]*|0*) return 1 ;; esac
         [ "${#p}" -le 2 ] && [ "$p" -ge 1 ] && [ "$p" -le 99 ] || return 1
     done
-    ll_white_ok "$6"
+    ll_white_ok "$4"
 }
 
 ll_white_current() {
@@ -223,8 +219,8 @@ ll_tick_locked() {
     local f t p group priority result
     LL_OK=0; LL_FAIL=0; LL_HOK=0; LL_AOK=0; LL_POK=0; LL_PACKAGES=""
     ll_read_config || { ll_restore_all; ll_state error invalid_config; return 1; }
-    # 开启时先确认 chrt 存在，避免每个线程都报一次 denied
-    if [ "$LL_ENABLED" = 1 ] && ! command -v chrt >/dev/null 2>&1; then
+    # 先确认 chrt 存在，避免每个线程都报一次 denied
+    if ! command -v chrt >/dev/null 2>&1; then
         ll_restore_all; ll_state error chrt_missing; return 1
     fi
     # 自愈：pause 由已退出的进程留下（被打断的写入）时清除，避免永久 suspended
@@ -235,10 +231,10 @@ ll_tick_locked() {
             *) kill -0 "$owner" 2>/dev/null || { rm -f "$LLROOT/pause"; echo "heal stale_pause owner=$owner" >> "$LLROOT/details.log"; } ;;
         esac
     fi
-    if [ "$LL_ENABLED" != 1 ] || [ -f "$LLROOT/pause" ]; then
+    if [ -f "$LLROOT/pause" ]; then
         : > "$LLROOT/details"
         ll_restore_all || { ll_state error restore_failed; return 1; }
-        if [ "$LL_ENABLED" = 1 ]; then ll_state suspended; else ll_state off; fi
+        ll_state suspended
         return 0
     fi
     if ! ll_targets; then
@@ -311,20 +307,19 @@ ll_daemon() {
     done
 }
 ll_save() {
-    # 4 个参数：enabled hal audio app。白名单由 wl-add/wl-del 单独维护，这里原样保留。
-    [ "$#" = 4 ] || { echo error=invalid_lowlat_parameters; return 1; }
+    # 3 个参数：hal audio app。名单由 wl-add/wl-del 单独维护，这里原样保留。
+    # 没有总开关：名单非空即调度；保存参数不会关闭调度。
+    [ "$#" = 3 ] || { echo error=invalid_lowlat_parameters; return 1; }
     [ "$(cat "$STATE/applied" 2>/dev/null)" = native ] || [ ! -f "$STATE/applied" ] || { echo error=select_native_first; return 1; }
     ll_init || return 1
     _saved_white=$(ll_white_current)
-    ll_valid "$1" 1 "$2" "$3" "$4" "${_saved_white:--}" || { echo error=invalid_lowlat_parameters; return 1; }
-    [ "$1" = 0 ] || ll_ensure_daemon || return 1
+    ll_valid "$1" "$2" "$3" "${_saved_white:--}" || { echo error=invalid_lowlat_parameters; return 1; }
+    ll_ensure_daemon || return 1
     ll_lock || { echo error=scheduler_busy_try_again; return 1; }
     {
-        echo "enabled=$1"
-        echo "only_whitelist=1"
-        echo "hal_priority=$2"
-        echo "audio_priority=$3"
-        echo "app_priority=$4"
+        echo "hal_priority=$1"
+        echo "audio_priority=$2"
+        echo "app_priority=$3"
         echo "whitelist=$_saved_white"
         echo "revision=$(date +%s)-$$"
     } > "$MODDIR/lowlat.conf.new"
@@ -343,8 +338,8 @@ ll_status() {
         echo error=invalid_lowlat_config
         return 1
     fi
-    printf 'enabled=%s\nonly_whitelist=%s\nhal_priority=%s\naudio_priority=%s\napp_priority=%s\nwhitelist=%s\nrevision=%s\n' \
-        "$LL_ENABLED" "$LL_ONLY" "$LL_HAL" "$LL_AUDIO" "$LL_APP" "$LL_WHITE" "$LL_REV"
+    printf 'hal_priority=%s\naudio_priority=%s\napp_priority=%s\nwhitelist=%s\nrevision=%s\n' \
+        "$LL_HAL" "$LL_AUDIO" "$LL_APP" "$LL_WHITE" "$LL_REV"
     echo "ll_daemon=$(ll_alive && echo running || echo offline)"
     local beat now
     beat=$(cat "$LLROOT/heartbeat" 2>/dev/null); now=$(date +%s)

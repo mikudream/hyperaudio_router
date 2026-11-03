@@ -1,7 +1,7 @@
 # HyperAudioRouter 交接说明
 
 > 写给接手这个分支的下一个会话。读完这份再动手，可以少走很多弯路。
-> 最后更新：2026-11-03，工作区已迁至 `D:\DSH\HyperAudioRouter`（`router/v2`，v2.2.2 WebUI 修复）
+> 最后更新：2026-11-03，工作区已迁至 `D:\DSH\HyperAudioRouter`（`router/v2`，v2.2.3 移除总开关）
 
 ---
 
@@ -43,14 +43,14 @@ adb 路径 `D:\App\UotanToolbox\Bin\platform-tools\adb.exe`（经常掉线，需
 
 ---
 
-## 3. 当前状态（2.2.0）
+## 3. 当前状态（2.2.3）
 
 | 项 | 状态 |
 |---|---|
-| 代码 | ✅ 已重写为纯按应用路由（见第 5 节） |
-| 构建 | ✅ 71 项，284 KB（移除了 .so 与端口补丁） |
-| 主机测试 | ✅ 5 节全过（router / lowlat / ha 冒烟 / system.prop / DOM） |
-| 真机验证 | ❌ **2.2.0 尚未上机** |
+| 代码 | ✅ 纯按应用路由；**没有总开关**，加入名单即生效 |
+| 构建 | ✅ 71 项（移除了 .so 与端口补丁） |
+| 主机测试 | ✅ 6 节全过（router / lowlat / install / ha 冒烟 / system.prop / DOM） |
+| 真机验证 | ✅ 2.2.1 两条链路均已上机验证；2.2.2 WebUI 修复已装机；2.2.3 待解锁后目视 |
 
 构建产物：`repo\hyperaudio_module.zip`
 
@@ -79,7 +79,7 @@ resetprop 这些机制——因为没有需要回滚的全局改写。
 ```
 webroot/index.html ──> assets/26101606/ui.js        导航（音效/低延迟/设置/关于）
                        assets/26101606/app.js       低延迟设置、状态、Debug、外观
-                       webroot/router-ui.js         两份名单的增删与总开关
+                       webroot/router-ui.js         两份名单的增删
 
 ksu.exec ──> bin/webui.sh <action>     参数校验 + 包成 rc=N|base64
               bin/ha.sh                 busybox / root 检查 + 分发
@@ -97,7 +97,7 @@ ksu.exec ──> bin/webui.sh <action>     参数校验 + 包成 rc=N|base64
 status / router-status
 perapp-add|del|enable    音效名单
 wl-add|del               低延迟名单
-ll-save                  enabled + hal/audio/app 三档优先级
+ll-save                  hal/audio/app 三档优先级
 ll-status                配置 + daemon 心跳 + 调度证据
 boot / stop              开机收尾 / 卸载前还原线程
 diagnose / schedule-diagnose / diag-status / debug-*
@@ -106,6 +106,14 @@ diagnose / schedule-diagnose / diag-status / debug-*
 ---
 
 ## 5. 2.2.0 做了什么（相对 2.1.0）
+
+**2.2.3（移除总开关）**  
+
+- UI：去掉「音效链路」「低延迟调度」两个开关；**加入名单即生效，移出即恢复**
+- 后端：`perapp-enable` 动作删除，`perapp.conf` 恒写 `enabled=1`（仅为兼容 zygisk 负载）；
+  `lowlat.conf` 不再有 `enabled`/`only_whitelist`，旧字段读取时忽略
+- `ll-save` 改为 3 个参数（hal/audio/app）；daemon 常驻，开机即拉起
+- 升级迁移：开机时把旧 `perapp.conf` 的 `enabled=0` 归一化为 1 并同步 dolbyrouter 镜像
 
 **2.2.2（WebUI 修复，实机反馈）**
 
@@ -134,8 +142,8 @@ diagnose / schedule-diagnose / diag-status / debug-*
 2. `router.sh` 的 `wl-*` 改为读写 `lowlat.conf`（原来写 `config.toml`，已不打包，
    添加直接 `error=no_config`）。
 3. 两个名单**互斥**：加入一边自动从另一边移出，回显 `moved_from=`。
-4. `perapp-add` 首次创建时 `enabled=1`（原来写入 0，且 UI 没有总开关，音效链路实际没生效）；
-   音效页新增总开关。
+4. `perapp-add` 首次创建时 `enabled=1`（原来写入 0，音效链路实际没生效）。
+   2.2.1 曾加过总开关，2.2.3 已移除，改为加入名单即生效。
 5. `ll-save` 白名单由 `wl-*` 维护，保存优先级时原样保留（不再要求客户端传白名单）。
 
 **删除旧实现**
@@ -149,8 +157,8 @@ diagnose / schedule-diagnose / diag-status / debug-*
 **前端**
 
 - 导航：`音效 / 低延迟 / 设置 / 关于`，删除「模式」页与「应用」页
-- 音效页：总开关 + 注入状态 + 名单
-- 低延迟页：开关 + 三档优先级 + 名单 + 实时状态
+- 音效页：注入状态 + 名单（加入即生效）
+- 低延迟页：三档优先级 + 名单（加入即生效）+ 实时状态
 - 设置页：调音检测 + 外观（删除开机模式、恢复原生、音效模式设置）
 
 ---

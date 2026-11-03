@@ -96,7 +96,7 @@ done
 
 # ---------------- 4. 新结构初始化 ----------------
 mkdir -p "$MODPATH/state" || abort "无法创建 state 目录。"
-[ -f "$MODPATH/lowlat.conf" ] || printf 'enabled=1\nonly_whitelist=1\nhal_priority=20\naudio_priority=16\napp_priority=15\nwhitelist=\nrevision=initial\n' > "$MODPATH/lowlat.conf"
+[ -f "$MODPATH/lowlat.conf" ] || printf 'hal_priority=20\naudio_priority=16\napp_priority=15\nwhitelist=\nrevision=initial\n' > "$MODPATH/lowlat.conf"
 [ -f "$MODPATH/perapp.conf" ] || printf 'enabled=1\n' > "$MODPATH/perapp.conf"
 
 # Leave webroot's permissions/context to the manager (KernelSU handles it specially).

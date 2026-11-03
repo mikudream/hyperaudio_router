@@ -81,8 +81,8 @@ if (missing.size === 0) {
 }
 
 /* ---- 3. 关键绑定不能被误删 ---- */
-const mustHave = ['f-enable', 'f-hal', 'f-audio', 'f-app', 'btn-save', 'btn-ll-reset', 'llBadge',
-                  'perapp-enable', 'perapp-list', 'perapp-add', 'wl-list', 'wl-add', 'llStateText',
+const mustHave = ['f-hal', 'f-audio', 'f-app', 'btn-save', 'btn-ll-reset', 'llBadge',
+                  'perapp-list', 'perapp-add', 'wl-list', 'wl-add', 'llStateText',
                   'btn-debug', 'page-debug'];
 const absent = mustHave.filter((x) => !ids.has(x));
 if (absent.length) bad('应用页/低延迟页缺少关键元素: ' + absent.join(', '));

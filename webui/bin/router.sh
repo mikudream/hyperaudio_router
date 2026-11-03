@@ -37,18 +37,11 @@ perapp_apps() {
   sed -n 's/^[[:space:]]*app[[:space:]]*=[[:space:]]*\([A-Za-z0-9_.]*\).*/\1/p' "$PERAPP" 2>/dev/null
 }
 
-perapp_enabled() {
-  [ -f "$PERAPP" ] || { printf '1'; return; }
-  _e=$(sed -n 's/^[[:space:]]*enabled[[:space:]]*=[[:space:]]*\([01]\).*/\1/p' "$PERAPP" 2>/dev/null | head -1)
-  [ "$_e" = "0" ] && printf '0' || printf '1'
-}
-
-# 原子写 perapp.conf：第一行 enabled，随后一行一个 app=
+# 原子写 perapp.conf：第一行 enabled（恒为 1，仅为兼容 zygisk 负载），随后一行一个 app=
 write_perapp() {
-  _en=$1
   _tmp=$(tmpfile perapp)
   {
-    printf 'enabled=%s\n' "$_en"
+    printf 'enabled=1\n'
     while IFS= read -r _a; do
       [ -n "$_a" ] && printf 'app=%s\n' "$_a"
     done
@@ -65,7 +58,7 @@ write_perapp() {
 
 perapp_rm() {
   _p=$1
-  perapp_apps | grep -Fxv "$_p" | write_perapp "$(perapp_enabled)"
+  perapp_apps | grep -Fxv "$_p" | write_perapp
 }
 
 # ---------------- 低延迟链路（lowlat.conf） ----------------
@@ -89,18 +82,14 @@ conf_num() {
   [ "$_v" -ge 1 ] && [ "$_v" -le 99 ] && printf '%s' "$_v" || printf '%s' "$2"
 }
 
-# 原子写 lowlat.conf；保留 enabled/三个优先级，只替换白名单
+# 原子写 lowlat.conf；保留三个优先级，只替换白名单
 write_whitelist() {
   _wl_csv=$1
-  _wl_en=$(conf_val enabled)
-  case "$_wl_en" in 0|1) ;; *) _wl_en=1 ;; esac
   _wl_h=$(conf_num hal_priority 20)
   _wl_a=$(conf_num audio_priority 16)
   _wl_p=$(conf_num app_priority 15)
   _tmp=$(tmpfile lowlat)
   {
-    printf 'enabled=%s\n' "$_wl_en"
-    printf 'only_whitelist=1\n'
     printf 'hal_priority=%s\n' "$_wl_h"
     printf 'audio_priority=%s\n' "$_wl_a"
     printf 'app_priority=%s\n' "$_wl_p"
@@ -127,19 +116,15 @@ cmd_status() {
   _n=$(perapp_apps | wc -l | tr -d ' ')
   _wl=$(wl_apps | tr '\n' ',' | sed 's/,$//')
   _wn=$(wl_apps | wc -l | tr -d ' ')
-  _wle=$(conf_val enabled)
-  case "$_wle" in 0|1) ;; *) _wle=1 ;; esac
   _pay=0; [ -f "$MODDIR/zygisk/arm64-v8a.so" ] && _pay=1
   _comp=0
   ps -A 2>/dev/null | grep -q 'zn-zygisk-companion64 hyperaudio' && _comp=1
   ps -A 2>/dev/null | grep -q 'zn-zygisk-companion64 dolbyrouter' && _comp=1
 
-  printf 'perapp_enabled=%s\n' "$(perapp_enabled)"
   printf 'perapp_count=%s\n' "$_n"
   printf 'perapp_apps=%s\n' "$_apps"
   printf 'perapp_payload=%s\n' "$_pay"
   printf 'perapp_companion=%s\n' "$_comp"
-  printf 'wl_enabled=%s\n' "$_wle"
   printf 'wl_count=%s\n' "$_wn"
   printf 'wl_apps=%s\n' "$_wl"
   printf 'ok=1\n'
@@ -157,7 +142,7 @@ cmd_perapp_add() {
   if perapp_apps | grep -Fxq "$_p"; then
     ok; [ "$_moved" = 1 ] && printf 'moved_from=lowlat\n'; refresh_description; return
   fi
-  { perapp_apps; printf '%s\n' "$_p"; } | write_perapp "$(perapp_enabled)" || bad write_failed
+  { perapp_apps; printf '%s\n' "$_p"; } | write_perapp || bad write_failed
   ok
   [ "$_moved" = 1 ] && printf 'moved_from=lowlat\n'
   refresh_description
@@ -169,13 +154,6 @@ cmd_perapp_del() {
   valid_pkg "$_p" || bad bad_package
   [ -f "$PERAPP" ] || { ok; return; }
   perapp_rm "$_p" || bad write_failed
-  ok
-  refresh_description
-}
-
-cmd_perapp_enable() {
-  case "$1" in 0|1) ;; *) bad bad_value ;; esac
-  perapp_apps | write_perapp "$1" || bad write_failed
   ok
   refresh_description
 }
@@ -212,7 +190,6 @@ case "$1" in
   router-status)  cmd_status ;;
   perapp-add)     cmd_perapp_add "$2" ;;
   perapp-del)     cmd_perapp_del "$2" ;;
-  perapp-enable)  cmd_perapp_enable "$2" ;;
   wl-add)         cmd_wl_add "$2" ;;
   wl-del)         cmd_wl_del "$2" ;;
   *)              bad bad_action ;;
