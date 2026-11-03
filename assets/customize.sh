@@ -6,20 +6,25 @@ SKIPUNZIP=0
 MODROOT=${HA_MODROOT:-/data/adb/modules}
 OLD=$MODROOT/hyperaudio
 
-# ---------------- 0. 与全局版互斥 ----------------
-# 本模块与全局版共用 id=hyperaudio：安装会直接覆盖同一个模块目录，两者无法共存。
-# 全局版的特征是模块名不含 Router（HyperAudio Switch / 音频模式切换器），
-# 或安装了上游 3.0 的 hyperaudio_compat。检测到就中止，避免静默覆盖。
-if [ -d "$MODROOT/hyperaudio_compat" ]; then
-  abort "检测到全局版 HyperAudio Switch 3.0（hyperaudio_compat）。HyperAudioRouter 不能与全局版共存，请先在管理器中卸载它并重启，再安装本模块。"
-fi
+# ---------------- 0. 与全局版的关系 ----------------
+# 本模块与全局版共用 id=hyperaudio，安装就是覆盖同一个模块目录：两者不会并存，
+# 覆盖本身是安全的（旧版的端口 bind mount 与运行期属性在重启后都不再存在），
+# 但需要重启才生效。这里只做提示，与全局版安装脚本的冲突处理保持一致。
 if [ -d "$OLD" ]; then
   OLD_NAME=$(sed -n 's/^name=//p' "$OLD/module.prop" 2>/dev/null | head -n 1)
   case "$OLD_NAME" in
-    *Router*) : ;;
+    *Router*) ui_print "- 覆盖升级：检测到本分支旧版「$OLD_NAME」" ;;
     '') ui_print "! 已存在同名模块目录但读不到模块名，按覆盖升级继续" ;;
-    *) abort "检测到全局版「$OLD_NAME」已安装。HyperAudioRouter 不能与全局版共存，请先在管理器中卸载它并重启，再安装本模块。" ;;
+    *) ui_print "! 检测到全局版「$OLD_NAME」：安装后将替换为 HyperAudioRouter"
+       ui_print "! 两者共用模块 id，不会同时存在；请安装完成后重启" ;;
   esac
+fi
+
+# 上游 3.0（id 为 hyperaudio_compat）是另一套实现，只提示不阻止（与全局版一致）
+if [ -d "$MODROOT/hyperaudio_compat" ]; then
+  ui_print "! 检测到另一套 HyperAudio（hyperaudio_compat）"
+  ui_print "! 两者会同时修改音频属性，可能互相覆盖"
+  ui_print "! 建议先卸载 hyperaudio_compat 并重启后再使用本模块"
 fi
 
 # ---------------- 1. 依赖：管理器 busybox ----------------
@@ -65,7 +70,17 @@ if [ -d "$OLD" ]; then
   for f in lowlat.conf perapp.conf; do
     [ -f "$OLD/$f" ] && cp -f "$OLD/$f" "$MODPATH/$f" 2>/dev/null
   done
-  ui_print "- 覆盖升级：已保留两个名单与低延迟参数"
+  ui_print "- 覆盖升级：已保留可复用的配置（lowlat.conf / perapp.conf）"
+
+  # 旧版的 lowlat.conf 可能是"全局调度"语义（没有白名单）。新版只按名单生效，
+  # 这里明确提示，避免用户升级后以为低延迟"没生效"。
+  if [ -f "$OLD/lowlat.conf" ]; then
+    _wl=$(sed -n 's/^whitelist=//p' "$OLD/lowlat.conf" 2>/dev/null | head -n 1)
+    case "$_wl" in
+      ''|-) ui_print "! 旧配置没有低延迟白名单：升级后只对名单内应用生效"
+            ui_print "! 请在 WebUI 的「低延迟」页添加需要加速的应用" ;;
+    esac
+  fi
 
   # 旧版可能还留着端口 bind mount 或模式文件；它们在新版中没有对应物。
   if [ -f "$OLD/mode" ] && [ "$(cat "$OLD/mode" 2>/dev/null)" != native ]; then
@@ -96,5 +111,5 @@ ui_print "- 音效链路：名单内应用回落到普通轨，经过 Dolby 效�
 ui_print "- 低延迟链路：名单内应用放音时才提升线程优先级"
 ui_print "- 两份名单之外的应用保持系统默认行为"
 ui_print "- 默认且唯一的工作方式是低延迟；没有全局音效模式"
-ui_print "- 本模块不能与全局版共存；如曾安装全局版，请先卸载并重启"
+ui_print "- 本模块与全局版共用模块 id：安装会覆盖全局版，重启后生效"
 ui_print "- KernelSU 可直接打开 WebUI；Magisk 请使用兼容的 WebUI 管理器"

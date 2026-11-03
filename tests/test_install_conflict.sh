@@ -1,9 +1,10 @@
 #!/bin/sh
-# customize.sh 的互斥逻辑主机侧测试：
+# customize.sh 的安装检测主机侧测试：
 #   1) 干净环境可以安装
-#   2) 已装全局版（HyperAudio Switch）必须中止
-#   3) 已装上游客（hyperaudio_compat）必须中止
-#   4) 升级本分支旧版（名称含 Router）必须放行并保留名单
+#   2) 已装全局版（HyperAudio Switch）→ 覆盖安装放行，并提示重启/白名单
+#   3) 已装上游 3.0（hyperaudio_compat）→ 只提示冲突，不阻止安装
+#   4) 升级本分支旧版（名称含 Router）→ 放行并保留名单
+#   5) 同名目录但没有 module.prop → 告警后继续
 #
 # 做法：桩掉管理器的 ui_print/abort/set_perm*，用 HA_MODROOT 指到临时目录，
 # 因此测的是 customize.sh 的真实分支，而不是复制品。
@@ -27,6 +28,7 @@ run_install() {
     general)
       mkdir -p "$MR/hyperaudio"
       printf 'id=hyperaudio\nname=HyperAudio Switch\nversion=2.0.1\n' > "$MR/hyperaudio/module.prop"
+      printf 'enabled=1\nonly_whitelist=0\nhal_priority=20\naudio_priority=16\napp_priority=15\n' > "$MR/hyperaudio/lowlat.conf"
       ;;
     compat)
       mkdir -p "$MR/hyperaudio_compat"
@@ -55,29 +57,36 @@ EOF
 echo "############ 1. 干净环境 ############"
 O=$(run_install clean); RC=$?
 ck "退出码 0" "$RC" "0"
-ckc "生成 lowlat.conf" "$(cat "$T/modpath/lowlat.conf" 2>/dev/null)" "enabled=1"
-ckc "生成 perapp.conf" "$(cat "$T/modpath/perapp.conf" 2>/dev/null)" "enabled=1"
+ck "未中止" "$(printf '%s' "$O" | grep -c 'ABORT' || true)" "0"
+ck "生成 lowlat.conf" "$(test -f "$T/modpath/lowlat.conf" && echo yes || echo no)" "yes"
+ck "生成 perapp.conf" "$(test -f "$T/modpath/perapp.conf" && echo yes || echo no)" "yes"
 
 echo ""
-echo "############ 2. 已装全局版：必须中止 ############"
+echo "############ 2. 从全局版覆盖安装：放行并提示 ############"
 O=$(run_install general); RC=$?
-ck "退出码 3" "$RC" "3"
-ckc "提示全局版" "$O" "全局版"
-ckc "要求卸载" "$O" "卸载"
-ck "未写入配置文件" "$(test -f "$T/modpath/lowlat.conf" && echo yes || echo no)" "no"
+ck "退出码 0" "$RC" "0"
+ck "未中止" "$(printf '%s' "$O" | grep -c 'ABORT' || true)" "0"
+ckc "识别出全局版" "$O" "全局版"
+ckc "提示重启" "$O" "重启"
+ckc "提示旧配置没有白名单" "$O" "白名单"
+ck "保留旧 lowlat.conf" "$(grep -c '^only_whitelist=0$' "$T/modpath/lowlat.conf" || true)" "1"
+ck "仍生成 perapp.conf" "$(test -f "$T/modpath/perapp.conf" && echo yes || echo no)" "yes"
 
 echo ""
-echo "############ 3. 已装上游 3.0（hyperaudio_compat）：必须中止 ############"
+echo "############ 3. 上游 3.0（hyperaudio_compat）：只提示不阻止 ############"
 O=$(run_install compat); RC=$?
-ck "退出码 3" "$RC" "3"
+ck "退出码 0" "$RC" "0"
 ckc "提示 hyperaudio_compat" "$O" "hyperaudio_compat"
+ck "模块仍安装" "$(test -f "$T/modpath/lowlat.conf" && echo yes || echo no)" "yes"
 
 echo ""
 echo "############ 4. 升级本分支旧版：放行并保留名单 ############"
 O=$(run_install router); RC=$?
 ck "退出码 0" "$RC" "0"
+ckc "识别为本分支旧版" "$O" "覆盖升级"
 ckc "保留白名单" "$(cat "$T/modpath/lowlat.conf" 2>/dev/null)" "com.keep.me"
-ck "未中止安装" "$(printf '%s' "$O" | grep -c 'ABORT' || true)" "0"
+ckn=""; case "$O" in *"检测到全局版"*) ckn=1 ;; esac
+ck "不误判为全局版" "$ckn" ""
 
 echo ""
 echo "############ 5. 目录存在但无 module.prop：告警后继续 ############"

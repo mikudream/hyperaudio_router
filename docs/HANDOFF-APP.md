@@ -110,8 +110,9 @@ diagnose / schedule-diagnose / diag-status / debug-*
 **2.2.1（本次）**
 
 - 模块名改为 `HyperAudioRouter`（id 仍为 `hyperaudio`）
-- 安装脚本新增互斥：检测到全局版（`/data/adb/modules/hyperaudio` 的名称不含 `Router`）
-  或上游 3.0（`hyperaudio_compat`）时直接 abort，避免静默覆盖全局版
+- 安装检测与全局版对齐：两者共用 id，覆盖安装是安全的，只提示"将替换全局版、需重启"；
+  上游 `hyperaudio_compat` 只提示冲突不阻止；升级本分支旧版时保留两份名单，
+  并提示旧 `lowlat.conf` 没有白名单（升级后只对名单内应用生效）
 - 设置页新增"诊断"入口（此前 Debug 页没有任何可达路径）
 - `aaudio.mmap_policy` / `mmap_exclusive_policy` 由 `2`(ALWAYS) 改回 `1`(AUTO)
 - 修复 `module.prop` 描述被写成非法行/多行的问题

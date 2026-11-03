@@ -40,7 +40,7 @@ run_test test_router_sh.sh
 section "2. lowlat.sh：白名单配置解析与保存"
 run_test test_lowlat_config.sh
 
-section "3. customize.sh：与全局版互斥"
+section "3. customize.sh：覆盖安装与冲突提示"
 run_test test_install_conflict.sh
 
 section "4. ha.sh：桩环境冒烟"

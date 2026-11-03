@@ -104,8 +104,8 @@ boot / stop       开机收尾 / 卸载前还原线程策略
 
 1. 把 `hyperaudio_module.zip` 安装到 Magisk / KernelSU / APatch（管理器内安装，不支持 recovery）
 2. 安装脚本会检查管理器 busybox、提示与其它音频模块的冲突，并保留升级前的两份名单
-3. **不能与全局版共存**：本模块与全局版（`HyperAudio Switch`）共用 id `hyperaudio`，
-   安装脚本检测到全局版或上游 `hyperaudio_compat` 会直接中止；请先卸载并重启
+3. **与全局版共用 id `hyperaudio`**：直接安装会覆盖全局版，重启后生效（旧版的端口挂载与
+   运行期属性在重启后不复存在，覆盖是安全的）；若装有上游 `hyperaudio_compat` 只提示冲突
 4. 启用模块并重启（zygisk 负载需要重启后才加载）
 
 ### 卸载
