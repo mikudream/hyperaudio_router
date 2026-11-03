@@ -83,7 +83,6 @@ async function refreshStatus() {
   $('soundSettings').hidden=s.applied!=='sound'&&!soundPanelOpen;
   $('soundRecoveryHint').hidden=s.applied==='sound';
   const bootMode=['native','sound'].includes(s.boot_mode)?s.boot_mode:'native';
-  $('bootSaved').textContent=s.boot_config==='invalid'?'配置异常，请重新保存':LABELS[bootMode];
   if(!bootDirty)$('boot-mode').value=bootMode;
   renderBootChoice();
   const guarded=s.boot_guard&&s.boot_guard!=='none';
