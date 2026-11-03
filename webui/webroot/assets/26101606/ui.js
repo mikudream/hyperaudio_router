@@ -1,8 +1,8 @@
 "use strict";
 // Page scroll positions and title presentation are independent of audio state.
 window.HAUI = (() => {
-  const pages=['mode','settings','debug'];
-  const views=[...pages,'about'];
+  const pages=['mode','settings','about'];
+  const views=[...pages,'debug'];
   const titles={mode:'HyperAudio Switch',settings:'设置',debug:'Debug',about:'关于'};
   const root=document.documentElement;
   const large=document.getElementById('pageTitle');
@@ -46,7 +46,7 @@ window.HAUI = (() => {
     views.forEach(name=>{
       document.getElementById('page-'+name).hidden=name!==page;
     });
-    const navPage=page==='about'?'settings':page;
+    const navPage=page;
     pages.forEach(name=>{
       const button=document.getElementById('nav-'+name);
       button.classList.toggle('active',name===navPage);
@@ -57,7 +57,7 @@ window.HAUI = (() => {
     subtitle.hidden=page!=='mode';
     root.style.setProperty('--ha-nav-index',String(pages.indexOf(navPage)));
     root.dataset.subpage=String(page==='about');
-    document.getElementById('btn-about-back').hidden=page!=='about';
+    document.getElementById('btn-about-back').hidden=true;
     document.getElementById('btn-reload').hidden=page==='about';
     window.dispatchEvent(new CustomEvent('ha:page',{detail:{page}}));
     if(window.scrollTo)window.scrollTo({top:positions[page],behavior:'instant'});
@@ -66,7 +66,6 @@ window.HAUI = (() => {
   }
   pages.forEach(page=>document.getElementById('nav-'+page).addEventListener('click',()=>show(page)));
   document.getElementById('btn-show-tuning').addEventListener('click',()=>show('settings'));
-  document.getElementById('btn-about').addEventListener('click',()=>show('about'));
   document.getElementById('btn-about-back').addEventListener('click',()=>show('settings'));
   window.addEventListener('scroll',updateTitleBar,{passive:true});
   window.addEventListener('resize',updateTitleBar,{passive:true});
