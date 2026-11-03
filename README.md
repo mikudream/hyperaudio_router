@@ -44,7 +44,7 @@ HyperOS 的音频链路里存在一对**框架层互斥**：
 | 模式 | 做什么 | 适合 |
 |---|---|---|
 | **音效模式**（默认） | 摘掉音频端口 `FAST` 标志 → 全部音频落入效果链 | 听歌、看视频、慢节奏游戏 —— 追求听感 |
-| **低延迟模式** | 恢复 `FAST` 标志，并启动守护进程提升音频线程实时优先级 | 音游、竞速、FPS —— 追求延迟与流畅 |
+| **低延迟模式** | 保持端口原有 `FAST` 标志；可选开启调度优化，把音频线程提升为 `SCHED_FIFO` | 音游、竞速、FPS —— 追求延迟与流畅 |
 
 > 实测依据：同一游戏在两种模式下的 A/B 对比中，"摘掉 FAST"后 Dolby 调音才可闻；
 > 保留 FAST 时不卡顿但调音被绕过。详见下文「技术说明」。
@@ -56,8 +56,8 @@ HyperOS 的音频链路里存在一对**框架层互斥**：
 ### 双模式切换
 
 - 切换在 WebUI 内一键完成，**约 8 秒生效**（会重启音频服务，可能有短暂静音）
-- 模式记录在 `/data/adb/modules/hyperaudio/mode`，**开机自动应用**
-- 音效模式下自动停用 `hyper-audio` 守护进程（不需要 RT 提权），低延迟模式下自动启用
+- 模式记录在 `/data/adb/modules/hyperaudio/mode`，**开机自动应用**；`service.sh` 在开机时调用 `bin/ha.sh boot` 恢复
+- 音效模式下自动暂停线程调度优化（不需要 RT 提权），低延迟模式下可重新开启
 
 ### WebUI（KernelSU / APatch 管理器内打开）
 
@@ -68,7 +68,7 @@ HyperOS 的音频链路里存在一对**框架层互斥**：
   并把当前模式写进 `module.prop` 的 `description` 前缀，因此**模块列表里就能看到当前模式**
   - 前缀形如 `【当前模式：音效模式】…`；标记文案存在 `module.prop` 的 `mode.sound` / `mode.fast` 行
   - 每次刷新先剥掉旧前缀，反复切换不会层层叠加；开机时 `service.sh` 会补刷一次
-- **参数配置**（仅低延迟模式显示）：守护进程总开关与三档实时优先级（HAL / 系统 / 应用）
+- **参数配置**（仅低延迟模式显示）：低延迟调度总开关与三档实时优先级（HAL / 系统 / 应用）
 - **全局生效**：开启后对**所有**正在播放的应用按上述优先级提升其音频线程为 `SCHED_FIFO`，不区分应用
   - 注：音效模式下会**隐藏**这些低延迟设置；已保存的优先级不会丢失
 - **调音来源**：显示当前生效的第三方调音模块名与版本；**未检测到则显示「官方默认调音」**
@@ -115,7 +115,7 @@ HyperOS 的音频链路里存在一对**框架层互斥**：
 在模块管理器中卸载即可。模块不修改任何系统分区文件。
 
 由于音效模式会用 `mount --bind` 覆盖 `/odm/etc/audio/audio_module_config_primary.xml`，
-而运行时建立的挂载**不由管理器管理**，本模块附带 `uninstall.sh`：卸载时会停止守护进程、
+而运行时建立的挂载**不由管理器管理**，本模块附带 `uninstall.sh`：卸载时调用 `bin/ha.sh recover`
 把端口 FAST 标志还原、摘掉该挂载并清理 `/data/local/tmp` 下的临时文件。
 仍建议**卸载后重启一次**，以彻底清除本次开机建立的所有挂载。
 
@@ -149,7 +149,7 @@ HyperOS 的音频链路里存在一对**框架层互斥**：
 ### 环境适配备注
 
 - 本设备（KernelSU Next）的 `ksu.exec()` **只回传 stdout 最后一行**且不支持 shell 重定向，
-  故设备端 `webui/helper.sh` 的所有输出都用 `\x1f` 压成单行，由前端拆分解析。
+  故设备端后端的输出统一用 `\x1f` 压成单行，再由 `bin/webui.sh` 包成 `rc=N|base64` 交给前端。
 - `/internal/insets.css` 在部分设备上不存在，WebUI 未依赖它，改用 CSS 变量提供状态栏留白。
 
 ---
@@ -157,39 +157,24 @@ HyperOS 的音频链路里存在一对**框架层互斥**：
 ## 仓库结构
 
 ```
-assets/    本项目维护的文本源码
-           module.prop / customize.sh / service.sh / system.prop
-webui/     本项目源码：WebUI 与设备端脚本
-           webroot/            KernelSU WebUI 界面（index.html / app.js / style.css）
-           helper.sh           WebUI 后端（status / tuning / setmode / save / recover）
-           action.sh           KernelSU 执行按钮（一键在两种模式间切换）
-           uninstall.sh        卸载清理（撤销端口层 / 停守护进程 / 修旧版遗留 / 清临时文件）
-           runtime.sh          模式状态机（改副本再 bind + 事务 + 开机护栏 + 回滚 + 就绪校验）
-           audio_ready.sh      音频就绪校验（重启后确认框架真的加载了配置）
-           check_audio_ready.awk  dumpsys 解析器（端口 flags 位掩码比对）
-           patch_ports.awk     有界 XML 编辑器（只改两个端口的 flags，异常一律 fail-closed）
-           start_daemon.sh     守护进程启动器
-           detect_tuning.sh    调音来源检测（异步调用，不在关键路径）
-           diagnose.sh         只读诊断导出（模式/挂载/端口/就绪/日志，不改状态）
+assets/    打包用文本与配置
+           module.prop / customize.sh / service.sh / uninstall.sh / post-fs-data.sh
+           system.prop / sound.conf / lowlat.conf / boot.conf
+webui/     源码
+           bin/           设备端后端（v3.0 逻辑）
+             ha.sh          总入口与动作分发
+             runtime.sh     模式状态机（bind 挂载 / 事务 / 回滚 / 开机护栏）
+             sound.sh       音效通路参数（MMAP 属性 + 端口 flags 改写）
+             lowlat.sh      低延迟调度（chrt 逐线程 + 归属记录 + 回滚 + 证明）
+             boot.sh        开机模式恢复与失败回退
+             webui.sh       WebUI 后端入口（rc=N|base64 契约 + 参数白名单）
+             diagnostics.sh / debug.sh / sampling.sh / theme.sh / fonts.sh
+             patch_ports.awk / active_clients.awk / check_audio_ready.awk 等
+           webroot/       与 v3.0 一致的界面（index.html / app.js / assets/<版本>/）
+           helper.sh      （已停用）旧后端，仅供历史对照，不再打包
+prebuilt/  预编译载荷：libaaudio_internal*.so、META-INF 安装入口
 tests/     主机侧测试（不随包分发，用 `sh tests/run.sh` 跑）
-           run.sh                       测试入口
-           test_patch_ports.sh          patch_ports.awk 改写与 fail-closed 用例（16 项）
-           test_runtime_state_machine.sh runtime.sh 的事务/回滚/护栏/挂载归属/就绪校验（68 项）
-           test_audio_ready.sh          report_flags 位掩码与 dumpsys 解析（29 项）
-           test_diagnose.sh             诊断导出：只读性/结构完整/落盘（28 项）
-           test_action_uninstall.sh     动作按钮与卸载：就绪结论/失败原因/退出码（26 项）
-           test_save_validation.sh      save 的严格校验（非法输入必须整体拒绝）
-           test_save_no_accumulation.sh 反复保存不应让配置文件增长
-
-> `runtime.sh` 跑在主机上需要注入：路径用 `HA_MOD` / `HA_TMP` / `HA_SOURCE_DIR` /
-> `HA_TARGET_BASE` / `HA_MOUNTINFO` / `HA_BOOT_ID_FILE` 重定向；`mount`/`umount` /
-> `dumpsys` / `pidof` / `getprop` 用 PATH mock；归属判定用测试钩子
-> `HA_RT_OURS_TEST` / `HA_RT_TARGET_STAT`。
-> 这些变量**只在测试里设置**，真机上不设，取值与默认行为完全一致。
-> 注意：就绪校验的 dumpsys 夹具是**离线构造**的，真实输出格式必须真机确认。
-prebuilt/  上游预编译产物（无法从源码重建，按原样保留，见 CREDITS.md）
-CREDITS.md 来源与致谢（随模块包分发）
-build.ps1  构建脚本：组装 + 清理作者标识 + 校验 + 打包（产物逐字节可复现）
+tools/     维护脚本（包内前端资源引用检查等）
 ```
 
 ### 端口补丁是怎么做的（0.4.6 起）
@@ -215,7 +200,7 @@ build.ps1  构建脚本：组装 + 清理作者标识 + 校验 + 打包（产物
 ### 诊断导出（0.4.7 起）
 
 出问题时不用反复追问"你的模式是什么 / 层挂上了吗 / 框架加载了吗"：
-WebUI 底部「支持 → 诊断」里点一下，或在终端跑 `sh bin/diagnose.sh --save`，
+WebUI 的「调试」页里点一下，或在终端跑 `sh bin/ha.sh diagnose`，
 会生成一份**只读**报告：
 
 ```
@@ -297,7 +282,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
    作者标识、调音载荷关键词原样打进包里 —— 已实测复现并修掉。）
 2. **不得含调音载荷**：ACDB / Dolby DAX / mixer / resourcemanager / 音量曲线 等
 3. **不得含机型判断**
-4. **除 `CREDITS.md` 外不得含原作者个人标识**：文本与二进制（`hyper-audio`、`*.so`）都扫
+4. **除 `CREDITS.md` 外不得含原作者个人标识**：文本与二进制（`*.so`）都扫
 5. **`system.prop` 必须是净化后的版本**（含特定注释、且不含上游署名注释）
 
 构建产物**逐字节可复现**：zip 条目时间戳已固定，同样内容两次构建哈希相同。
@@ -313,7 +298,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 - 继承自 **HyperAudio**：`system.prop` 全部 32 条基础属性（100% 包含，仅 2 条取值微调）、
   `odm` 兜底挂载的守卫写法、线程提权的设计思路
   （其"遮蔽 4 个音频策略库"的做法本项目**已移除**，见上方说明）
-- 继承自 **Mi17Audio**：`hyper-audio` 守护进程、`libaaudio_internal*.so`、`META-INF` 安装入口、
+- 继承自 **Mi17Audio**：`libaaudio_internal*.so`、`META-INF` 安装入口、
   蓝牙与 offload 等补充属性
 
 本项目在其基础上的改动、以及上游的许可证状况，详见 **[CREDITS.md](CREDITS.md)**。

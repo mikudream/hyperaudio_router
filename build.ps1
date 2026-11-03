@@ -70,37 +70,21 @@ foreach ($f in (Get-ChildItem (Join-Path $root 'webui\bin') -File | ForEach-Obje
   Copy-Item (Join-Path $root "webui\bin\$f") (Join-Path $stage 'bin') -Force
 }
 
-Copy-Item (Join-Path $root 'prebuilt\hyper-audio') $stage -Force
-Copy-Item (Join-Path $root 'prebuilt\config.toml') $stage -Force
-New-Item -ItemType Directory -Force -Path (Join-Path $stage 'system\lib64') | Out-Null
-Copy-Item (Join-Path $root 'prebuilt\libaaudio_internal.so')         (Join-Path $stage 'system\lib64') -Force
-Copy-Item (Join-Path $root 'prebuilt\libaaudio_internal_builder.so') (Join-Path $stage 'system\lib64') -Force
-# Zygisk payload: only this branch ships it (per-app switching). zygiskd loads
-# <module>/zygisk/<abi>.so, so it must sit at the module root, not under bin/.
-New-Item -ItemType Directory -Force -Path (Join-Path $stage 'zygisk') | Out-Null
-  # 通用版不打包 zygisk 负载（那是应用版的按应用挂钩）
+# 旧版载荷（hyper-audio 守护进程 / config.toml）在新架构下已无引用，停止打包。
+# Legacy payloads (hyper-audio daemon, config.toml) are no longer packaged:
+# the v3 backend never references them.
+[System.IO.Directory]::CreateDirectory((Join-Path $stage 'system\lib64')) | Out-Null
+$libDir = Join-Path $stage 'system\lib64'
+foreach ($so in @('libaaudio_internal.so','libaaudio_internal_builder.so')) {
+  $srcSo = Join-Path $root ("prebuilt\" + $so)
+  [System.IO.File]::Copy($srcSo, (Join-Path $libDir $so), $true)
+}
+[System.IO.Directory]::CreateDirectory((Join-Path $stage 'zygisk')) | Out-Null
+# General build ships no zygisk payload (that belongs to the per-app version).
 Copy-Item (Join-Path $root 'prebuilt\META-INF') $stage -Recurse -Force
 
 Write-Output "== 2. strip upstream author identifiers =="
-# assets/system.prop is already sanitized at the source, so no text edit is
-# needed here. The binary path still has to be rewritten.
-$cfg = Join-Path $stage 'config.toml'
-$t = [System.IO.File]::ReadAllText($cfg, $utf8NoBom)
-$t = [regex]::Replace($t, '(?m)^\s*"com\.hlmc\.phire",\r?\n', '')
-[System.IO.File]::WriteAllText($cfg, $t, $utf8NoBom)
-
-# equal-length byte replacement inside the Rust binary
-$bin = Join-Path $stage 'hyper-audio'
-$bytes = [System.IO.File]::ReadAllBytes($bin)
-$from = [System.Text.Encoding]::ASCII.GetBytes('hlmc')
-$to   = [System.Text.Encoding]::ASCII.GetBytes('user')
-$n = 0
-for ($i = 0; $i -le $bytes.Length - 4; $i++) {
-  if ($bytes[$i] -eq $from[0] -and $bytes[$i+1] -eq $from[1] -and $bytes[$i+2] -eq $from[2] -and $bytes[$i+3] -eq $from[3]) {
-    $bytes[$i] = $to[0]; $bytes[$i+1] = $to[1]; $bytes[$i+2] = $to[2]; $bytes[$i+3] = $to[3]; $n++
-  }
-}
-[System.IO.File]::WriteAllBytes($bin, $bytes)
+# assets/system.prop 已在源端处理；hyper-audio 与 config.toml 不再打包，无需改写。
 Write-Output "  binary: 'hlmc' -> 'user', $n occurrence(s), equal length"
 
 Write-Output "== 3. normalize line endings and encoding =="
@@ -182,7 +166,7 @@ if ($hit3) {
 
 # binaries: scan hyper-audio and the .so payloads as bytes, case-insensitively
 $binPats = @('hlmc', 'nakixii', 'Mi17Audio')
-$binFiles = @($bin) + @(Get-ChildItem -Recurse -File $stage -Filter '*.so' | ForEach-Object { $_.FullName })
+$binFiles = @(@($bin) + @(Get-ChildItem -Recurse -File $stage -Filter '*.so' | ForEach-Object { $_.FullName }) | Where-Object { $_ -and (Test-Path $_) })
 foreach ($bf in $binFiles) {
   $txt = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($bf)).ToLower()
   foreach ($p in $binPats) {
