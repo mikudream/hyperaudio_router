@@ -17,7 +17,7 @@ perapp_normalize() {
     [ "$_e" = 1 ] && return 0
     sed -i 's/^enabled=.*/enabled=1/' "$_f" 2>/dev/null || return 0
     chmod 0644 "$_f" 2>/dev/null
-    _L=/data/adb/modules/dolbyrouter/perapp.conf
+    _L=/data/adb/modules/dolbyrouter/perapp.conf  # 旧版兼容镜像
     if [ -d "${_L%/*}" ]; then
         cp -f "$_f" "$_L" 2>/dev/null
         chmod 0644 "$_L" 2>/dev/null

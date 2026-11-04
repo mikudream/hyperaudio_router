@@ -2,7 +2,7 @@
 # router.sh —— 应用版（hyperaudio_router）的"按应用"后端
 #
 # 两个名单，各自独立生效，名单外应用一律交给系统：
-#   perapp.conf  → 音效链路名单。zygisk 负载剥掉名单内应用的 FAST|PRIMARY 标志，
+#   perapp.conf  → 音效链路名单。zygisk 负载剥掉名单内应用的 FAST 标志（mFlags &= ~FAST），
 #                  使其回落到普通混音轨、经过 Dolby 效果链。
 #   lowlat.conf  → 低延迟链路名单（whitelist=CSV）。只有名单内应用放音时，
 #                  daemon 才把它的音频线程提为 SCHED_FIFO。
@@ -48,7 +48,7 @@ write_perapp() {
   } > "$_tmp" 2>/dev/null || return 1
   mv -f "$_tmp" "$PERAPP" 2>/dev/null || return 1
   chmod 0644 "$PERAPP" 2>/dev/null
-  # zygisk 负载的路径是编译期写死的，必须同步镜像一份，否则 companion 读不到
+  # 兼容旧版 DolbyRouter 的镜像路径；2.2.7 统一负载不依赖它，保留仅为平滑升级
   if [ -d "${LEGACY%/*}" ] || mkdir -p "${LEGACY%/*}" 2>/dev/null; then
     cp -f "$PERAPP" "$LEGACY" 2>/dev/null
     chmod 0644 "$LEGACY" 2>/dev/null
@@ -141,7 +141,7 @@ cmd_status() {
   _wl=$(wl_apps | tr '\n' ',' | sed 's/,$//')
   _wn=$(wl_apps | wc -l | tr -d ' ')
   _pay=0; [ -s "$MODDIR/zygisk/arm64-v8a.so" ] && _pay=1
-  _comp=0
+  _comp=0  # 旧版 DolbyRouter companion 诊断；统一负载没有 companion
   ps -A 2>/dev/null | grep -q 'zn-zygisk-companion64 hyperaudio' && _comp=1
   ps -A 2>/dev/null | grep -q 'zn-zygisk-companion64 dolbyrouter' && _comp=1
 

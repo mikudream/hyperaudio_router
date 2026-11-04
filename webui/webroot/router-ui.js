@@ -145,9 +145,9 @@
 
       if (st) {
         var payload = m['perapp_payload'] === '1';
-        var comp = m['perapp_companion'] === '1';
-        st.textContent = payload ? (comp ? '已注入' : '负载就绪，等待注入') : '缺少负载文件';
-        st.className = 'value ' + ((payload && comp) ? 'ok' : 'bad');
+        // 2.2.7 起的统一负载没有 companion：有 .so 就表示负载已随 Zygisk 注入。
+        st.textContent = payload ? '已注入' : '缺少负载文件';
+        st.className = 'value ' + (payload ? 'ok' : 'bad');
       }
 
       renderBox('perapp-list', state.perapp, function (p) {
