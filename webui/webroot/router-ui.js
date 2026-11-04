@@ -39,17 +39,23 @@
     return { rc: parseInt(m[1], 10), text: text };
   }
 
+  var execSeq = 0;
   function call(args) {
     return new Promise(function (resolve) {
       var settled = false;
       function done(v) { if (!settled) { settled = true; resolve(decode(v)); } }
       try {
         if (typeof ksu === 'undefined' || typeof ksu.exec !== 'function') { done(''); return; }
-        var ret = ksu.exec(WEBUI + ' ' + args, '{}', function (_c, out) { done(out); });
-        if (typeof ret === 'string' && ret) done(ret);
-        else if (ret && typeof ret.then === 'function') ret.then(function (o) { done(o); }, function () { done(''); });
+        // KernelSU-Next 的 WebUI 接口签名是 exec(cmd, options, 回调函数名)：
+        // 传函数对象不会触发回调（曾导致所有读取一直等到超时）。
+        var name = 'ha_router_cb_' + (++execSeq);
+        window[name] = function (_errno, out, err) {
+          delete window[name];
+          done(out || err || '');
+        };
+        ksu.exec(WEBUI + ' ' + args, '{}', name);
       } catch (e) { done(''); }
-      setTimeout(function () { done(''); }, 30000);
+      setTimeout(function () { done(''); }, 20000);
     });
   }
 

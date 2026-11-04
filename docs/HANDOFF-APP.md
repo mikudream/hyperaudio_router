@@ -1,7 +1,7 @@
 # HyperAudioRouter 交接说明
 
 > 写给接手这个分支的下一个会话。读完这份再动手，可以少走很多弯路。
-> 最后更新：2026-11-03，工作区已迁至 `D:\DSH\HyperAudioRouter`（`router/v2`，v2.2.4 修正注入状态误报）
+> 最后更新：2026-11-03，工作区已迁至 `D:\DSH\HyperAudioRouter`（`router/v2`，v2.2.5 修复 WebUI 执行桥）
 
 ---
 
@@ -43,14 +43,14 @@ adb 路径 `D:\App\UotanToolbox\Bin\platform-tools\adb.exe`（经常掉线，需
 
 ---
 
-## 3. 当前状态（2.2.3）
+## 3. 当前状态（2.2.5）
 
 | 项 | 状态 |
 |---|---|
 | 代码 | ✅ 纯按应用路由；**没有总开关**，加入名单即生效 |
 | 构建 | ✅ 71 项（移除了 .so 与端口补丁） |
 | 主机测试 | ✅ 6 节全过（router / lowlat / install / ha 冒烟 / system.prop / DOM） |
-| 真机验证 | ✅ 2.2.1 两条链路均已上机验证；2.2.2 WebUI 修复已装机；2.2.3 待解锁后目视 |
+| 真机验证 | ✅ 两条链路已上机验证；2.2.5 修复 WebUI 执行桥，等待解锁后目视确认 |
 
 构建产物：`repo\hyperaudio_module.zip`
 
@@ -107,13 +107,20 @@ diagnose / schedule-diagnose / diag-status / debug-*
 
 ## 5. 2.2.0 做了什么（相对 2.1.0）
 
-**2.2.3（移除总开关）**  
+**2.2.5（WebUI 桥修复）**
 
-- UI：去掉「音效链路」「低延迟调度」两个开关；**加入名单即生效，移出即恢复**
-- 后端：`perapp-enable` 动作删除，`perapp.conf` 恒写 `enabled=1`（仅为兼容 zygisk 负载）；
-  `lowlat.conf` 不再有 `enabled`/`only_whitelist`，旧字段读取时忽略
+- KernelSU-Next 的 `ksu.exec` 签名是 `exec(cmd, options, 回调函数名)`：
+  传函数对象不会触发回调，导致所有状态/名单读取 20–30 秒后超时
+- `router-ui.js` 改为注册命名回调（`(errno, stdout, stderr)`），实测可取回 `rc=N|base64`
+- 读取失败显示「状态未知」，不再误报「未内置」
+
+**2.2.3（移除总开关）**
+
+- UI：去掉「音效链路」「低延迟调度」两个开关；加入名单即生效，移出即恢复
+- 后端：删除 `perapp-enable`，`perapp.conf` 恒写 `enabled=1`（仅兼容 zygisk 负载）；`lowlat.conf` 不再有 `enabled`/`only_whitelist`
 - `ll-save` 改为 3 个参数（hal/audio/app）；daemon 常驻，开机即拉起
-- 升级迁移：开机时把旧 `perapp.conf` 的 `enabled=0` 归一化为 1 并同步 dolbyrouter 镜像
+- 升级迁移：开机把旧 `perapp.conf` 的 `enabled=0` 归一化为 1，并同步 dolbyrouter 镜像
+
 
 **2.2.2（WebUI 修复，实机反馈）**
 
