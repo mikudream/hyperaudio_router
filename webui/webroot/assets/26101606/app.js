@@ -104,7 +104,7 @@ async function refreshLowlat(){
     error:'调度失败，详见 Debug 中的低延迟记录。',
     suspended:'调度已暂停。'
   };
-  $('llStateText').textContent=empty?'名单为空：不会改动任何系统线程。':(notes[s.ll_state]||'等待调度结果…');
+  var stateText=$('llStateText');if(stateText)stateText.textContent=empty?'名单为空：不会改动任何系统线程。':(notes[s.ll_state]||'等待调度结果…');
   clearTimeout(llTimer);
   if(!document.hidden)llTimer=setTimeout(()=>{if(!working)refreshLowlat().catch(()=>{});},5000);
 }

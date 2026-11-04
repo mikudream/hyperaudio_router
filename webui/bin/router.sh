@@ -116,7 +116,7 @@ cmd_status() {
   _n=$(perapp_apps | wc -l | tr -d ' ')
   _wl=$(wl_apps | tr '\n' ',' | sed 's/,$//')
   _wn=$(wl_apps | wc -l | tr -d ' ')
-  _pay=0; [ -f "$MODDIR/zygisk/arm64-v8a.so" ] && _pay=1
+  _pay=0; [ -s "$MODDIR/zygisk/arm64-v8a.so" ] && _pay=1
   _comp=0
   ps -A 2>/dev/null | grep -q 'zn-zygisk-companion64 hyperaudio' && _comp=1
   ps -A 2>/dev/null | grep -q 'zn-zygisk-companion64 dolbyrouter' && _comp=1

@@ -41,28 +41,33 @@ The About page retains copyright notices and all three complete licenses.
       </button>
     </div>
   </div>
-<div class="hd-title"><h1 id="pageTitle">HyperAudioRouter</h1><p class="hd-sub" id="sub">按应用路由</p></div>
+<div class="hd-title"><h1 id="pageTitle">音效链路</h1><p class="hd-sub" id="sub">HyperAudioRouter</p></div>
 </header>
 <main class="main">
 <div class="page" id="page-sound" role="tabpanel" aria-labelledby="nav-sound">
-  <div class="section-title"><h2>音效链路</h2><span class="pill" id="soundCount">0 项</span></div>
+  <div class="section-title"><h2>音效链路</h2></div>
   <section class="card preference-card">
-    <p class="hint">加入名单即生效：名单内的应用音轨回落到普通混音轨，经过 Dolby 效果链；名单外的应用保持系统默认，不会被改动。</p>
-    <div class="row"><span class="copy"><b>注入状态</b></span><span class="value" id="perapp-state">—</span></div>
+    <p class="hint">通过 Zygisk 注入包名</p>
+    <div class="row"><span class="copy"><b>Zygisk注入状态</b></span><span class="value" id="perapp-state">读取中…</span></div>
+  </section>
+  
+  <div class="section-title"><h2>音效应用</h2></div>
+  <section class="card preference-card">
+    <div class="section-title"><h2>名单</h2><span class="pill" id="soundCount">0 项</span></div>
+    <p class="hint">加入名单即生效：名单内的应用音轨回落到普通混音轨，经过 Dolby 效果链。</p>
+    <p class="section-note">加入音效名单的应用会自动从低延迟名单移出。</p>
     <div class="row">
       <input class="field" id="perapp-input" type="text" placeholder="输入包名，如 com.xxx.game" />
       <button class="btn primary" id="perapp-add" type="button">添加</button>
     </div>
     <div id="perapp-list"></div>
-    <p class="section-note">移出名单即恢复系统默认。加入音效名单的应用会自动从低延迟名单移出。</p>
+   
   </section>
-  <p class="section-note">请勿把实时音游加入音效名单：普通混音轨的延迟高于低延迟通路。</p>
 </div>
 
 <div class="page" id="page-lowlat" role="tabpanel" aria-labelledby="nav-lowlat" hidden>
   <div class="section-title"><h2>低延迟链路</h2><span class="section-value" id="llBadge">正在读取</span></div>
   <section class="card preference-card">
-    <p class="hint">加入名单即生效：名单内的应用在放音时，其音频线程会被提升到实时优先级；名单为空时不会改动任何系统线程。</p>
     <div class="options" id="llControls">
       <label class="row" for="f-hal"><span class="copy"><b>底层音频优先级</b><small>底层声音输出（HAL），仅在名单内应用放音时提升</small></span><input type="number" class="number-input" id="f-hal" min="1" max="99" value="20" inputmode="numeric"/></label>
       <label class="row" for="f-audio"><span class="copy"><b>系统音频优先级</b><small>系统混音和声音输出</small></span><input type="number" class="number-input" id="f-audio" min="1" max="99" value="16" inputmode="numeric"/></label>
@@ -72,16 +77,18 @@ The About page retains copyright notices and all three complete licenses.
       <div class="panel-actions"><button class="btn secondary" id="btn-ll-reset">恢复默认</button><button class="btn primary" id="btn-save">保存并应用</button></div>
     </div>
   </section>
+  <div class="section-title"><h2>低延迟应用</h2></div>
   <p class="hint" id="llStateText">正在读取调度状态…</p>
   <section class="card preference-card">
     <div class="section-title"><h2>名单</h2><span class="pill" id="wl-count">0 项</span></div>
-    <p class="hint">名单内的应用在前台放音时，其音频线程会被提升到实时优先级；名单外的应用不参与调度。</p>
+    <p class="hint">加入名单即生效：名单内的应用在前台放音时，其音频线程会被提升到实时优先级。</p>
+    <p class="section-note">加入低延迟名单的应用会自动从音效名单移出。</p>
     <div class="row">
       <input class="field" id="wl-input" type="text" placeholder="输入包名，如 com.xxx.game" />
       <button class="btn primary" id="wl-add" type="button">添加</button>
     </div>
     <div id="wl-list"></div>
-    <p class="section-note">加入低延迟名单的应用会自动从音效名单移出。名单为空时不会改动任何系统线程。</p>
+    
   </section>
 </div>
 
@@ -148,7 +155,7 @@ The About page retains copyright notices and all three complete licenses.
  <path d="M145 110C150 103 158 99 169 99" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-opacity=".8"/>
 </g>
 </svg></span>
-      <span class="copy"><b class="about-app-name">HyperAudioRouter</b><small>按应用路由</small><span class="about-version">版本 2.2.3</span></span>
+      <span class="copy"><b class="about-app-name">HyperAudioRouter</b><small>按应用路由</small><span class="about-version">版本 2.2.4</span></span>
     </div>
   </section>
   <div class="section-title"><h2>项目信息</h2></div>

@@ -31,6 +31,11 @@ ckc "负载存在" "$O" "perapp_payload=1"
 ckc "无 enable 字段" "$O" "ok=1"
 ckn "不再暴露总开关" "$O" "perapp_enabled"
 ckn "不再暴露低延迟开关" "$O" "wl_enabled"
+# 空文件不算"内置"：避免复制失败留下 0 字节 .so 时误报
+: > "$M/zygisk/arm64-v8a.so"
+O=$(run router-status)
+ckc "空负载文件不算内置" "$O" "perapp_payload=0"
+printf 'x' > "$M/zygisk/arm64-v8a.so"
 
 echo ""
 echo "############ 2. 音效名单增删 ############"

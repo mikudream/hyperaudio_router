@@ -115,17 +115,23 @@
   function refresh() {
     return call('router-status').then(function (r) {
       var m = parseKV(r.text);
+      var ok = r.rc === 0 && m['ok'] === '1';
+      var st = $('perapp-state');
+      // 取不到数据时绝不能断言"没有负载"——那正是之前的误报来源。
+      if (!ok) {
+        if (st) { st.textContent = '状态未知'; st.className = 'value'; }
+        return;
+      }
       state.perapp = listOf(m['perapp_apps']);
       state.wl = listOf(m['wl_apps']);
 
       setCount('soundCount', state.perapp.length);
       setCount('wl-count', state.wl.length);
 
-      var st = $('perapp-state');
       if (st) {
         var payload = m['perapp_payload'] === '1';
         var comp = m['perapp_companion'] === '1';
-        st.textContent = (payload && comp) ? '已注入' : (payload ? '负载就绪，进程未启动' : '未内置');
+        st.textContent = payload ? (comp ? '已注入' : '负载就绪，等待注入') : '缺少负载文件';
         st.className = 'value ' + ((payload && comp) ? 'ok' : 'bad');
       }
 

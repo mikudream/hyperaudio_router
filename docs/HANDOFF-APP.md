@@ -1,7 +1,7 @@
 # HyperAudioRouter 交接说明
 
 > 写给接手这个分支的下一个会话。读完这份再动手，可以少走很多弯路。
-> 最后更新：2026-11-03，工作区已迁至 `D:\DSH\HyperAudioRouter`（`router/v2`，v2.2.3 移除总开关）
+> 最后更新：2026-11-03，工作区已迁至 `D:\DSH\HyperAudioRouter`（`router/v2`，v2.2.4 修正注入状态误报）
 
 ---
 
