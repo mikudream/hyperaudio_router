@@ -42,7 +42,7 @@ ha.mmap_gate.0..7      低延迟名单
 ```
 
 - `webui/bin/router.sh` 在 `perapp-add/del`、`wl-add/del` 后立即发布
-- `webui/bin/boot.sh` 在开机时发布
+- `assets/post-fs-data.sh` 与 `webui/bin/boot.sh` 在开机时发布
 - 负载优先读 `perapp.conf` / `lowlat.conf` 文件，读不到再回退到属性
 
 ### 2.3 低延迟 daemon

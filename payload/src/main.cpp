@@ -183,9 +183,9 @@ void load_gate_list() {
         g_list[n] = 0;
         g_list_len = (size_t)n;
         LOGI("gate list loaded from %s (%zd bytes)", p, n);
-        return;
+        break;
     }
-    // 2) 回退到系统属性通道：hyperaudio 以 root 写入 ha.mmap_gate.0..7
+    // 2) 再合并系统属性通道：hyperaudio 以 root 写入 ha.mmap_gate.0..7
     for (int i = 0; i < 8; i++) {
         char key[32], val[PROP_VALUE_MAX];
         snprintf(key, sizeof(key), "ha.mmap_gate.%d", i);
@@ -198,7 +198,7 @@ void load_gate_list() {
         g_list[g_list_len] = 0;
     }
     if (g_list_len) {
-        LOGI("gate list loaded from properties (%zu bytes)", g_list_len);
+        LOGI("gate list merged (%zu bytes)", g_list_len);
     } else {
         LOGI("no gate list found; module will not hook anything");
     }
@@ -239,20 +239,19 @@ void load_sound_list() {
             g_sound_len = (size_t)n;
         }
     }
-    if (!g_sound_len) {
-        for (int i = 0; i < 8; i++) {
-            char key[32], val[PROP_VALUE_MAX];
-            snprintf(key, sizeof(key), "ha.perapp.app.%d", i);
-            int n = __system_property_get(key, val);
-            if (n <= 0) continue;
-            if (g_sound_len + (size_t)n + 2 >= kMaxList) break;
-            if (g_sound_len) g_sound_list[g_sound_len++] = ',';
-            memcpy(g_sound_list + g_sound_len, val, (size_t)n);
-            g_sound_len += (size_t)n;
-            g_sound_list[g_sound_len] = 0;
-        }
+    // 再合并属性通道，避免文件与属性短暂不一致时漏掉名单
+    for (int i = 0; i < 8; i++) {
+        char key[32], val[PROP_VALUE_MAX];
+        snprintf(key, sizeof(key), "ha.perapp.app.%d", i);
+        int n = __system_property_get(key, val);
+        if (n <= 0) continue;
+        if (g_sound_len + (size_t)n + 2 >= kMaxList) break;
+        if (g_sound_len) g_sound_list[g_sound_len++] = ',';
+        memcpy(g_sound_list + g_sound_len, val, (size_t)n);
+        g_sound_len += (size_t)n;
+        g_sound_list[g_sound_len] = 0;
     }
-    if (g_sound_len) LOGI("sound list loaded (%zu bytes)", g_sound_len);
+    if (g_sound_len) LOGI("sound list merged (%zu bytes)", g_sound_len);
 }
 
 bool csv_has(const char *buf, size_t len, const char *pkg) {

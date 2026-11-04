@@ -15,7 +15,7 @@ Zygisk 官方模块 API（John "topjohnwu" Wu，ISC 许可）。
 ## 名单从哪来
 
 `preAppSpecialize` 阶段读不到 `/data/adb`，所以名单由 root 侧的
-`webui/bin/router.sh` / `boot.sh` 发布到系统属性：
+`webui/bin/router.sh` / `boot.sh` / `post-fs-data.sh` 发布到系统属性：
 
 - `ha.perapp.app.0..7`：音效名单
 - `ha.mmap_gate.0..7`：低延迟名单
