@@ -18,7 +18,7 @@
 
 同一个包不会同时留在两个名单里：加入一边会自动从另一边移出，并回显 `moved_from=`。
 
-## 技术实现
+完整说明见 [`docs/MODULE.md`](docs/MODULE.md)。`n`n## 技术实现
 
 1. **统一 Zygisk 负载**（`zygisk/arm64-v8a.so`，源码在 `payload/`）
    - 音效名单：hook `AudioTrack::createTrack_l`，在调用原函数前把
