@@ -99,8 +99,11 @@ async function refreshLowlat(){
   const details=$('llDetails');if(details)details.textContent=text;
   const white=(s.whitelist||'').trim();
   const empty=white===''||white==='-';
-  const badge=empty?'名单为空':s.ll_state==='verified'?'已生效':s.ll_state==='waiting'?'等待放音':s.ll_state==='no_matching_threads'?'未匹配线程':s.ll_state==='partial'?'部分成功':s.ll_state==='error'?'调度失败':s.ll_state==='suspended'?'已暂停':'调度中';
-  $('llBadge').textContent=dirty?'待保存':!live?'后台未就绪':badge;
+  const badge=empty?'':s.ll_state==='verified'?'已生效':s.ll_state==='waiting'?'等待放音':s.ll_state==='no_matching_threads'?'未匹配线程':s.ll_state==='partial'?'部分成功':s.ll_state==='error'?'调度失败':s.ll_state==='suspended'?'已暂停':'调度中';
+  var badgeEl=$('llBadge');
+  badgeEl.textContent=dirty?'待保存':!live?'后台未就绪':badge;
+  badgeEl.hidden=(empty && !dirty);
+  badgeEl.style.display=(empty && !dirty)?'none':'';
   const notes={
     verified:'已生效：名单内应用的音频线程已提升到实时优先级。',
     waiting:'等待名单内应用开始放音。',
@@ -109,7 +112,8 @@ async function refreshLowlat(){
     error:'调度失败，详见 Debug 中的低延迟记录。',
     suspended:'调度已暂停。'
   };
-  var stateText=$('llStateText');if(stateText)stateText.textContent=empty?'名单为空：不会改动任何系统线程。':(notes[s.ll_state]||'等待调度结果…');
+  var stateText=$('llStateText');
+  if(stateText){ stateText.textContent=empty?'':(notes[s.ll_state]||'等待调度结果…'); stateText.hidden=empty; stateText.style.display=empty?'none':''; }
   clearTimeout(llTimer);
   if(!document.hidden)llTimer=setTimeout(()=>{if(!working)refreshLowlat().catch(()=>{});},5000);
 }

@@ -3,7 +3,7 @@
 window.HAUI = (() => {
   const pages=['sound','lowlat','settings','about'];
   const views=[...pages,'debug'];
-  const titles={sound:'音效链路',lowlat:'低延迟',settings:'设置',about:'关于',debug:'Debug'};
+  const titles={sound:'音效链路',lowlat:'低延迟链路',settings:'设置',about:'关于',debug:'Debug'};
   const root=document.documentElement;
   root.style.setProperty('--ha-nav-count',String(pages.length));
   const large=document.getElementById('pageTitle');

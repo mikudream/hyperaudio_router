@@ -85,13 +85,7 @@
     var box = $(boxId);
     if (!box) return;
     box.textContent = '';
-    if (!items.length) {
-      var e = document.createElement('div');
-      e.className = 'empty';
-      e.textContent = '名单为空';
-      box.appendChild(e);
-      return;
-    }
+    if (!items.length) return;   // 空名单不显示“名单为空”占位
     items.forEach(function (pkg) {
       var row = document.createElement('div');
       row.className = 'row';
