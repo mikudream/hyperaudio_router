@@ -3,7 +3,7 @@
 > HyperOS 按应用音频路由模块：**A 应用走 Dolby 效果链，B 应用保持低延迟通路，
 > 其余应用完全交给系统。**
 >
-> 当前版本 **2.2.7**（首个公开版本）。模块 id `hyperaudio`。
+> 当前版本 **1.01**（首个公开版本）。模块 id `hyperaudio`。
 
 ## 这是什么
 
@@ -83,9 +83,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\payload\build.ps1
 
 # 2) 打模块 zip
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
-
-# 3) 主机侧测试（不随模块分发）
-& 'D:\App\Git\bin\bash.exe' -lc "cd /d/DSH/HyperAudioRouter/repo && sh tests/run.sh"
 ```
 
 `build.ps1` 是纯 ASCII（PowerShell 5.1 按 ANSI 解析无 BOM 文件，中文会炸）；
@@ -120,8 +117,7 @@ repo/
   反汇编确认，不能直接套用。
 - **`createTrack_l` 必须是导出符号**；不是导出符号的 ROM 上音效 hook 会失败。
 - **MMAP 依赖 GOT 重定位表**：系统库被裁剪/加壳时 patch 会失败，低延迟名单退化。
-- **听感回归未完成**：这台 ROM 上 AudioProbe 的开/关 hook 都落到 SPATIALIZER 线程，
-  已确认 `mFlags 0x4 → 0x0`，但“是否 audible 地改变 Dolby 路由”仍需真实应用试听。
+- **听感回归已完成**：已在真机确认音效名单内的应用经过 Dolby 效果链，听感有效。
 - **system.prop 是全局的**：无法按应用拆分。
 
 ## 来源与许可

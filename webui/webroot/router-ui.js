@@ -145,7 +145,7 @@
 
       if (st) {
         var payload = m['perapp_payload'] === '1';
-        // 2.2.7 起的统一负载没有 companion：有 .so 就表示负载已随 Zygisk 注入。
+        // 1.01 起的统一负载没有 companion：有 .so 就表示负载已随 Zygisk 注入。
         st.textContent = payload ? '已注入' : '缺少负载文件';
         st.className = 'value ' + (payload ? 'ok' : 'bad');
       }

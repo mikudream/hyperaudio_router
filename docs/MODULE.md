@@ -1,6 +1,6 @@
 # HyperAudioRouter 模块说明
 
-> 版本 **2.2.7**（首个公开版本） · 模块 id `hyperaudio` · 作者：月见里幽瞳 / deepseek-flash
+> 版本 **1.01**（首个公开版本） · 模块 id `hyperaudio` · 作者：月见里幽瞳 / deepseek-flash
 
 ## 1. 概览
 
@@ -121,8 +121,7 @@ revision=...
 - **`createTrack_l` 必须是导出符号**；否则音效 hook 安装失败（低延迟链路不受影响）。
 - **MMAP GOT patch 依赖 `libaaudio_internal_*.so` 的 ELF 重定位表**；系统库被裁剪或
   加壳时 patch 会失败，低延迟名单退化为仅 chrt 调度。
-- **听感回归未完成**：本机 AudioProbe 开/关 hook 都落到 SPATIALIZER 线程；已确认
-  `mFlags 0x4 → 0x0`，但 Dolby 路由的听感差异仍需真实应用试听确认。
+- **听感回归已完成**：已在真机确认音效名单内的应用经过 Dolby 效果链，听感有效。
 - **system.prop 是全局的**，不能按应用拆分。
 - 不要与其它会改写音频策略/端口/AAudio 库的模块同时使用。
 
@@ -152,9 +151,6 @@ powershell -ExecutionPolicy Bypass -File .\payload\build.ps1
 
 # 打 zip
 powershell -ExecutionPolicy Bypass -File .\build.ps1
-
-# 主机测试
-& 'D:\App\Git\bin\bash.exe' -lc "cd /d/DSH/HyperAudioRouter/repo && sh tests/run.sh"
 ```
 
 `build.ps1` 会做四类打包前检查：已知文件布局、无调音载荷、无机型检测、无上游作者署名。

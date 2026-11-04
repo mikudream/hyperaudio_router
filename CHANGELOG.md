@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.2.7 — 首个公开版本（2026-11-04）
+## 1.01 — 首个公开版本（2026-11-04）
 
 首个公开版本，面向 HyperOS / Android 17（REDMI K90 Pro Max / myron）验证。
 
@@ -28,4 +28,4 @@
 
 - 仅在 REDMI K90 Pro Max / Android 17 上验证；`mFlags` 偏移 `0x3c0` 不可直接移植。
 - `createTrack_l` 必须是导出符号；MMAP GOT patch 依赖系统库重定位表。
-- 听感级 Dolby 路由回归尚未完成（已确认 `mFlags 0x4 → 0x0`）。
+- 听感回归已完成：真机确认音效名单内的应用经过 Dolby 效果链，听感有效。

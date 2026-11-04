@@ -48,7 +48,7 @@ write_perapp() {
   } > "$_tmp" 2>/dev/null || return 1
   mv -f "$_tmp" "$PERAPP" 2>/dev/null || return 1
   chmod 0644 "$PERAPP" 2>/dev/null
-  # 兼容旧版 DolbyRouter 的镜像路径；2.2.7 统一负载不依赖它，保留仅为平滑升级
+  # 兼容旧版 DolbyRouter 的镜像路径；1.01 统一负载不依赖它，保留仅为平滑升级
   if [ -d "${LEGACY%/*}" ] || mkdir -p "${LEGACY%/*}" 2>/dev/null; then
     cp -f "$PERAPP" "$LEGACY" 2>/dev/null
     chmod 0644 "$LEGACY" 2>/dev/null
