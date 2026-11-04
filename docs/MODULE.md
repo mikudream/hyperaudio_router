@@ -136,14 +136,13 @@ zygisk/          构建产物 arm64-v8a.so
 webui/bin/       机上后端（router / lowlat / boot / diagnostics）
 webui/webroot/   WebUI
 prebuilt/        META-INF 安装入口
-tests/           主机侧测试
 docs/            模块说明 / 交接 / 设计文档
 build.ps1        打包脚本
 ```
 
 ---
 
-## 7. 构建与测试
+## 7. 构建
 
 ```powershell
 # 编译负载（需要 Android NDK r27）
@@ -154,8 +153,6 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
 `build.ps1` 会做四类打包前检查：已知文件布局、无调音载荷、无机型检测、无上游作者署名。
-主机测试覆盖名单互斥、低延迟配置、`ha.sh` 冒烟、`system.prop`、WebUI DOM 引用、
-`webui.sh` 带参动作通配；不能替代真机验证。
 
 ---
 

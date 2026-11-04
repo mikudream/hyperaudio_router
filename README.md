@@ -75,7 +75,7 @@
 卸载：管理器内卸载即可。`uninstall.sh` 会先调用 `ha.sh stop` 还原已提升的线程策略，
 再结束调度 daemon。
 
-## 构建与测试
+## 构建
 
 ```powershell
 # 1) 重新编译 zygisk 负载（需要 Android NDK r27）
@@ -88,9 +88,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 `build.ps1` 是纯 ASCII（PowerShell 5.1 按 ANSI 解析无 BOM 文件，中文会炸）；
 打包前会做四类检查：已知文件布局、无调音载荷、无机型检测、无上游作者署名。
 
-主机测试覆盖：两份名单与互斥迁移、低延迟配置解析与保存、`ha.sh` 冒烟、
-`system.prop` 去重与关键项、WebUI DOM 引用一致性、`webui.sh` 带参动作通配。
-**它们不能替代真机验证。**
 
 ## 仓库结构
 
@@ -102,7 +99,6 @@ repo/
 ├── webui/bin/        机上后端（router / lowlat / boot / diagnostics …）
 ├── webui/webroot/    WebUI（index.html + assets/26101606/* + router-ui.js）
 ├── prebuilt/         META-INF 安装入口
-├── tests/            主机侧测试
 ├── docs/             模块说明、交接与设计文档
 ├── build.ps1         打包脚本
 └── LICENSE           MIT（第三方许可见 CREDITS.md）
