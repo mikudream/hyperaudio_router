@@ -52,7 +52,7 @@
   body.replaceChildren();dialog.dataset.view=current.type;dismiss.hidden=stack.length===0;
   back.setAttribute('aria-label',stack.length?'返回'+titleFor(stack[stack.length-1].view):'返回关于');
   if(current.type==='contributors'){
-   heading('维护与制作','感谢一起完善 HyperAudio Switch 的伙伴。');
+   heading('维护与制作','感谢一起完善 HyperAudioRouter 的伙伴。');
    const people=section('本版维护');for(const person of data.maintainers)row(people,person);
    const assistance=section('AI 辅助');for(const item of data.assistance)row(assistance,{...item,kind:'ai'});
    note('上游音频方案作者，另列于“音频方案与来源”。');
@@ -85,7 +85,7 @@
    const text=prose(['上游方案的署名予以保留。现有记录尚未确认上游对本版的明确分发授权，来源致谢不代替授权确认。']);licenseSection.appendChild(text);
   }else{
    heading('第三方声明','项目关系、来源记录与版权说明。');
-   prose(['HyperAudio Switch 是独立维护的第三方模块，与小米、Google 及所列项目无官方隶属、合作或背书关系。','界面与交互参考、实际使用的代码及图标，已分别注明使用范围。第三方内容的版权归原作者，引用部分保留原作者署名与相应许可证。','项目名称仅用于说明来源。致谢不代表获得额外授权，也不授予相关商标、标识或其他内容的使用权。']);
+   prose(['HyperAudioRouter 是独立维护的第三方模块，与小米、Google 及所列项目无官方隶属、合作或背书关系。','界面与交互参考、实际使用的代码及图标，已分别注明使用范围。第三方内容的版权归原作者，引用部分保留原作者署名与相应许可证。','项目名称仅用于说明来源。致谢不代表获得额外授权，也不授予相关商标、标识或其他内容的使用权。']);
   }
   body.scrollTop=scrollTop;updateScroll();
  }
