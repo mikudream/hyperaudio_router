@@ -55,7 +55,7 @@
    heading('维护与制作','感谢一起完善 HyperAudio Switch 的伙伴。');
    const people=section('本版维护');for(const person of data.maintainers)row(people,person);
    const assistance=section('AI 辅助');for(const item of data.assistance)row(assistance,{...item,kind:'ai'});
-   note('原始模块与上游音频方案作者，另列于“音频方案与来源”。');
+   note('上游音频方案作者，另列于“音频方案与来源”。');
   }else if(current.type==='projects'){
    heading('项目致谢','感谢为界面、交互和图标提供启发与基础的项目。');
    for(const [label,ids] of groups){const list=section(label);
@@ -76,13 +76,13 @@
    const item=data.licenses.find(x=>x.id===current.id);heading(item.name,item.license);
    prose([item.copyright,item.usage]);body.appendChild(node('pre',item.text,'credit-license-text'));
   }else if(current.type==='origin'){
-   heading('音频方案与来源','记录原始模块及上游音频方案，感谢原作者的探索与整理。');
-   for(const [label,items] of [['原始模块',data.origins.slice(0,1)],['上游音频方案',data.origins.slice(1)]]){
+   heading('音频方案与来源','记录上游音频方案，感谢原作者的探索与整理。');
+   for(const [label,items] of [['上游音频方案',data.origins]]){
     const list=section(label);for(const item of items)row(list,{name:item.name,detail:item.owner,url:item.source});
    }
    note('以上为来源署名与致谢，不表示原作者参与本版维护，或对本版作出认可。');
    const licenseSection=node('section',undefined,'credits-section');licenseSection.appendChild(node('h3','来源与授权','credit-section-title'));body.appendChild(licenseSection);
-   const text=prose(['原始模块与上游方案的署名予以保留。现有记录尚未确认上游对本版的明确分发授权，来源致谢不代替授权确认。']);licenseSection.appendChild(text);
+   const text=prose(['上游方案的署名予以保留。现有记录尚未确认上游对本版的明确分发授权，来源致谢不代替授权确认。']);licenseSection.appendChild(text);
   }else{
    heading('第三方声明','项目关系、来源记录与版权说明。');
    prose(['HyperAudio Switch 是独立维护的第三方模块，与小米、Google 及所列项目无官方隶属、合作或背书关系。','界面与交互参考、实际使用的代码及图标，已分别注明使用范围。第三方内容的版权归原作者，引用部分保留原作者署名与相应许可证。','项目名称仅用于说明来源。致谢不代表获得额外授权，也不授予相关商标、标识或其他内容的使用权。']);

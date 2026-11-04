@@ -53,6 +53,7 @@ write_perapp() {
     cp -f "$PERAPP" "$LEGACY" 2>/dev/null
     chmod 0644 "$LEGACY" 2>/dev/null
   fi
+  publish_props
   return 0
 }
 
@@ -72,6 +73,28 @@ wl_apps() {
   _csv=$(conf_val whitelist)
   case "$_csv" in ''|-) return 0 ;; esac
   printf '%s\n' "$_csv" | tr ',' '\n' | sed '/^[[:space:]]*$/d'
+}
+
+# 把两份名单发布到系统属性，供 zygisk 负载在 app 进程里读取
+# （preAppSpecialize 阶段读不到 /data/adb，属性是唯一可靠通道）。
+# ha.perapp.app.N → 音效名单；ha.mmap_gate.N → 低延迟名单。
+publish_props() {
+  command -v setprop >/dev/null 2>&1 || return 0
+  _pub() {
+    _i=0; _buf=''
+    while IFS= read -r _p; do
+      [ -z "$_p" ] && continue
+      if [ -n "$_buf" ] && [ $(( ${#_buf} + ${#_p} + 1 )) -gt 80 ]; then
+        setprop "ha.$1.$_i" "$_buf"; _i=$((_i+1)); _buf=$_p
+      else
+        if [ -n "$_buf" ]; then _buf="$_buf,$_p"; else _buf=$_p; fi
+      fi
+    done
+    if [ -n "$_buf" ]; then setprop "ha.$1.$_i" "$_buf"; _i=$((_i+1)); fi
+    while [ "$_i" -lt 8 ]; do setprop "ha.$1.$_i" '-'; _i=$((_i+1)); done
+  }
+  perapp_apps | _pub perapp.app
+  wl_apps | _pub mmap_gate
 }
 
 conf_num() {
@@ -98,6 +121,7 @@ write_whitelist() {
   } > "$_tmp" 2>/dev/null || return 1
   mv -f "$_tmp" "$CONF" 2>/dev/null || return 1
   chmod 0644 "$CONF" 2>/dev/null
+  publish_props
   return 0
 }
 
@@ -192,5 +216,6 @@ case "$1" in
   perapp-del)     cmd_perapp_del "$2" ;;
   wl-add)         cmd_wl_add "$2" ;;
   wl-del)         cmd_wl_del "$2" ;;
+  publish-only)   publish_props ;;
   *)              bad bad_action ;;
 esac

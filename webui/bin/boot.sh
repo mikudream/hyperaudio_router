@@ -33,6 +33,7 @@ boot_run() {
     if [ -f "$MODDIR/lowlat.conf" ]; then
         ll_read_config || err invalid_lowlat_config || return 1
     fi
+    MODDIR="$MODDIR" /system/bin/sh "$MODDIR/bin/router.sh" publish-only >/dev/null 2>&1 || :
     ll_ensure_daemon || return 1
     update_description
     log "boot: applied=native whitelist=$(count_wl)"

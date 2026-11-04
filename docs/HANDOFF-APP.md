@@ -107,6 +107,14 @@ diagnose / schedule-diagnose / diag-status / debug-*
 
 ## 5. 2.2.0 做了什么（相对 2.1.0）
 
+**2.2.7（统一负载 / 名单发布）**
+
+- `zygisk/arm64-v8a.so` 换成自研统一负载：`AudioTrack::createTrack_l` inline hook（清 FAST）+ AAudio MMAP GOT patch
+- zygisk 负载改为读取 `ha.perapp.app.*` / `ha.mmap_gate.*`
+- `router.sh` / `boot.sh` 在名单变化与开机时发布属性
+- WebUI“音频方案与来源”移除原始模块与 Mi17Audio，新增 AAudio MMAP Hook
+- 原始 DolbyRouter 负载备份在 `tooling/zygisk-dolbyrouter-arm64-v8a.so`
+
 **2.2.6（带参动作匹配修复）**
 
 - `webui.sh` 的 case 用 `perapp-add:` 精确匹配，带包名时字符串是 `perapp-add:com.x`，永远匹配不上，添加/删除会静默返回 bad command
