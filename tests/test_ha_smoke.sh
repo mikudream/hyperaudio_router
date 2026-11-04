@@ -104,7 +104,7 @@ run() {
 }
 
 echo "############ 1. 只读动作能跑完且不报错 ############"
-for act in status ll-status boot-status tuning theme diag-status; do
+for act in status ll-status boot-status tuning theme; do
   O=$(run $act); RC=$?
   ck "$act 退出码 0" "$RC" "0"
   ckn "$act 无 'not found'" "$O" "not found"

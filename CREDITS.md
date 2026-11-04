@@ -8,7 +8,7 @@ HyperAudioRouter（模块 id `hyperaudio`）是独立维护的第三方模块，
 除第三方头文件、图标和视觉参考外，以下代码为本项目编写：
 
 - `payload/src/main.cpp`：统一 Zygisk 负载（`createTrack_l` inline hook + AAudio GOT patch）
-- `webui/bin/*.sh`：机上后端（名单、属性发布、低延迟 daemon、诊断）
+- `webui/bin/*.sh`：机上后端（名单、属性发布、低延迟 daemon）
 - `webui/webroot/*`：WebUI
 - `assets/*`、`build.ps1`、`tests/*`
 

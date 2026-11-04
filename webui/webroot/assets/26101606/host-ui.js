@@ -44,18 +44,6 @@
   }
   function render(){
     root.dataset.hostLayout=layout;
-    const hint=document.getElementById('systemBarHint'),detail=document.getElementById('hostDetails');
-    const messages={
-      edge:'已启用沉浸式布局，保留时间与电量；实际系统栏样式由管理器决定。',
-      contrast:'页面与管理器主题不同：状态栏沿用管理器配色，保证图标清晰。可将管理器设为相同主题。',
-      unsupported:'当前容器未开放沉浸式接口，保留兼容布局。',
-      missing:'未读到安全距离，已暂停自动尝试。可点右上角“重新读取”重试。',
-      denied:'未能确认管理器布局，已暂停自动尝试。接口结束后可点右上角“重新读取”重试。',
-      waiting:'正在适配状态栏…',starting:'正在适配状态栏…',
-      unknown:'未取得管理器主题，保留普通布局。'
-    };
-    if(hint)hint.textContent=messages[layout]||messages.waiting;
-    if(detail)detail.textContent='edge_api='+(api||'unavailable')+'\nlayout='+layout+'\ntheme_mode=system\npage_theme='+root.dataset.theme+'\ntheme_source='+(root.dataset.themeSource||'webview')+'\nhost_theme='+hostTheme()+'\ninsets_css='+css+'\nsafe_top='+safe.top+'\nsafe_bottom='+safe.bottom+'\nsafe_left='+safe.left+'\nsafe_right='+safe.right+'\nreason='+reason+'\nauto_retry='+((insetPaused||bridgePaused)?'paused':'ready')+'\nbridge_pending='+(activeCall?'1':'0')+'\nnative_confirmation=bridge_only\nstatus_icon_control=host_only';
   }
   function cancelProbe(){
     clearTimeout(probeTimer);probeTimer=null;probing=false;probeCycle++;
@@ -168,7 +156,7 @@
     insetPaused=false;bridgePaused=false;reason='';cancelProbe();refresh();
   }
   function checkTheme(){if(contextKey!==themeKey())refresh();}
-  window.HAHostUI={refresh,retry,checkTheme,refreshDiagnostics:render,diagnostics:()=>({api,layout,css,hostTheme:hostTheme(),safe:{...safe},reason,retryPaused:insetPaused||bridgePaused,bridgePending:!!activeCall,probeAttempts:attempt})};
+  window.HAHostUI={refresh,retry,checkTheme};
   if(control){
     css='loading';refresh();
     const link=document.createElement('link');link.rel='stylesheet';link.href='/internal/insets.css';

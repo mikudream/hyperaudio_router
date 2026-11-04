@@ -2,7 +2,7 @@
 MODDIR=${0%/*}/..
 case "$1:$2" in
     fonts:) [ "$#" = 1 ] || { echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1; } ;;
-    status:|router-status:|diagnose:|diag-status:|tuning:|ll-status:|boot-status:|start-backends:|theme:|debug-summary:|debug-reports:) ;;
+    status:|router-status:|tuning:|ll-status:|boot-status:|start-backends:|theme:) ;;
     # 带包名的动作必须用 perapp-add:* 这种通配，否则 "perapp-add:com.xxx" 永远匹配不上
     perapp-add:*|perapp-del:*|wl-add:*|wl-del:*) ;;
     ll-save:*)
@@ -12,10 +12,6 @@ case "$1:$2" in
             case "$ARG" in ''|*[!0-9]*|0*) echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1 ;; esac
             { [ "${#ARG}" -le 2 ] && [ "$ARG" -ge 1 ] && [ "$ARG" -le 99 ]; } || { echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1; }
         done ;;
-    debug-analyze:*)
-        [ "${#2}" -le 100 ] && printf '%s\n' "$2" | grep -Eq '^hyperaudio-(native|sound|compat|unknown)-[0-9]{8}-[0-9]{6}-[0-9]+\.tar\.gz$' || { echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1; } ;;
-    schedule-diagnose:*)
-        [ "${#2}" -le 200 ] && printf '%s\n' "$2" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$' || { echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1; } ;;
     *) echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1 ;;
 esac
 case "$1" in ll-save) ;; *) [ "$#" -le 2 ] || { echo 'rc=1|YmFkX2NvbW1hbmQ='; exit 1; } ;; esac

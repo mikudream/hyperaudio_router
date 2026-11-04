@@ -3,7 +3,7 @@
 window.HAUI = (() => {
   const pages=['mode','settings','debug'];
   const views=[...pages,'about'];
-  const titles={mode:'HyperAudio Switch',settings:'设置',debug:'Debug',about:'关于'};
+  const titles={mode:'HyperAudio Switch',settings:'设置',about:'关于'};
   const root=document.documentElement;
   const large=document.getElementById('pageTitle');
   const compact=document.getElementById('compactTitle');
@@ -11,7 +11,7 @@ window.HAUI = (() => {
   const bar=document.getElementById('titleBar');
   const nav=document.querySelector('.bottom-nav');
   let current='mode';
-  const positions={mode:0,settings:0,debug:0,about:0};
+  const positions={mode:0,settings:0,about:0};
   let pendingFrame=0;
   let navFrame=0;
   function measureNavigation() {

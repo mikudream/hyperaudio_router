@@ -2,8 +2,8 @@
 // Page scroll positions and title presentation are independent of audio state.
 window.HAUI = (() => {
   const pages=['sound','lowlat','settings','about'];
-  const views=[...pages,'debug'];
-  const titles={sound:'音效链路',lowlat:'低延迟链路',settings:'设置',about:'关于',debug:'Debug'};
+  const views=[...pages];
+  const titles={sound:'音效链路',lowlat:'低延迟链路',settings:'设置',about:'关于'};
   const root=document.documentElement;
   root.style.setProperty('--ha-nav-count',String(pages.length));
   const large=document.getElementById('pageTitle');
@@ -11,7 +11,7 @@ window.HAUI = (() => {
   const bar=document.getElementById('titleBar');
   const nav=document.querySelector('.bottom-nav');
   let current='sound';
-  const positions={sound:0,lowlat:0,settings:0,about:0,debug:0};
+  const positions={sound:0,lowlat:0,settings:0,about:0};
   let pendingFrame=0;
   let navFrame=0;
   function measureNavigation() {
@@ -46,7 +46,7 @@ window.HAUI = (() => {
     views.forEach(name=>{
       document.getElementById('page-'+name).hidden=name!==page;
     });
-    const navPage=page==='debug'?'settings':page;
+    const navPage=page;
     pages.forEach(name=>{
       const button=document.getElementById('nav-'+name);
       button.classList.toggle('active',name===navPage);
@@ -65,7 +65,6 @@ window.HAUI = (() => {
   }
   pages.forEach(page=>document.getElementById('nav-'+page).addEventListener('click',()=>show(page)));
   document.getElementById('btn-about-back').addEventListener('click',()=>show('settings'));
-  document.getElementById('btn-debug').addEventListener('click',()=>show('debug'));
   window.addEventListener('scroll',updateTitleBar,{passive:true});
   window.addEventListener('resize',updateTitleBar,{passive:true});
   window.addEventListener('resize',updateNavigationSize,{passive:true});

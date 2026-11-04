@@ -15,11 +15,9 @@ fi
 [ "$(id -u)" = 0 ] || { echo error=root_required; exit 1; }
 # 模块不再做 bind mount / resetprop / 重启 audioserver，因此不需要进入 init 的挂载命名空间。
 . "$MODDIR/bin/runtime.sh"
-. "$MODDIR/bin/diagnostics.sh"
-. "$MODDIR/bin/sampling.sh"
+. "$MODDIR/bin/tuning.sh"
 . "$MODDIR/bin/lowlat.sh"
 . "$MODDIR/bin/boot.sh"
-. "$MODDIR/bin/debug.sh"
 . "$MODDIR/bin/theme.sh"
 . "$MODDIR/bin/fonts.sh"
 # Android offers /proc/sys/kernel/random/boot_id. HA_BOOT_ID lets host tests pin it.
@@ -31,22 +29,9 @@ mkdir -p "$STATE" 2>/dev/null
 case "$1" in
     theme) theme_status; exit $? ;;
     fonts) [ "$#" = 1 ] || exit 1; font_status; exit $? ;;
-    debug-summary) debug_summary; exit $? ;;
-    debug-reports) debug_reports; exit $? ;;
-    debug-analyze) debug_analyze "$2"; exit $? ;;
     rt-daemon) ll_daemon; exit $? ;;
     ll-status) ll_status; exit $? ;;
     boot-status) boot_status; exit $? ;;
-    diag-daemon) diagnostic_daemon; exit $? ;;
-    diagnose-target)
-        valid_target "$2" || exit 1
-        case "$3" in native|compat|sound) ;; *) exit 1 ;; esac
-        DIAG_TARGET=$2
-        DIAG_EXPECTED_MODE=$3
-        run_diagnostics; exit $? ;;
-
-    diagnose) run_diagnostics; exit $? ;;
-    diag-status) diag_status; exit $? ;;
     tuning) detect_tuning; exit $? ;;
   router-status|perapp-add|perapp-del|wl-add|wl-del)
     /system/bin/sh "$MODDIR/bin/router.sh" "$@"; exit $? ;;
@@ -57,11 +42,6 @@ case "$1" in
     ll-save) shift; ll_save "$@" ;;
     start-backends)
         ll_ensure_daemon || exit 1
-        if ! daemon_alive; then
-            HA_BUSYBOX=0 setsid /system/bin/sh "$MODDIR/bin/ha.sh" diag-daemon </dev/null > "$STATE/diag-daemon.log" 2>&1 &
-            sleep 1
-        fi
-        daemon_alive || { echo error=diagnostic_backend_not_running; exit 1; }
         echo ok=1 ;;
     boot) boot_run ;;
     stop)
@@ -70,6 +50,5 @@ case "$1" in
         _p=$(cat "$LLROOT/daemon.pid" 2>/dev/null)
         case "$_p" in ''|*[!0-9]*) ;; *) kill "$_p" 2>/dev/null; rm -f "$LLROOT/daemon.pid" ;; esac
         echo ok=1 ;;
-    schedule-diagnose) queue_diagnostics "$2" ;;
-    *) echo 'usage: ha.sh {status|router-status|perapp-add|perapp-del|wl-add|wl-del|ll-save HAL AUDIO APP|ll-status|boot|boot-status|stop|diagnose|schedule-diagnose PACKAGE|diag-status|tuning|start-backends|debug-summary|debug-reports|debug-analyze NAME}'; exit 1 ;;
+    *) echo 'usage: ha.sh {status|router-status|perapp-add|perapp-del|wl-add|wl-del|ll-save HAL AUDIO APP|ll-status|boot|boot-status|stop|tuning|start-backends}'; exit 1 ;;
 esac

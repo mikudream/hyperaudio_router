@@ -60,7 +60,6 @@
 - **低延迟**：HAL / audioserver / 应用三档优先级、名单增删、实时调度状态
 - **设置**：调音模块检测、界面外观
 - **关于**：版本、维护者、许可与来源
-- **Debug**：诊断采集与日志解读
 
 后端统一走 `bin/webui.sh <action>`：参数校验 → `bin/ha.sh` 分发 → 输出包成
 `rc=N|base64`（管理器的 `ksu.exec` 只回传最后一行 stdout）。
@@ -96,7 +95,7 @@ repo/
 ├── assets/           模块根目录脚本与配置（module.prop / customize.sh / system.prop …）
 ├── payload/          统一 zygisk 负载源码 + Zygisk API 头 + 构建脚本
 ├── zygisk/           构建产物 arm64-v8a.so（模块实际加载的文件）
-├── webui/bin/        机上后端（router / lowlat / boot / diagnostics …）
+├── webui/bin/        机上后端（router / lowlat / boot / theme …）
 ├── webui/webroot/    WebUI（index.html + assets/26101606/* + router-ui.js）
 ├── prebuilt/         META-INF 安装入口
 ├── docs/             模块说明、交接与设计文档

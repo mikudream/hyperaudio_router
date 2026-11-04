@@ -99,11 +99,6 @@ The About page retains copyright notices and all three complete licenses.
     <div class="card-content sources-content"><h3>已启用的调音模块</h3><div id="tuning-src" class="source-list">正在检测…</div><p class="hint">这里只显示检测到的调音模块，实际音效请以播放效果为准。</p></div>
   </section>
 
-    <div class="section-title"><h2>诊断</h2></div>
-  <section class="card preference-card">
-    <button class="row link-row" id="btn-debug" type="button"><span class="copy"><b>日志诊断</b><small>采集现场并导出诊断包，排查音效与调度问题</small></span><span class="chevron" aria-hidden="true"></span></button>
-  </section>
-
 <div class="section-title"><h2>界面与底栏</h2></div>
   <section class="card preference-card appearance-card" id="appearance-card">
     <div class="row select-row">
@@ -173,40 +168,6 @@ The About page retains copyright notices and all three complete licenses.
   <p class="section-note about-footer" id="webui-build">WebUI · Glass 26101606</p>
 </div>
 
-<div class="page" id="page-debug" role="tabpanel" aria-labelledby="nav-debug" hidden>
-  <div class="section-title"><h2>日志诊断</h2><span class="section-value">本地处理</span></div>
-  <section class="card preference-card">
-    <label class="row switch-row"><span class="copy"><b>启用 Debug</b><small>展开日志采集与解读</small></span><span class="switch"><input type="checkbox" id="debug-enable" class="sw"/><span class="switch-track" aria-hidden="true"></span></span></label>
-  </section>
-  <p class="section-note" id="debugHint">点击采集后才会运行，不录音、不自动上传。收起 Debug 后仍会完成采集。</p>
-  <div id="debugPanel" hidden>
-    <div class="section-title"><h2>游戏现场</h2></div>
-    <section class="card card-content">
-      <label class="field-label" for="diagTarget">游戏包名</label><input class="target-input" id="diagTarget" type="text" value="com.ironoakgames.ftk1.mtap" autocomplete="off" spellcheck="false"/>
-      <p class="hint">先选好模式并重开游戏。点击采集后返回游戏，保持出声场景约 45 秒。</p>
-      <div class="job-status"><span class="spin-xs" id="jobSpin" hidden></span><span id="jobState">未开始采集</span></div>
-      <button class="btn primary full" id="btn-delay">采集游戏日志</button>
-      <div class="panel-actions"><button class="btn secondary" id="btn-now">系统快照</button><button class="btn secondary" id="btn-job-refresh">刷新状态</button></div>
-      <details class="inline-details capture-details"><summary>采集信息<span class="chevron" aria-hidden="true"></span></summary><div class="detail-content"><div class="kv"><span>采集后台</span><b id="daemonState">正在检查</b></div><div class="kv"><span>采集质量</span><b id="captureQuality">—</b></div><div class="kv"><span>上次样本</span><b id="reportMode">—</b></div><code class="report-path" id="reportPath">报告保存在 Download 文件夹</code></div></details>
-    </section>
-    <div class="section-title"><h2>日志解读</h2></div>
-    <section class="card card-content">
-      <label class="field-label" for="debug-report-trigger">选择诊断包</label><select id="debug-report" data-select-label="选择诊断包" data-select-style="full" hidden aria-hidden="true" tabindex="-1"><option value="">暂无诊断包</option></select>
-      <div class="panel-actions"><button class="btn secondary" id="btn-reports">刷新列表</button><button class="btn primary" id="btn-analyze">解读日志</button></div>
-      <p class="hint">采集结束后可在这里查看结果，并结合实际声音排查问题。</p>
-      <div class="summary-box"><pre id="debugSummary" role="status">采集完成后显示诊断结果。</pre></div>
-    </section>
-    <div class="section-title"><h2>技术信息</h2></div>
-    <section class="card preference-card">
-      <details class="tech inline-details"><summary>音频技术状态<span class="chevron" aria-hidden="true"></span></summary><div class="card-content"><div class="kv"><span>音效配置覆盖</span><b id="overlayState">正在读取</b></div></div><pre id="statusText">—</pre></details>
-
-      <details class="tech inline-details"><summary>低延迟后台记录<span class="chevron" aria-hidden="true"></span></summary><pre id="llDetails">暂无记录</pre></details>
-      <details class="tech inline-details"><summary>界面与状态栏<span class="chevron" aria-hidden="true"></span></summary><div class="detail-content"><p class="hint" id="systemBarHint">正在适配状态栏…</p><pre id="hostDetails">正在检测容器接口…</pre></div></details>
-      <details class="tech inline-details"><summary>操作记录<span class="chevron" aria-hidden="true"></span></summary><pre id="operationResult">等待操作</pre></details>
-      <div class="card-content"><button class="btn secondary full" id="btn-backends">启动／重连后台</button></div>
-    </section>
-  </div>
-</div>
 </main>
 <footer class="ft">
 <nav class="bottom-nav" role="tablist" aria-label="页面导航">

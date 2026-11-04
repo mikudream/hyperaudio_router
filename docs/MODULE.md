@@ -85,7 +85,6 @@ ha.mmap_gate.0..7      低延迟名单
 - **低延迟**：调整 HAL / audioserver / 应用三档优先级；增删低延迟名单；查看实时调度状态
 - **设置**：调音模块检测、界面外观
 - **关于**：版本、维护者、许可与来源
-- **Debug**：诊断采集与日志解读
 
 没有总开关：**加入名单即生效，移出即恢复**。
 
@@ -133,7 +132,7 @@ revision=...
 assets/          模块根目录脚本与配置
 payload/         统一 zygisk 负载源码 + Zygisk API 头 + 构建脚本
 zygisk/          构建产物 arm64-v8a.so
-webui/bin/       机上后端（router / lowlat / boot / diagnostics）
+webui/bin/       机上后端（router / lowlat / boot / theme）
 webui/webroot/   WebUI
 prebuilt/        META-INF 安装入口
 docs/            模块说明 / 交接 / 设计文档
@@ -162,12 +161,12 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 确认 `zygisk/arm64-v8a.so` 存在、Zygisk Next 已启用，并重启过。
 
 **加入音效名单没效果**
-先确认 `createTrack_l` 是导出符号、`mFlags` 偏移匹配当前系统；Debug 页看诊断。
+先确认 `createTrack_l` 是导出符号、`mFlags` 偏移匹配当前系统。
 本机可用 `logcat -s AAudioMmapGate` 看 `createTrack_l hooked` 与 `mFlags before/after`。
 
 **加入低延迟名单没效果**
-确认应用确实在放音、`lowlat.conf` 的 `whitelist` 包含它；Debug 页看 `ll_status`
-的 `ll_verified` / `ll_state`。
+确认应用确实在放音、`lowlat.conf` 的 `whitelist` 包含它；WebUI 低延迟页的调度状态
+会显示 `ll_verified` / `ll_state` 的汇总，也可用 `ha.sh ll-status` 查看原始字段。
 
 **重启后名单还在吗**
 在。名单写在模块目录的 `perapp.conf` / `lowlat.conf`，属性在开机时重新发布。

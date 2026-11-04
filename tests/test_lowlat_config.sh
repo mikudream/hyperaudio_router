@@ -9,11 +9,10 @@ rm -rf "$T"; mkdir -p "$T/mod/state" "$T/mod/bin"
 trap 'rm -rf "$T"' EXIT
 
 M=$T/mod
-cp "$BIN/runtime.sh" "$BIN/lowlat.sh" "$BIN/sampling.sh" "$M/bin/"
+cp "$BIN/runtime.sh" "$BIN/lowlat.sh" "$M/bin/"
 MODDIR=$M
 BOOT_ID=test-boot
 . "$M/bin/runtime.sh"
-. "$M/bin/sampling.sh"
 . "$M/bin/lowlat.sh"
 # 主机没有 /system/bin/sh 与 dumpsys：把"拉起 daemon"和"跑一轮调度"换成空实现，
 # 只验证保存路径本身（真实调度由真机测试覆盖）。
