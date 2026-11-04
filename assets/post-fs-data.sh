@@ -3,6 +3,11 @@ MODPATH=${0%/*}
 
 # MODPATH=/data/adb/modules/hyperaudio
 
+# 尽早发布名单属性：post-fs-data 早于应用启动，开机即生效的应用也能读到。
+if [ -f "$MODPATH/bin/router.sh" ]; then
+  MODDIR="$MODPATH" /system/bin/sh "$MODPATH/bin/router.sh" publish-only >/dev/null 2>&1 || :
+fi
+
 # 本模块不含 odm 调音载荷，此段仅作兜底：
 # 若将来手动放入 $MODPATH/odm，会在开机时逐个 bind mount 覆盖到 /odm；
 # 目录不存在则直接退出，避免 find 报错，也不触碰 /odm。
