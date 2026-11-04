@@ -17,6 +17,14 @@ function parse(text) {
   return result;
 }
 function bridge(command) {
+  // 优先同步执行（KernelSU-Next 的 exec(cmd) 直接返回 stdout），
+  // 其次命名回调；两者都没有时再报超时。
+  try {
+    if (window.ksu && typeof window.ksu.exec === 'function') {
+      const out = window.ksu.exec(command);
+      if (typeof out === 'string' && out) return Promise.resolve(out);
+    }
+  } catch (e) { }
   return new Promise((resolve,reject)=>{
     if(!window.ksu||typeof window.ksu.exec!=='function') {reject(new Error('未检测到 KernelSU WebUI 接口，请使用模块执行按钮。'));return;}
     const cb='ha_cb_'+Date.now()+'_'+(++sequence);let done=false;
@@ -24,10 +32,7 @@ function bridge(command) {
     function finish(error,value){if(done)return;done=true;clearTimeout(timer);delete window[cb];if(error)reject(error);else resolve(value);}
     window[cb]=(code,out,err)=>{if(!out&&code)finish(new Error(err||('执行失败：'+code)));else finish(null,String(out||''));};
     try {
-      // A mutation is issued once only, regardless of callback / sync / Promise bridge.
-      const ret=window.ksu.exec(command,'{}',cb);
-      if(typeof ret==='string'&&ret)finish(null,ret);
-      else if(ret&&typeof ret.then==='function')ret.then(v=>finish(null,typeof v==='string'?v:String(v.stdout||'')),e=>finish(e));
+      window.ksu.exec(command,'{}',cb);
     }catch(e){finish(e);}
   });
 }

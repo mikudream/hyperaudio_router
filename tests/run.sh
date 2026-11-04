@@ -49,6 +49,9 @@ run_test test_ha_smoke.sh
 section "5. system.prop：去重与关键项"
 run_test test_system_prop.sh
 
+section "5.1 webui.sh argument patterns"
+run_test test_webui_patterns.sh
+
 if command -v node >/dev/null 2>&1; then
   section "6. WebUI 静态一致性（DOM 引用）"
   if node "$HERE/test_webui_dom.js"; then

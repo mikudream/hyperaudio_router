@@ -40,23 +40,32 @@
   }
 
   var execSeq = 0;
-  function call(args) {
+  function rawExec(cmd) {
+    // 优先同步执行：KernelSU-Next 的 exec(cmd) 会直接返回 stdout，
+    // 比命名回调可靠（带参数的命令曾出现回调不触发的情况）。
+    try {
+      if (typeof ksu !== 'undefined' && typeof ksu.exec === 'function') {
+        var out = ksu.exec(cmd);
+        if (typeof out === 'string' && out) return Promise.resolve(out);
+      }
+    } catch (e) { }
     return new Promise(function (resolve) {
       var settled = false;
-      function done(v) { if (!settled) { settled = true; resolve(decode(v)); } }
+      function done(v) { if (!settled) { settled = true; resolve(v); } }
       try {
         if (typeof ksu === 'undefined' || typeof ksu.exec !== 'function') { done(''); return; }
-        // KernelSU-Next 的 WebUI 接口签名是 exec(cmd, options, 回调函数名)：
-        // 传函数对象不会触发回调（曾导致所有读取一直等到超时）。
         var name = 'ha_router_cb_' + (++execSeq);
         window[name] = function (_errno, out, err) {
           delete window[name];
           done(out || err || '');
         };
-        ksu.exec(WEBUI + ' ' + args, '{}', name);
+        ksu.exec(cmd, '{}', name);
       } catch (e) { done(''); }
       setTimeout(function () { done(''); }, 20000);
     });
+  }
+  function call(args) {
+    return rawExec(WEBUI + ' ' + args).then(decode);
   }
 
   function parseKV(text) {
@@ -165,13 +174,14 @@
       btn.disabled = true;
       call(action + ' ' + v).then(function (x) {
         btn.disabled = false;
-        if (/error=/.test(x.text)) {
-          var code = (parseKV(x.text)['error'] || '');
-          toast(code === 'bad_package' ? '包名格式不对' : ('添加失败：' + code));
+        var kv = parseKV(x.text);
+        // 必须真的拿到 ok=1 才算成功；空响应（超时）不能清空输入、不能报“已添加”。
+        if (x.rc !== 0 || kv['ok'] !== '1' || kv['error']) {
+          toast('添加失败：' + (kv['error'] || (x.rc !== 0 ? ('rc=' + x.rc) : '无响应')));
           return;
         }
         input.value = '';
-        var hint = movedHint(parseKV(x.text));
+        var hint = movedHint(kv);
         toast(hint ? ('已添加，' + hint) : '已添加');
         refresh();
       });

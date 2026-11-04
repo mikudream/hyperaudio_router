@@ -189,7 +189,7 @@ pre {margin:0;font-family:ui-monospace,monospace;font-size:12px;line-height:1.7;
 .nav-icon .icon {width:24px;height:24px;stroke-width:1.7}
 .nav-item.active {color:var(--accent-fg)}
 .nav-item circle {fill:none}
-.toast {position:fixed;left:50%;transform:translateX(-50%);z-index:30;width:max-content;max-width:min(400px,calc(100vw - 40px));background:var(--fg);color:var(--bg);font-size:13px;line-height:1.6;border-radius:14px;padding:12px 18px;box-shadow:0 4px 20px rgba(0,0,0,.12);overflow-wrap:anywhere}
+.toast {pointer-events:none;position:fixed;left:50%;transform:translateX(-50%);z-index:30;width:max-content;max-width:min(400px,calc(100vw - 40px));background:var(--fg);color:var(--bg);font-size:13px;line-height:1.6;border-radius:14px;padding:12px 18px;box-shadow:0 4px 20px rgba(0,0,0,.12);overflow-wrap:anywhere}
 .spin-xs {display:inline-block;flex:none;width:12px;height:12px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;animation:spin .8s linear infinite}
 @keyframes spin {to {transform:rotate(360deg)}}
 @media (max-width:360px) {.hd-title{padding-left:24px;padding-right:24px}.toolbar-inner{padding-left:54px;padding-right:54px}.toolbar-inner>.icon-button{right:10px}.compact-title{font-size:17px}.main{padding-left:12px;padding-right:12px}.mode-tab{padding-left:12px;padding-right:12px}.row{padding-left:16px;padding-right:16px;gap:10px}.copy>b{font-size:15px}.copy>small{font-size:11.5px}.panel-actions{padding-left:16px;padding-right:16px}.section-note{font-size:11.5px}}

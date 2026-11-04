@@ -107,6 +107,13 @@ diagnose / schedule-diagnose / diag-status / debug-*
 
 ## 5. 2.2.0 做了什么（相对 2.1.0）
 
+**2.2.6（带参动作匹配修复）**
+
+- `webui.sh` 的 case 用 `perapp-add:` 精确匹配，带包名时字符串是 `perapp-add:com.x`，永远匹配不上，添加/删除会静默返回 bad command
+- 改为 `perapp-add:*` / `perapp-del:*` / `wl-add:*` / `wl-del:*`
+- 前端添加必须拿到 `ok=1` 才算成功，空响应不再提示“已添加”
+- toast 加 `pointer-events:none`，不再挡住按钮
+
 **2.2.5（WebUI 桥修复）**
 
 - KernelSU-Next 的 `ksu.exec` 签名是 `exec(cmd, options, 回调函数名)`：
