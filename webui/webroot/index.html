@@ -47,14 +47,14 @@ The About page retains copyright notices and all three complete licenses.
 <div class="page" id="page-sound" role="tabpanel" aria-labelledby="nav-sound">
   <div class="section-title"><h2>音效链路</h2></div>
   <section class="card preference-card">
-    <p class="hint">通过 Zygisk 注入包名</p>
-    <div class="row"><span class="copy"><b>Zygisk注入状态</b></span><span class="value" id="perapp-state">读取中…</span></div>
+    <p class="hint">通过 Zygisk 按应用选择音频链路</p>
+    <div class="row"><span class="copy"><b>Zygisk 负载</b></span><span class="value" id="perapp-state">读取中…</span></div>
   </section>
   
   <div class="section-title"><h2>音效应用</h2></div>
   <section class="card preference-card">
     <div class="section-title"><h2>名单</h2><span class="pill" id="soundCount">0 项</span></div>
-    <p class="hint">加入名单即生效：名单内的应用音轨回落到普通混音轨，经过 Dolby 效果链。</p>
+    <p class="hint">名单内应用清除 FAST 音轨标志，使用系统混音与效果链。名单变更后请重启目标应用。</p>
     <p class="section-note">加入音效名单的应用会自动从低延迟名单移出。</p>
     <div class="row">
       <input class="field" id="perapp-input" type="text" placeholder="输入包名，如 com.xxx.game" />
@@ -81,7 +81,7 @@ The About page retains copyright notices and all three complete licenses.
   <p class="hint" id="llStateText">正在读取调度状态…</p>
   <section class="card preference-card">
     <div class="section-title"><h2>名单</h2><span class="pill" id="wl-count">0 项</span></div>
-    <p class="hint">加入名单即生效：名单内的应用在前台放音时，其音频线程会被提升到实时优先级。</p>
+    <p class="hint">名单内应用放音时提升匹配线程的优先级；AAudio MMAP 放行在重启目标应用后生效。</p>
     <p class="section-note">加入低延迟名单的应用会自动从音效名单移出。</p>
     <div class="row">
       <input class="field" id="wl-input" type="text" placeholder="输入包名，如 com.xxx.game" />
@@ -150,7 +150,7 @@ The About page retains copyright notices and all three complete licenses.
  <path d="M145 110C150 103 158 99 169 99" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-opacity=".8"/>
 </g>
 </svg></span>
-      <span class="copy"><b class="about-app-name">HyperAudioRouter</b><small>按应用路由</small><span class="about-version">版本 1.01</span></span>
+      <span class="copy"><b class="about-app-name">HyperAudioRouter</b><small>按应用路由</small><span class="about-version">版本 1.02</span></span>
     </div>
   </section>
   <div class="section-title"><h2>项目信息</h2></div>
@@ -187,6 +187,7 @@ The About page retains copyright notices and all three complete licenses.
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script src="./command.js"></script>
 <script src="./assets/26101606/host-ui.js"></script><script src="./assets/26101606/system-fonts.js"></script><script src="./assets/26101606/select-menu.js"></script><script src="./assets/26101606/ui.js"></script><script src="./assets/26101606/nav-frame.js"></script><script src="./assets/26101606/nav-gestures.js"></script><script src="./assets/26101606/liquid-glass.js"></script><script src="./assets/26101606/liquid-ui.js"></script><script src="./assets/26101606/appearance.js"></script><script src="./assets/26101606/credits-data.js"></script><script src="./assets/26101606/about.js"></script><script src="./assets/26101606/app.js"></script>
 
 <script src="./router-ui.js"></script>

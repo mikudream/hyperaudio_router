@@ -72,10 +72,15 @@ foreach ($f in (Get-ChildItem (Join-Path $root 'webui\bin') -File | ForEach-Obje
 # not packaged: the per-app build never replaces system libraries or ports.
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'zygisk') | Out-Null
   # Per-app build: zygiskd loads <module>/zygisk/<abi>.so, so it must sit at the module root.
-  foreach ($z in @('arm64-v8a.so','abi.h.patch','patch_mflags_offset.py')) {
-    $src = Join-Path $root ('zygisk\' + $z)
-      if (Test-Path $src) { [System.IO.File]::Copy($src, (Join-Path $stage ('zygisk\' + $z)), $true) }
-  }
+$payload = Join-Path $root 'zygisk\arm64-v8a.so'
+if (-not (Test-Path $payload -PathType Leaf)) { throw 'Required arm64 Zygisk payload is missing.' }
+$payloadBytes = [System.IO.File]::ReadAllBytes($payload)
+if ($payloadBytes.Length -lt 64 -or $payloadBytes[0] -ne 0x7f -or
+    $payloadBytes[1] -ne 0x45 -or $payloadBytes[2] -ne 0x4c -or $payloadBytes[3] -ne 0x46 -or
+    $payloadBytes[4] -ne 2 -or $payloadBytes[5] -ne 1 -or $payloadBytes[18] -ne 0xb7 -or $payloadBytes[19] -ne 0) {
+    throw 'Required payload must be a non-empty ELF64 little-endian AArch64 library.'
+}
+[System.IO.File]::Copy($payload, (Join-Path $stage 'zygisk\arm64-v8a.so'), $true)
 Copy-Item (Join-Path $root 'prebuilt\META-INF') $stage -Recurse -Force
 
 Write-Output "== 2. strip upstream author identifiers =="
@@ -83,7 +88,7 @@ Write-Output "== 2. strip upstream author identifiers =="
 
 Write-Output "== 3. normalize line endings and encoding =="
 Get-ChildItem -Recurse -File $stage |
-  Where-Object { $_.Extension -in '.sh','.prop','.toml','.md' -or $_.Name -in 'update-binary','updater-script' } |
+  Where-Object { $_.Extension -in '.sh','.prop','.toml','.md','.html','.js','.css','.txt' -or $_.Name -in 'update-binary','updater-script' } |
   ForEach-Object {
     $t = [System.IO.File]::ReadAllText($_.FullName, $utf8NoBom) -replace "`r`n", "`n"
     [System.IO.File]::WriteAllText($_.FullName, $t, $utf8NoBom)
@@ -197,7 +202,9 @@ $zout = $null
 $packOk = $false
 try {
   $zout = [System.IO.Compression.ZipFile]::Open($zip, [System.IO.Compression.ZipArchiveMode]::Create)
-  foreach ($f in [System.IO.Directory]::EnumerateFiles($stage, '*', [System.IO.SearchOption]::AllDirectories)) {
+  $files = [System.IO.Directory]::GetFiles($stage, '*', [System.IO.SearchOption]::AllDirectories)
+  [Array]::Sort($files, [System.StringComparer]::Ordinal)
+  foreach ($f in $files) {
     $rel = $f.Substring($stage.Length).TrimStart('\','/').Replace('\','/')
     $entry = $zout.CreateEntry($rel, [System.IO.Compression.CompressionLevel]::Optimal)
     $entry.LastWriteTime = $fixedTime

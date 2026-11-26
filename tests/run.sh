@@ -52,9 +52,15 @@ run_test test_system_prop.sh
 section "5.1 webui.sh argument patterns"
 run_test test_webui_patterns.sh
 
+section "5.2 active playback client parsing"
+run_test test_active_clients.sh
+
+section "5.3 native payload policy"
+run_test test_payload_native.sh
+
 if command -v node >/dev/null 2>&1; then
   section "6. WebUI 静态一致性（DOM 引用）"
-  if node "$HERE/test_webui_dom.js"; then
+  if node "$HERE/test_webui_dom.js" && node "$HERE/test_command.js"; then
     echo "  -> 通过"
   else
     echo "  -> 失败"; rc=1

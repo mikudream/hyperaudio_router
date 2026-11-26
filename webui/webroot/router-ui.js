@@ -8,7 +8,6 @@
 (function () {
   'use strict';
 
-  var WEBUI = '/system/bin/sh /data/adb/modules/hyperaudio/bin/webui.sh';
 
   function $(id) { return document.getElementById(id); }
 
@@ -21,52 +20,7 @@
     t._t = setTimeout(function () { t.hidden = true; }, ms || 2400);
   }
 
-  /* 解码 rc=N|BASE64 */
-  function decode(raw) {
-    var s = String(raw || '').trim();
-    var m = /^rc=(-?\d+)\|([A-Za-z0-9+/=]*)$/.exec(s);
-    if (!m) {
-      // 兼容：没有包裹时直接当作文本
-      return { rc: 0, text: s };
-    }
-    var text = '';
-    try {
-      var bin = atob(m[2]);
-      var bytes = new Uint8Array(bin.length);
-      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      text = new TextDecoder('utf-8').decode(bytes);
-    } catch (e) { text = ''; }
-    return { rc: parseInt(m[1], 10), text: text };
-  }
-
-  var execSeq = 0;
-  function rawExec(cmd) {
-    // 优先同步执行：KernelSU-Next 的 exec(cmd) 会直接返回 stdout，
-    // 比命名回调可靠（带参数的命令曾出现回调不触发的情况）。
-    try {
-      if (typeof ksu !== 'undefined' && typeof ksu.exec === 'function') {
-        var out = ksu.exec(cmd);
-        if (typeof out === 'string' && out) return Promise.resolve(out);
-      }
-    } catch (e) { }
-    return new Promise(function (resolve) {
-      var settled = false;
-      function done(v) { if (!settled) { settled = true; resolve(v); } }
-      try {
-        if (typeof ksu === 'undefined' || typeof ksu.exec !== 'function') { done(''); return; }
-        var name = 'ha_router_cb_' + (++execSeq);
-        window[name] = function (_errno, out, err) {
-          delete window[name];
-          done(out || err || '');
-        };
-        ksu.exec(cmd, '{}', name);
-      } catch (e) { done(''); }
-      setTimeout(function () { done(''); }, 20000);
-    });
-  }
-  function call(args) {
-    return rawExec(WEBUI + ' ' + args).then(decode);
-  }
+  function call(args) { return window.HACommand.call(args); }
 
   function parseKV(text) {
     var map = {};
@@ -121,12 +75,13 @@
     return '';
   }
 
+  var pendingRefresh = null;
   function refresh() {
-    return call('router-status').then(function (r) {
+    if (pendingRefresh) return pendingRefresh;
+    pendingRefresh = call(['router-status']).then(function (r) {
       var m = parseKV(r.text);
       var ok = r.rc === 0 && m['ok'] === '1';
       var st = $('perapp-state');
-      // 取不到数据时绝不能断言"没有负载"——那正是之前的误报来源。
       if (!ok) {
         if (st) { st.textContent = '状态未知'; st.className = 'value'; }
         return;
@@ -139,24 +94,30 @@
 
       if (st) {
         var payload = m['perapp_payload'] === '1';
-        // 1.01 起的统一负载没有 companion：有 .so 就表示负载已随 Zygisk 注入。
-        st.textContent = payload ? '已注入' : '缺少负载文件';
-        st.className = 'value ' + (payload ? 'ok' : 'bad');
+        var publish = m['config_publish'];
+        var ready = payload && publish === 'ok';
+        st.textContent = !payload ? '缺少负载文件' : ready ? '负载就绪' :
+          !publish || publish === 'unknown' ? '名单同步未确认' : '名单同步异常';
+        st.className = 'value ' + (ready ? 'ok' : 'bad');
       }
 
       renderBox('perapp-list', state.perapp, function (p) {
-        return call('perapp-del ' + p).then(function (x) {
-          if (x.rc !== 0 || /error=/.test(x.text)) throw new Error('删除失败');
-          toast('已移除');
+        return call(['perapp-del', p]).then(function (x) {
+          if (x.rc !== 0 || parseKV(x.text).ok !== '1') throw new Error('删除失败');
+          toast('已移除，重启目标应用后更新音频链路');
         });
       });
       renderBox('wl-list', state.wl, function (p) {
-        return call('wl-del ' + p).then(function (x) {
-          if (x.rc !== 0 || /error=/.test(x.text)) throw new Error('删除失败');
-          toast('已移除');
+        return call(['wl-del', p]).then(function (x) {
+          if (x.rc !== 0 || parseKV(x.text).ok !== '1') throw new Error('删除失败');
+          toast('已移除，重启目标应用后更新音频链路');
         });
       });
-    });
+    }).catch(function () {
+      var status = $('perapp-state');
+      if (status) { status.textContent = '状态未知'; status.className = 'value'; }
+    }).finally(function () { pendingRefresh = null; });
+    return pendingRefresh;
   }
 
   function bindAdder(inputId, btnId, action) {
@@ -164,9 +125,10 @@
     if (!input || !btn) return;
     function go() {
       var v = (input.value || '').trim();
-      if (!v) { toast('请输入包名'); return; }
+      if (btn.disabled) return;
+      if (!window.HACommand.validPackage(v)) { toast('包名格式不正确'); return; }
       btn.disabled = true;
-      call(action + ' ' + v).then(function (x) {
+      call([action, v]).then(function (x) {
         btn.disabled = false;
         var kv = parseKV(x.text);
         // 必须真的拿到 ok=1 才算成功；空响应（超时）不能清空输入、不能报“已添加”。
@@ -176,8 +138,11 @@
         }
         input.value = '';
         var hint = movedHint(kv);
-        toast(hint ? ('已添加，' + hint) : '已添加');
+        toast((hint ? ('已添加，' + hint) : '已添加') + '，重启目标应用后生效');
         refresh();
+      }).catch(function (error) {
+        btn.disabled = false;
+        toast('添加失败：' + error.message);
       });
     }
     btn.addEventListener('click', go);
@@ -192,7 +157,8 @@
       bindAdder('wl-input', 'wl-add', 'wl-add');
     } catch (e) { }
     refresh();
-    setInterval(refresh, 5000);
+    setInterval(function () { if (!document.hidden) refresh(); }, 5000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

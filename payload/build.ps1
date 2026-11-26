@@ -5,7 +5,8 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 if (-not $Ndk) {
     $hyp = Split-Path $repo -Parent
-    $Ndk = Join-Path $hyp 'tooling\android-ndk-r27c'
+    # 工具链已统一归集到 D:\DSH\Tools\toolchains 下
+    $Ndk = Join-Path (Split-Path $hyp -Parent) 'Tools\toolchains\android-ndk-r27c'
 }
 $clang = Join-Path $Ndk 'toolchains\llvm\prebuilt\windows-x86_64\bin\aarch64-linux-android24-clang++.cmd'
 $strip = Join-Path $Ndk 'toolchains\llvm\prebuilt\windows-x86_64\bin\llvm-strip.exe'
@@ -19,7 +20,9 @@ $out = Join-Path $repo 'zygisk\arm64-v8a.so'
 New-Item -ItemType Directory -Force -Path (Split-Path $out) | Out-Null
 
 & $clang -shared -fPIC -O2 -std=c++17 -fno-exceptions -fno-rtti -static-libstdc++ -Wall `
+    -mbranch-protection=standard '-Wl,-z,max-page-size=16384' `
     "-I$(Join-Path $PSScriptRoot 'include')" -o $out (Join-Path $PSScriptRoot 'src\main.cpp') -llog -ldl
 if ($LASTEXITCODE -ne 0) { throw "compile failed: $LASTEXITCODE" }
-& $strip "--strip-unneeded" $out
+& $strip '--strip-unneeded' $out
+if ($LASTEXITCODE -ne 0) { throw "strip failed: $LASTEXITCODE" }
 Write-Output ("payload: {0} ({1:N0} bytes)" -f $out, (Get-Item $out).Length)

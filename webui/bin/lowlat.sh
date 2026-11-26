@@ -7,6 +7,8 @@
 #     名单为空或没有白名单应用出声时不碰任何系统线程。
 #   · 每次提升都回读 /proc 校验，并写 journal 记录原策略，停止时精确还原。
 LLROOT=$STATE/lowlat
+. "$MODDIR/bin/config.sh"
+. "$MODDIR/bin/active_clients.sh"
 
 ll_init() {
     mkdir -p "$LLROOT/owned" || return 1
@@ -20,17 +22,13 @@ ll_init() {
 
 # 包名校验：与 router.sh / sampling.sh 保持同一规则
 ll_pkg_ok() {
-    case "$1" in ''|*[!A-Za-z0-9_.]*) return 1 ;; esac
-    case "$1" in *.*) ;; *) return 1 ;; esac
-    case "$1" in [0-9]*|.*|*.) return 1 ;; esac
-    case "$1" in *..*) return 1 ;; esac
-    [ ${#1} -le 120 ]
+    config_pkg_ok "$1"
 }
 
 # whitelist 为 CSV 或 '-'（空）
 ll_white_ok() {
     local w=$1 p
-    case "$w" in ''|-) return 0 ;; esac
+    case "$w" in ''|-) return 0 ;; ,*|*,|*,,*) return 1 ;; esac
     while [ -n "$w" ]; do
         p=${w%%,*}
         case "$w" in *,*) w=${w#*,} ;; *) w= ;; esac
@@ -70,24 +68,8 @@ ll_white_current() {
     sed -n 's/^whitelist=//p' "$MODDIR/lowlat.conf" 2>/dev/null | head -1
 }
 
-ll_lock() {
-    local n=0 owner
-    while ! mkdir "$LLROOT/lock" 2>/dev/null; do
-        owner=$(cat "$LLROOT/lock/pid" 2>/dev/null)
-        case "$owner" in ''|*[!0-9]*) ;; *)
-            if ! kill -0 "$owner" 2>/dev/null; then
-                rm -f "$LLROOT/lock/pid"; rmdir "$LLROOT/lock" 2>/dev/null; continue
-            fi ;;
-        esac
-        if [ "$n" -ge 2 ] && [ ! -f "$LLROOT/lock/pid" ]; then
-            rmdir "$LLROOT/lock" 2>/dev/null
-        fi
-        n=$((n+1)); [ "$n" -le 12 ] || return 1
-        sleep 1
-    done
-    echo $$ > "$LLROOT/lock/pid"
-}
-ll_unlock() { rm -f "$LLROOT/lock/pid"; rmdir "$LLROOT/lock" 2>/dev/null; }
+ll_lock() { config_lock; }
+ll_unlock() { config_unlock; }
 
 ll_stat() {
     # Fields after the LAST ') ' begin at field 3. comm may contain spaces/parentheses.
@@ -140,33 +122,34 @@ ll_state() {
 }
 ll_add_threads() {
     local p=$1 group=$2 priority=$3 td name match
-    case "$p" in ''|*[!0-9]*) return ;; esac
-    for td in /proc/"$p"/task/[0-9]*; do
+    case "$p" in ''|*[!0-9]*) return 0 ;; esac
+    for td in "${LL_PROC_ROOT:-/proc}/$p"/task/[0-9]*; do
         [ -d "$td" ] || continue
         IFS= read -r name < "$td/comm" 2>/dev/null || continue
         match=0
         case "$group:$name" in
           # 端口名式（AOSP 系）与厂商线程名（AudioOut_*/agm_*/DAP*）都算 HAL 组
           hal:low_latency*|hal:raw_out*|hal:mmap_no_irq*|hal:deep_buffer*|hal:AudioOut_*|hal:AudioIn_*|hal:out_*|hal:agm_*|hal:DAP*) match=1 ;;
-          audio:FastMixer*|audio:AudioOut_*|audio:AudioMix*|audio:AAudio_*) match=1 ;;
+          audio:FastMixer*|audio:AudioOut_*|audio:AudioMix*|audio:AudioMmapOut*|audio:AAudio_*) match=1 ;;
           app:AudioTrack*|app:AAudio_*|app:FMOD\ mixer*|app:FMOD\ stream*|app:Audio\ Mixer*|app:UnityAudio*) match=1 ;;
         esac
         [ "$match" = 1 ] && printf '%s %s %s %s\n' "$p" "${td##*/}" "$group" "$priority"
     done
 }
 ll_targets() {
-    local p pkg uid any=0
+    local p pkg uid any=0 proc=${LL_PROC_ROOT:-/proc}
     LL_PACKAGES=""
-    : > "$LLROOT/wanted"
+    : > "$LLROOT/wanted" || return 1
+    case "$LL_WHITE" in ''|-) return 0 ;; esac
     dumpsys -t 5 media.audio_flinger > "$LLROOT/flinger" 2>/dev/null || return 1
-    awk -f "$MODDIR/bin/active_clients.awk" "$LLROOT/flinger" > "$LLROOT/clients"
+    ll_active_clients < "$LLROOT/flinger" > "$LLROOT/clients" || return 1
     while read -r p; do
-        uid=$(awk '/^Uid:/ {print $2; exit}' "/proc/$p/status" 2>/dev/null)
+        uid=$(awk '/^Uid:/ {print $2; exit}' "$proc/$p/status" 2>/dev/null)
         case "$uid" in ''|*[!0-9]*) continue ;; esac
         [ "$uid" -ge 10000 ] || continue
-        pkg=$(tr '\000' '\n' < "/proc/$p/cmdline" 2>/dev/null | head -n 1)
+        pkg=$(tr '\000' '\n' 2>/dev/null < "$proc/$p/cmdline" | head -n 1)
         pkg=${pkg%%:*}
-        valid_target "$pkg" || continue
+        ll_pkg_ok "$pkg" || continue
         # 只保留白名单内的应用；名单外的应用完全不参与调度。
         case ",$LL_WHITE," in *",$pkg,"*) ;; *) continue ;; esac
         any=1; LL_PACKAGES="$LL_PACKAGES $pkg"
@@ -218,6 +201,7 @@ ll_apply_one() {
 ll_tick_locked() {
     local f t p group priority result
     LL_OK=0; LL_FAIL=0; LL_HOK=0; LL_AOK=0; LL_POK=0; LL_PACKAGES=""
+    config_recover || { ll_restore_all; ll_state error recovery_failed; return 1; }
     ll_read_config || { ll_restore_all; ll_state error invalid_config; return 1; }
     # 先确认 chrt 存在，避免每个线程都报一次 denied
     if ! command -v chrt >/dev/null 2>&1; then
@@ -237,6 +221,14 @@ ll_tick_locked() {
         ll_state suspended
         return 0
     fi
+    case "$LL_WHITE" in ''|-)
+        ll_restore_all || { ll_state error restore_failed; return 1; }
+        : > "$LLROOT/details"
+        LL_PACKAGES=""
+        ll_state waiting
+        return 0
+        ;;
+    esac
     if ! ll_targets; then
         if ll_restore_all; then ll_state error audio_snapshot_failed; else ll_state error restore_failed; fi
         return 1
@@ -268,9 +260,9 @@ ll_tick_locked() {
 }
 ll_pause() {
     ll_init || return 1
-    # 记录持有者 pid：被打断的写入留下的 pause 可由巡检自愈
-    printf '%s\n' "$$" > "$LLROOT/pause"
     ll_lock || { echo error=scheduler_busy_try_again; return 1; }
+    # An explicit stop remains suspended if restoration has to be retried.
+    : > "$LLROOT/pause" || { ll_unlock; return 1; }
     if ! ll_restore_all; then ll_unlock; echo error=scheduler_restore_failed; return 1; fi
     LL_OK=0; LL_FAIL=0; ll_read_config; ll_state suspended
     : > "$LLROOT/details"
@@ -296,6 +288,7 @@ ll_daemon() {
     ll_init || return 1
     ll_lock || return 1
     if ll_alive; then ll_unlock; return 0; fi
+    if ! config_recover; then ll_unlock; echo error=recovery_failed; return 1; fi
     echo $$ > "$LLROOT/daemon.pid"
     ll_unlock
     trap 'if ll_lock; then ll_restore_all; ll_unlock; fi; rm -f "$LLROOT/daemon.pid"' EXIT
@@ -307,29 +300,32 @@ ll_daemon() {
     done
 }
 ll_save() {
-    # 3 个参数：hal audio app。名单由 wl-add/wl-del 单独维护，这里原样保留。
-    # 没有总开关：名单非空即调度；保存参数不会关闭调度。
-    [ "$#" = 3 ] || { echo error=invalid_lowlat_parameters; return 1; }
+    # 名单在共享锁内读取，不覆盖并行 wl-add / wl-del 的结果。
+    ll_valid "$@" - || { echo error=invalid_lowlat_parameters; return 1; }
     [ "$(cat "$STATE/applied" 2>/dev/null)" = native ] || [ ! -f "$STATE/applied" ] || { echo error=select_native_first; return 1; }
     ll_init || return 1
-    _saved_white=$(ll_white_current)
-    ll_valid "$1" "$2" "$3" "${_saved_white:--}" || { echo error=invalid_lowlat_parameters; return 1; }
-    ll_ensure_daemon || return 1
     ll_lock || { echo error=scheduler_busy_try_again; return 1; }
-    {
-        echo "hal_priority=$1"
-        echo "audio_priority=$2"
-        echo "app_priority=$3"
-        echo "whitelist=$_saved_white"
-        echo "revision=$(date +%s)-$$"
-    } > "$MODDIR/lowlat.conf.new"
-    if ! mv "$MODDIR/lowlat.conf.new" "$MODDIR/lowlat.conf"; then ll_unlock; return 1; fi
+    if ! config_recover; then ll_unlock; echo error=recovery_failed; return 1; fi
+    local _saved_white
+    _saved_white=$(ll_white_current)
+    if ! ll_valid "$1" "$2" "$3" "${_saved_white:--}"; then
+        ll_unlock; echo error=invalid_lowlat_parameters; return 1
+    fi
+    local staged rc
+    mkdir -p "$MODDIR" || { ll_unlock; echo error=write_failed; return 1; }
+    staged=$(mktemp "$MODDIR/.lowlat.XXXXXX") || { ll_unlock; echo error=write_failed; return 1; }
+    if ! config_lowlat_write "$1" "$2" "$3" "$_saved_white" > "$staged" ||
+        ! chmod 0644 "$staged" || ! mv -fT "$staged" "$MODDIR/lowlat.conf"; then
+        rm -f "$staged"; ll_unlock; echo error=write_failed; return 1
+    fi
     ll_resume
-    ll_tick_locked
-    local rc=$?
     ll_unlock
     echo saved=1
-    cat "$LLROOT/status"
+    ll_ensure_daemon || return 1
+    ll_lock || { echo error=scheduler_busy_try_again; return 1; }
+    ll_tick_locked; rc=$?
+    [ ! -f "$LLROOT/status" ] || cat "$LLROOT/status"
+    ll_unlock
     echo '设置已保存；仅标为 verified 的线程已通过内核状态回读。名单为空时不会改动任何系统线程。'
     return "$rc"
 }

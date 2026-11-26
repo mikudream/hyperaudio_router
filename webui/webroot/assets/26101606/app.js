@@ -1,7 +1,6 @@
 "use strict";
-const HELPER = '/system/bin/sh /data/adb/modules/hyperaudio/bin/webui.sh';
 let working=false, dirty=false, llLoaded=false, llSaved=null, llTimer=null;
-let sequence=0, themeTimer=null, themeBusy=false, themeAgain=false;
+let themeTimer=null, themeBusy=false, themeAgain=false;
 const $=id=>document.getElementById(id);
 const media=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
 function saved(key,fallback){try{return localStorage.getItem(key)||fallback;}catch(_){return fallback;}}
@@ -15,30 +14,8 @@ function parse(text) {
   text.split(/\r?\n/).forEach(line=>{const i=line.indexOf('=');if(i>0)result[line.slice(0,i)]=line.slice(i+1);});
   return result;
 }
-function bridge(command) {
-  try {
-    if (window.ksu && typeof window.ksu.exec === 'function') {
-      const out = window.ksu.exec(command);
-      if (typeof out === 'string' && out) return Promise.resolve(out);
-    }
-  } catch (e) { }
-  return new Promise((resolve,reject)=>{
-    if(!window.ksu||typeof window.ksu.exec!=='function') {reject(new Error('未检测到 KernelSU WebUI 接口，请使用模块执行按钮。'));return;}
-    const cb='ha_cb_'+Date.now()+'_'+(++sequence);let done=false;
-    const timer=setTimeout(()=>finish(new Error('等待返回超时，请重新读取状态。')),30000);
-    function finish(error,value){if(done)return;done=true;clearTimeout(timer);delete window[cb];if(error)reject(error);else resolve(value);}
-    window[cb]=(code,out,err)=>{if(!out&&code)finish(new Error(err||('执行失败：'+code)));else finish(null,String(out||''));};
-    try { window.ksu.exec(command,'{}',cb); } catch(e){finish(e);}
-  });
-}
 async function call(args) {
-  const raw=await bridge(HELPER+' '+args);
-  const line=raw.trim().split(/\r?\n/).pop();
-  const m=/^rc=(\d+)\|([A-Za-z0-9+/=]*)$/.exec(line);
-  if(!m)throw new Error('返回格式异常：'+raw);
-  const text=new TextDecoder('utf-8').decode(Uint8Array.from(atob(m[2]),c=>c.charCodeAt(0)));
-  if(m[1]!=='0')throw new Error(text);
-  return text;
+  return (await window.HACommand.call(args)).text;
 }
 function buttons() {
   document.querySelectorAll('button').forEach(b=>{b.disabled=working;});
@@ -47,7 +24,7 @@ function buttons() {
   if(window.HASelectMenus)window.HASelectMenus.refresh();
 }
 async function refreshTuning() {
-  const text=await call('tuning');
+  const text=await call(['tuning']);
   const sources=text.split(/\r?\n/).filter(l=>l.startsWith('source=')).map(l=>l.slice(7));
   const box=$('tuning-src'); if(!box)return;
   box.textContent=sources.length?sources.join('\n'):'未发现已启用的调音模块';
@@ -57,6 +34,8 @@ function markDirty(){
   dirty=true;
   $('dirtyNote').hidden=false;
   $('llBadge').textContent='待保存';
+  $('llBadge').hidden=false;
+  $('llBadge').style.display='';
 }
 function setLowlatFields(config){
   $('f-hal').value=config.hal_priority;
@@ -67,15 +46,29 @@ function setLowlatFields(config){
 function resetLowlat(){
   if(working||!llLoaded)return;
   dirty=false;
-  task('ll-save 20 16 15').then(ok=>{if(ok)toast('低延迟设置已恢复默认。');});
+  task(['ll-save', '20', '16', '15']).then(ok=>{if(ok)toast('低延迟设置已恢复默认。');});
 }
 function collectLowlat(){
   const values=['f-hal','f-audio','f-app'].map(id=>$(id).value.trim());
   if(values.some(x=>!/^([1-9]|[1-9][0-9])$/.test(x)))throw new Error('优先级必须是 1–99 的整数');
-  return "ll-save "+values.join(' ');
+  return ['ll-save'].concat(values);
+}
+function scheduleLowlatRefresh(){
+  clearTimeout(llTimer);
+  if(!document.hidden)llTimer=setTimeout(()=>{
+    if(working){scheduleLowlatRefresh();return;}
+    refreshLowlat().catch(()=>{
+      const badge=$('llBadge');
+      if(!badge.hidden&&!dirty)badge.textContent='读取失败';
+    });
+  },5000);
 }
 async function refreshLowlat(){
-  const text=await call('ll-status');
+  try { await readLowlat(); }
+  finally { scheduleLowlatRefresh(); }
+}
+async function readLowlat(){
+  const text=await call(['ll-status']);
   const s=parse(text.split('proof_begin')[0].split('current_details_begin')[0]);
   llLoaded=['hal_priority','audio_priority','app_priority'].every(k=>/^([1-9]|[1-9][0-9])$/.test(s[k]||''));
   if(!llLoaded)throw new Error('未取得完整的低延迟配置，请重新读取。');
@@ -90,7 +83,7 @@ async function refreshLowlat(){
   badgeEl.hidden=(empty && !dirty);
   badgeEl.style.display=(empty && !dirty)?'none':'';
   const notes={
-    verified:'已生效：名单内应用的音频线程已提升到实时优先级。',
+    verified:'已生效：匹配到的线程已通过内核调度状态回读。',
     waiting:'等待名单内应用开始放音。',
     no_matching_threads:'名单内应用正在放音，但没有匹配到可提升的音频线程。',
     partial:'部分线程提升失败，请稍后重试。',
@@ -99,8 +92,6 @@ async function refreshLowlat(){
   };
   const stateText=$('llStateText');
   if(stateText){ stateText.textContent=empty?'':(notes[s.ll_state]||'等待调度结果…'); stateText.hidden=empty; stateText.style.display=empty?'none':''; }
-  clearTimeout(llTimer);
-  if(!document.hidden)llTimer=setTimeout(()=>{if(!working)refreshLowlat().catch(()=>{});},5000);
 }
 ['f-hal','f-audio','f-app'].forEach(id=>$(id).addEventListener('change',markDirty));
 $('btn-ll-reset').addEventListener('click',resetLowlat);
@@ -108,13 +99,13 @@ $('btn-save').addEventListener('click',()=>{try{task(collectLowlat());}catch(e){
 async function task(command) {
   if(working)return false;
   let expected=null;
-  if(command.startsWith('ll-save '))expected=command.split(/\s+/).slice(1,4).map(Number);
+  if(command[0]==='ll-save')expected=command.slice(1,4).map(Number);
   working=true;buttons();
   await new Promise(r=>setTimeout(r,0));
   let failed=false;
   try {
     await call(command);
-    if(command.startsWith('ll-save ')){dirty=false;toast('低延迟设置已保存。');}
+    if(command[0]==='ll-save')dirty=false;
   } catch(e) {
     failed=true;
     toast('操作未完成。'+(String(e.message||e)));
@@ -122,7 +113,8 @@ async function task(command) {
   try { await refreshLowlat(); } catch(e){failed=true;}
   if(expected&&!failed){
     const actual=[Number(llSaved.hal_priority),Number(llSaved.audio_priority),Number(llSaved.app_priority)];
-    if(expected.some((value,i)=>value!==actual[i])){failed=true;toast('无法确认设置已应用，请重新读取。');}
+    if(expected.some((value,i)=>value!==actual[i])){failed=true;toast('无法确认设置已保存，请重新读取。');}
+    else toast('低延迟优先级已保存，调度结果见页面状态。');
   }
   working=false;buttons();
   return !failed;
@@ -158,7 +150,7 @@ async function refreshTheme(){
   if(themeBusy){themeAgain=true;return;}
   themeBusy=true;themeAgain=false;
   try{
-    const s=parse(await call('theme'));
+    const s=parse(await call(['theme']));
     if(['light','dark'].includes(s.theme))applyTheme(s.theme,s.source);
     else applyTheme(themeFallback(),'webview');
   }catch(_){applyTheme(themeFallback(),'webview');}

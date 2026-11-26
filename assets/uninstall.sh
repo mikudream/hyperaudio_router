@@ -3,10 +3,12 @@ MODDIR=${0%/*}
 # 卸载/移除模块前：把被提升的线程还原为原策略，并结束调度 daemon。
 /system/bin/sh "$MODDIR/bin/ha.sh" stop
 RC=$?
-# 清掉名单属性，避免已加载的 zygisk 负载在重启前继续对旧名单生效。
-for i in 0 1 2 3 4 5 6 7; do
-  setprop "ha.perapp.app.$i" - 2>/dev/null
-  setprop "ha.mmap_gate.$i" - 2>/dev/null
-done
-echo "已请求还原线程调度，并清除名单属性。若上方报告恢复失败，请保留错误记录。"
+if [ "$RC" -ne 0 ]; then
+  echo "线程调度恢复失败；请保留错误记录并重启设备。" >&2
+fi
+# 清除属性只影响后续启动进程，已安装的 hook 要等目标进程退出。
+/system/bin/sh "$MODDIR/bin/ha.sh" clear-properties || {
+  echo "名单属性清除失败；请重启设备。" >&2
+  [ "$RC" -ne 0 ] || RC=1
+}
 exit "$RC"

@@ -1,14 +1,10 @@
 #!/bin/sh
 # system.prop 的主机侧守护测试。
-# 背景：本模块的低延迟能力分两类——策略/缓冲类（真实生效）与 MMAP/ULL 解锁类
-# （在本机实测不改变 AAudio 是否走 MMAP）。这两类混在一起时，很容易在
-# UI 上做出"已开启 MMAP"这种不实承诺，或者不小心把关键属性删掉。
-#
-# 所以这里锁住四条：
+# 检查属性格式、关键配置与 AAudio 策略值。
 #   1) 没有任何重复键（重复会让"到底哪个生效"无法判断）
 #   2) 键名格式合法、没有值里带空格导致的解析歧义
 #   3) 关键属性存在（删了会影响低延迟/编解码）
-#   4) 文件里必须有说明"MMAP 属性不改变行为"的注释（防止后人又去改它求效果）
+#   4) MMAP AUTO 与排他模式 NEVER 使用正确数值
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 PROP="$HERE/../assets/system.prop"
@@ -40,10 +36,9 @@ for k in \
   ckc "存在 $k" "$(cat "$PROP")" "$k="
 done
 
-# --- 4) 说明性注释（防止后人又用改属性去求 MMAP 效果）---
-txt=$(cat "$PROP")
-ckc "注明了 MMAP 属性不改变行为" "$txt" "不改变"
-ckc "注明了真正的 MMAP 来源是自带的库" "$txt" "libaaudio_internal.so"
+# --- 4) MMAP 和排他策略取值 ---
+ck "MMAP 策略为 AUTO" "$(sed -n 's/^aaudio.mmap_policy=//p' "$PROP")" "2"
+ck "排他模式策略为 NEVER" "$(sed -n 's/^aaudio.mmap_exclusive_policy=//p' "$PROP")" "1"
 
 echo ""
 echo "############ 结果 ############"

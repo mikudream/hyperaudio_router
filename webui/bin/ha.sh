@@ -23,6 +23,7 @@ fi
 # Android offers /proc/sys/kernel/random/boot_id. HA_BOOT_ID lets host tests pin it.
 BOOT_ID=${HA_BOOT_ID:-$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)}
 [ -n "$BOOT_ID" ] || exit 1
+export BOOT_ID
 mkdir -p "$STATE" 2>/dev/null
 
 # 只读与后台动作：不持锁、不改状态。
@@ -33,8 +34,8 @@ case "$1" in
     ll-status) ll_status; exit $? ;;
     boot-status) boot_status; exit $? ;;
     tuning) detect_tuning; exit $? ;;
-  router-status|perapp-add|perapp-del|wl-add|wl-del)
-    /system/bin/sh "$MODDIR/bin/router.sh" "$@"; exit $? ;;
+  router-status|perapp-add|perapp-del|wl-add|wl-del|clear-properties)
+    sh "$MODDIR/bin/router.sh" "$@"; exit $? ;;
 esac
 
 case "$1" in
@@ -47,8 +48,17 @@ case "$1" in
     stop)
         # 卸载/禁用前调用：先把已提升的线程逐一还原，再结束调度 daemon。
         ll_pause || exit 1
-        _p=$(cat "$LLROOT/daemon.pid" 2>/dev/null)
-        case "$_p" in ''|*[!0-9]*) ;; *) kill "$_p" 2>/dev/null; rm -f "$LLROOT/daemon.pid" ;; esac
+        if ll_alive; then
+            _p=$(cat "$LLROOT/daemon.pid") || exit 1
+            case "$_p" in ''|*[!0-9]*) exit 1 ;; esac
+            kill "$_p" 2>/dev/null || { ll_alive && exit 1; }
+            _n=0
+            while ll_alive; do
+                _n=$((_n+1))
+                [ "$_n" -lt 10 ] || { echo error=scheduler_stop_timeout; exit 1; }
+                sleep 1
+            done
+        fi
         echo ok=1 ;;
     *) echo 'usage: ha.sh {status|router-status|perapp-add|perapp-del|wl-add|wl-del|ll-save HAL AUDIO APP|ll-status|boot|boot-status|stop|tuning|start-backends}'; exit 1 ;;
 esac

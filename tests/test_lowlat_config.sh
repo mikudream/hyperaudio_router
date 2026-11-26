@@ -9,7 +9,7 @@ rm -rf "$T"; mkdir -p "$T/mod/state" "$T/mod/bin"
 trap 'rm -rf "$T"' EXIT
 
 M=$T/mod
-cp "$BIN/runtime.sh" "$BIN/lowlat.sh" "$M/bin/"
+cp "$BIN/runtime.sh" "$BIN/lowlat.sh" "$BIN/config.sh" "$BIN/active_clients.sh" "$M/bin/"
 MODDIR=$M
 BOOT_ID=test-boot
 . "$M/bin/runtime.sh"

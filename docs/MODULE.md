@@ -1,6 +1,6 @@
 # HyperAudioRouter 模块说明
 
-> 版本 **1.01**（首个公开版本） · 模块 id `hyperaudio` · 作者：月见里幽瞳 / deepseek-flash
+> 版本 **1.02**（可靠性修复版） · 模块 id `hyperaudio` · 作者：月见里幽瞳 / deepseek-flash
 
 ## 1. 概览
 
@@ -12,7 +12,7 @@ HyperAudioRouter 是一个面向 HyperOS / Android 的**按应用音频路由**�
 | **音效名单** | 名单内应用的音轨清掉 `FAST` 标志，回落普通混音轨，经过 Dolby 效果链 | 音乐、视频、需要调音的游戏 |
 | **低延迟名单** | 名单内应用放音时，其音频线程（及当时共享的 HAL/audioserver 线程）提为 `SCHED_FIFO` | 音游、FPS、对延迟敏感的应用 |
 
-**名单之外，模块什么都不做；两份名单都为空时，对系统零改动。**
+进程内 hook 按名单安装。全局属性随模块加载，HAL 与 audioserver 的共享线程在名单内应用放音期间可能同时服务其它应用。
 
 同一个包不会同时留在两个名单里：加入一边会自动从另一边移出。
 
@@ -27,27 +27,20 @@ HyperAudioRouter 是一个面向 HyperOS / Android 的**按应用音频路由**�
 - **音效**：`dlsym` 找到导出的 `AudioTrack::createTrack_l`，在目标 ±120MB 内分配
   trampoline，把入口改成直接跳转；包装函数在**调用原函数前**清掉
   `AudioTrack::mFlags`（`this + 0x3c0`）的 `AUDIO_OUTPUT_FLAG_FAST`。
-- **低延迟**：解析 `libaaudio_internal_builder/core/mmap.so` 的 ELF 重定位表，把
-  `strzcmp16` 的 GOT 表项指向本模块实现；当比较对象是 AOSP 的 5 个白名单包名之一时
-  返回 0，使 AAudio 的 MMAP 白名单检查通过。
+- **低延迟**：校验已适配的 AAudio builder 库和白名单检查位置，修改其 `strzcmp16` GOT 表项，仅对确认的检查放行。其它比较转发给原函数。
 - 名单外进程不 patch、不 hook；不使用 Dobby、companion，不替换系统库。
 
 ### 2.2 名单 → 系统属性
 
-`preAppSpecialize` 阶段读不到 `/data/adb`，因此名单由 root 侧发布到系统属性：
+root 后端串行维护配置并发布双缓冲属性快照。每份名单使用 32 个槽，每槽 80 字节，包名可以跨槽分片。发布后回读验证，再切换 active 代际。系统启动完成后的 service 发布属性，若目标应用在此之前自启，应在模块就绪后重启应用。
 
-```
-ha.perapp.app.0..7     音效名单（每项最多 80 字符，逗号分隔）
-ha.mmap_gate.0..7      低延迟名单
-```
+负载读取前后核对代际，配置文件可读时以文件为准。每份名单容量为 2,560 字符，单包最长 120 字符。超容量和发布失败都会返回错误。
 
-- `webui/bin/router.sh` 在 `perapp-add/del`、`wl-add/del` 后立即发布
-- `assets/post-fs-data.sh` 与 `webui/bin/boot.sh` 在开机时发布
-- 负载优先读 `perapp.conf` / `lowlat.conf` 文件，读不到再回退到属性
+名单变更需要重启目标应用，以更新进程内 hook。线程调度由后续后台巡检更新。
 
 ### 2.3 低延迟 daemon
 
-`bin/lowlat.sh` 的 daemon 每 5 秒执行一次：
+`bin/lowlat.sh` 的 daemon 每约 5 秒巡检。空名单直接恢复模块拥有的调度状态，非空名单执行以下步骤。
 
 1. `dumpsys media.audio_flinger` 取出正在放音的应用与线程
 2. 只保留 `lowlat.conf` 的 `whitelist` 内应用
@@ -59,8 +52,7 @@ ha.mmap_gate.0..7      低延迟名单
 ### 2.4 全局属性基线
 
 `system.prop` 的音频/蓝牙/offload 调优在开机时由管理器注入，作用于整个系统，无法按
-应用拆分；其中 `aaudio.mmap_policy` / `aaudio.mmap_exclusive_policy` 保持 `1`（AUTO），
-不强制 MMAP，避免名单外应用也绕开普通混音轨。
+应用拆分。`aaudio.mmap_policy=2` 对应 AUTO，`aaudio.mmap_exclusive_policy=1` 对应 NEVER。系统可尝试共享 MMAP，实际通路受应用参数和 HAL 支持约束。
 
 ---
 
@@ -81,12 +73,12 @@ ha.mmap_gate.0..7      低延迟名单
 
 打开管理器内的模块 WebUI：
 
-- **音效**：查看注入状态；输入包名点“添加”即加入音效名单
+- **音效**：查看负载文件状态，维护音效名单
 - **低延迟**：调整 HAL / audioserver / 应用三档优先级；增删低延迟名单；查看实时调度状态
 - **设置**：调音模块检测、界面外观
 - **关于**：版本、维护者、许可与来源
 
-没有总开关：**加入名单即生效，移出即恢复**。
+名单变更后请彻底重启目标应用，加载或移除进程内 hook。线程优先级变化随后台巡检更新。
 
 ### 配置文件
 
@@ -115,12 +107,11 @@ revision=...
 ## 5. 兼容性与限制
 
 - **验证设备**：REDMI K90 Pro Max（myron）/ Android 17 / arm64。
-- **`mFlags` 偏移 `0x3c0` 是按本机 `libaudioclient.so` 反汇编得到的**；换机型或系统
-  版本必须重新确认，不能直接套用。偏移错误可能导致音效名单无效，甚至破坏 `AudioTrack`。
+- **系统库校验**：负载仅对已验证的 Build ID 与入口指令安装 hook。不同 ROM 或 OTA 后可能跳过 hook，需要重新适配。
 - **`createTrack_l` 必须是导出符号**；否则音效 hook 安装失败（低延迟链路不受影响）。
 - **MMAP GOT patch 依赖 `libaaudio_internal_*.so` 的 ELF 重定位表**；系统库被裁剪或
   加壳时 patch 会失败，低延迟名单退化为仅 chrt 调度。
-- **听感回归已完成**：已在真机确认音效名单内的应用经过 Dolby 效果链，听感有效。
+- **听感验证**：1.01 已由用户确认有效。1.02 需要在连接设备后重新验证 hook、MMAP、线程恢复及听感。
 - **system.prop 是全局的**，不能按应用拆分。
 - 不要与其它会改写音频策略/端口/AAudio 库的模块同时使用。
 
@@ -162,7 +153,7 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 
 **加入音效名单没效果**
 先确认 `createTrack_l` 是导出符号、`mFlags` 偏移匹配当前系统。
-本机可用 `logcat -s AAudioMmapGate` 看 `createTrack_l hooked` 与 `mFlags before/after`。
+检查目标应用是否已重启，并查看 `logcat -s AAudioMmapGate` 中的兼容性检查与 hook 安装结果。
 
 **加入低延迟名单没效果**
 确认应用确实在放音、`lowlat.conf` 的 `whitelist` 包含它；WebUI 低延迟页的调度状态

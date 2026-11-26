@@ -15,12 +15,27 @@ ckn() { case "$2" in *"$3"*) fail=$((fail+1)); printf '  FAIL %s (不应包含 %
 
 setup() {
   M=$T/mod
-  rm -rf "$M"; mkdir -p "$M/zygisk"
+  rm -rf "$M"; mkdir -p "$M/zygisk" "$M/props" "$M/state"
   printf 'hal_priority=20\naudio_priority=16\napp_priority=15\nwhitelist=\nrevision=initial\n' > "$M/lowlat.conf"
   printf 'x' > "$M/zygisk/arm64-v8a.so"
 }
 
-run() { MODDIR="$M" sh "$RS" "$@" 2>&1; }
+mkdir -p "$T/bin"
+cat > "$T/bin/setprop" <<'EOF'
+#!/bin/sh
+[ "${#2}" -le 80 ] || exit 1
+if [ "${HA_PROP_FAIL_KEY:-}" = "$1" ] && [ ! -f "$HA_PROPS/failed-once" ]; then
+  : > "$HA_PROPS/failed-once"
+  exit 1
+fi
+printf '%s' "$2" > "$HA_PROPS/$1"
+EOF
+cat > "$T/bin/getprop" <<'EOF'
+#!/bin/sh
+if [ -f "$HA_PROPS/$1" ]; then cat "$HA_PROPS/$1"; fi
+EOF
+chmod +x "$T/bin/setprop" "$T/bin/getprop"
+run() { PATH="$T/bin:$PATH" HA_PROPS="$M/props" MODDIR="$M" sh "$RS" "$@" 2>&1; }
 
 echo "############ 1. 初始 status ############"
 setup
@@ -108,6 +123,59 @@ O=$(run what-ever)
 ckc "返回 bad_action" "$O" "error=bad_action"
 
 echo ""
+echo '############ 9. 属性分片、容量与失败回滚 ############'
+setup
+long=$(awk 'BEGIN {printf "com.";for(i=0;i<116;i++)printf "x"}')
+O=$(run perapp-add "$long")
+ckc '120 字节包名接受' "$O" 'ok=1'
+pointer=$(cat "$M/props/ha.perapp.app.active")
+bank=${pointer##*.}
+ck '第 0 槽恰为 80 字节' "$(wc -c < "$M/props/ha.perapp.app.$bank.0" | tr -d ' ')" '80'
+ck '跨槽无损拼接' "$(cat "$M/props/ha.perapp.app.$bank.0" "$M/props/ha.perapp.app.$bank.1")" "$long"
+ck '第 31 槽已清空' "$(cat "$M/props/ha.perapp.app.$bank.31")" '-'
+cp "$M/perapp.conf" "$T/perapp.before"
+cp "$M/lowlat.conf" "$T/lowlat.before"
+HA_PROP_FAIL_KEY=ha.mmap_gate.active; export HA_PROP_FAIL_KEY
+O=$(run wl-add "$long")
+unset HA_PROP_FAIL_KEY
+ckc '模拟第二次 active 提交失败' "$O" 'error=publish_failed'
+ckn '属性失败不回显迁移成功' "$O" 'ok=1'
+ck '音效原文件完整恢复' "$(cmp -s "$T/perapp.before" "$M/perapp.conf"; echo $?)" '0'
+ck '低延迟原文件完整恢复' "$(cmp -s "$T/lowlat.before" "$M/lowlat.conf"; echo $?)" '0'
+ck '先前 active 指针回滚' "$(cat "$M/props/ha.perapp.app.active")" "$pointer"
+ckc '发布失败可在 status 查询' "$(run router-status)" 'config_publish=publish_failed'
+O=$(run wl-add "$long")
+ckc '撤销故障后可重试' "$O" 'moved_from=sound'
+awk 'BEGIN {print "enabled=1";for(i=0;i<22;i++){printf "app=com.x%d",i;for(j=0;j<110;j++)printf "x";print ""}}' > "$M/perapp.conf"
+cp "$M/perapp.conf" "$T/perapp.before"
+O=$(run perapp-add com.over.capacity)
+ckc '超容量有明确错误' "$O" 'error=property_capacity_exceeded'
+ck '超容量不改文件' "$(cmp -s "$T/perapp.before" "$M/perapp.conf"; echo $?)" '0'
+
+echo '############ 10. 首次发布失败的恢复与并发写入 ############'
+setup
+printf 'legacy.old.app' > "$M/props/ha.perapp.app.0"
+HA_PROP_FAIL_KEY=ha.mmap_gate.active; export HA_PROP_FAIL_KEY
+O=$(run perapp-add com.first.app)
+unset HA_PROP_FAIL_KEY
+ckc '首次发布失败明确返回' "$O" 'error=publish_failed'
+ck '首次失败恢复空 active' "$(cat "$M/props/ha.perapp.app.active")" ''
+ck '首次失败保留旧名单属性' "$(cat "$M/props/ha.perapp.app.0")" 'legacy.old.app'
+O=$(run perapp-add com.first.app)
+ckc '首次发布失败后可重试' "$O" 'ok=1'
+
+setup
+run perapp-add com.concurrent.one > "$T/out.one" &
+pid1=$!
+run perapp-add com.concurrent.two > "$T/out.two" &
+pid2=$!
+wait "$pid1"
+wait "$pid2"
+ckc '并发第一项成功' "$(cat "$T/out.one")" 'ok=1'
+ckc '并发第二项成功' "$(cat "$T/out.two")" 'ok=1'
+ck '并发第一项保留' "$(grep -c '^app=com.concurrent.one$' "$M/perapp.conf")" '1'
+ck '并发第二项保留' "$(grep -c '^app=com.concurrent.two$' "$M/perapp.conf")" '1'
+
 echo "############ 结果 ############"
 printf '  通过 %s，失败 %s\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

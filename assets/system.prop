@@ -1,19 +1,6 @@
 # ============================================================
-# 说明（基于 Android 17 平台的实测）
-#
-# 分两类看，别再混为一谈：
-#   1) 策略/缓冲类（period_size、buffering.ms、fast_track_multiplier、offload…）
-#      真实生效，决定 FAST 轨的缓冲与调度，是"低延迟"的主要来源。
-#   2) MMAP/ULL 解锁类（aaudio.mmap_policy、mmap_exclusive_policy、
-#      ull.playback.support）—— 在本机实测**不改变** AAudio 是否走 MMAP：
-#        · aaudio.mmap_policy 改 0 或 2 + 重启 audioserver，行为不变
-#        · ull.playback.support 置 false + 重启 audioserver，行为不变
-#      真正让任意应用都能 MMAP 的，是本模块自带的
-#      system/lib64/libaaudio_internal.so（上游预编译的解锁版本）。
-#      这些属性保留只是为兼容其它机型/版本，不要据此在 UI 上承诺"已开 MMAP"。
-#
-# 另外：vendor.audio.ull.playback.support 的注释 "Disable RAW whitelist" 是
-# 上游说法，指的是策略侧保留 RAW 标志，与客户端 MMAP 白名单不是一回事。
+# 全局音频属性基线。是否生效取决于 ROM、音频服务和 HAL 实现。
+# MMAP 客户端包名检查由按名单启用的 Zygisk 负载处理，模块不替换系统库。
 # ============================================================
 
 # Enable HyperOS 4 MMAP
@@ -22,9 +9,10 @@ persist.vendor.audio.aaudio.support=true
 vendor.audio.ull.playback.support=true
 
 # Low latency configuration
-# AUTO（1）而不是 ALWAYS（2）：ALWAYS 会向所有 AAudio 应用请求 MMAP，
-# 使名单外应用也绕开普通混音轨，与"按应用路由"的定位冲突。AUTO 交回系统策略。
-aaudio.mmap_policy=1
+# AOSP 策略值：1=NEVER、2=AUTO、3=ALWAYS。
+# AUTO 允许系统尝试 MMAP，仍由客户端与 HAL 的策略共同决定实际通路。
+# 排他模式保留 NEVER，以减少对共享效果链的影响。
+aaudio.mmap_policy=2
 aaudio.mmap_exclusive_policy=1
 aaudio.hw_burst_min_usec=1000
 vendor.audio_hal.period_size=48

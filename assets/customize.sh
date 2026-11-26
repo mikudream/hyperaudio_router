@@ -68,7 +68,8 @@ fi
 # 名单是用户数据，升级时不能丢。其余状态交给新版重建。
 if [ -d "$OLD" ]; then
   for f in lowlat.conf perapp.conf; do
-    [ -f "$OLD/$f" ] && cp -f "$OLD/$f" "$MODPATH/$f" 2>/dev/null
+    [ -f "$OLD/$f" ] || continue
+    cp -f "$OLD/$f" "$MODPATH/$f" || abort "无法保留旧配置：$f。安装已停止。"
   done
   ui_print "- 覆盖升级：已保留可复用的配置（lowlat.conf / perapp.conf）"
 
@@ -109,7 +110,7 @@ done
 ui_print "- HyperAudioRouter 已安装"
 ui_print "- 音效链路：名单内应用回落到普通轨，经过 Dolby 效果链"
 ui_print "- 低延迟链路：名单内应用放音时才提升线程优先级"
-ui_print "- 两份名单之外的应用保持系统默认行为"
+ui_print "- 名单外应用不安装按应用 hook；系统属性基线全局生效"
 ui_print "- 默认且唯一的工作方式是低延迟；没有全局音效模式"
 ui_print "- 本模块与全局版共用模块 id：安装会覆盖全局版，重启后生效"
 ui_print "- KernelSU 可直接打开 WebUI；Magisk 请使用兼容的 WebUI 管理器"

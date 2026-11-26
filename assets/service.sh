@@ -10,6 +10,5 @@ while [ "$(getprop sys.boot_completed)" != 1 ]; do
 done
 [ -f "$MODDIR/disable" ] || [ -f "$MODDIR/remove" ] && exit 0
 sleep 5
-# boot_run pauses scheduling and records a persistent guard on failure.
-/system/bin/sh "$MODDIR/bin/ha.sh" boot > "$MODDIR/last_boot.log" 2>&1
-/system/bin/sh "$MODDIR/bin/ha.sh" start-backends >> "$MODDIR/last_boot.log" 2>&1
+# boot starts the scheduler only after validating the configuration.
+/system/bin/sh "$MODDIR/bin/ha.sh" boot > "$MODDIR/last_boot.log" 2>&1 || exit 1

@@ -37,7 +37,7 @@ update_description() {
     _f=$MODDIR/module.prop
     [ -f "$_f" ] || return 0
     _t=$_f.new
-    awk -v d="description=按应用路由：音效名单 ${_pa} 项，低延迟名单 ${_wl} 项；加入名单即生效。" '
+    awk -v d="description=按应用路由：音效名单 ${_pa} 项，低延迟名单 ${_wl} 项；名单变更后重启目标应用更新链路。" '
         /^description=/ && !done { print d; done=1; next }
         { print }
     ' "$_f" > "$_t" 2>/dev/null || { rm -f "$_t"; return 0; }

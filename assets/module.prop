@@ -1,7 +1,7 @@
 id=hyperaudio
 name=HyperAudioRouter
-version=1.01
-versionCode=101
+version=1.02
+versionCode=102
 author=月见里幽瞳 / deepseek-flash
-description=按应用路由：音效名单内的应用回落到普通混音轨、经过 Dolby 效果链；低延迟名单内的应用在放音时提升音频线程优先级。两份名单之外的应用保持系统默认。
+description=按应用控制音效与低延迟链路，名单变更后重启目标应用；音频属性基线全局生效。
 credits=See CREDITS.md（来源与致谢）
