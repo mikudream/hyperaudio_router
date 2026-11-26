@@ -111,7 +111,7 @@ revision=...
 - **`createTrack_l` 必须是导出符号**；否则音效 hook 安装失败（低延迟链路不受影响）。
 - **MMAP GOT patch 依赖 `libaaudio_internal_*.so` 的 ELF 重定位表**；系统库被裁剪或
   加壳时 patch 会失败，低延迟名单退化为仅 chrt 调度。
-- **听感验证**：1.01 已由用户确认有效。1.02 需要在连接设备后重新验证 hook、MMAP、线程恢复及听感。
+- **真机验证**：1.02 已在 REDMI K90 Pro Max 上确认 FAST 标志从 `0x104` 清到 `0x100`、匹配线程回读为 FIFO、MMAP 放行后出现带扬声器设备的 `AudioMmapOut`；完整听感仍需实际应用试听。
 - **system.prop 是全局的**，不能按应用拆分。
 - 不要与其它会改写音频策略/端口/AAudio 库的模块同时使用。
 

@@ -1,12 +1,12 @@
 # Build the unified Zygisk payload.
 # Requires Android NDK r27 (clang). Set ANDROID_NDK_HOME or pass -Ndk.
-param([string]$Ndk = $env:ANDROID_NDK_HOME)
+param([string]$Ndk)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
+if (-not $Ndk) { $Ndk = $env:ANDROID_NDK_HOME }
 if (-not $Ndk) {
-    $hyp = Split-Path $repo -Parent
-    # 工具链已统一归集到 D:\DSH\Tools\toolchains 下
-    $Ndk = Join-Path (Split-Path $hyp -Parent) 'Tools\toolchains\android-ndk-r27c'
+    # Toolchains are shared across projects in this workspace.
+    $Ndk = 'D:\DSH\Tools\toolchains\android-ndk-r27c'
 }
 $clang = Join-Path $Ndk 'toolchains\llvm\prebuilt\windows-x86_64\bin\aarch64-linux-android24-clang++.cmd'
 $strip = Join-Path $Ndk 'toolchains\llvm\prebuilt\windows-x86_64\bin\llvm-strip.exe'

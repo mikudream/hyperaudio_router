@@ -16,6 +16,7 @@ fi
 # 模块不再做 bind mount / resetprop / 重启 audioserver，因此不需要进入 init 的挂载命名空间。
 . "$MODDIR/bin/runtime.sh"
 . "$MODDIR/bin/tuning.sh"
+. "$MODDIR/bin/active_clients.sh"
 . "$MODDIR/bin/lowlat.sh"
 . "$MODDIR/bin/boot.sh"
 . "$MODDIR/bin/theme.sh"

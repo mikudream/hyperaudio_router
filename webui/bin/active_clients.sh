@@ -17,7 +17,7 @@ ll_active_clients() {
     table==1 && remaining>0 && !/Type[[:space:]]+Id/ {
         for (i=2;i<NF;i++) if ($i ~ /^(yes|no)$/ && $(i-1) ~ /^[0-9]+$/) {
             n=split($(i+1),c,"/"); pid=c[1]; uid=c[2]
-            if (n==1) uid=$(i+2)
+            if (n==1 || uid=="") uid=$(i+2)
             if (n<=2 && pid ~ /^[0-9]+$/ && uid ~ /^[0-9]+$/) {
                 remaining--
                 if ($i=="yes" && pid>0 && uid>=10000 && !seen[pid]++) print pid

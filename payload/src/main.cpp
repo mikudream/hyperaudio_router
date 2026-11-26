@@ -28,6 +28,7 @@ void operator delete(void *p) noexcept { free(p); }
 void operator delete(void *p, size_t) noexcept { free(p); }
 
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "AAudioMmapGate", __VA_ARGS__)
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "AAudioMmapGate", __VA_ARGS__)
 
 namespace {
 using namespace ha;
@@ -317,8 +318,8 @@ extern "C" int ha_create_track(void *thiz) {
         auto *flags = reinterpret_cast<uint32_t *>(static_cast<char *>(thiz) + kFlagsOffset);
         uint32_t before = *flags;
         *flags = before & ~0x4u;
-        if (before != *flags && !g_logged.test_and_set(std::memory_order_relaxed)) {
-            __android_log_print(ANDROID_LOG_INFO, "AAudioMmapGate", "FAST flag cleared");
+        if (!g_logged.test_and_set(std::memory_order_relaxed)) {
+            LOGI("createTrack flags before=0x%x after=0x%x", before, *flags);
         }
     }
     return g_create.load(std::memory_order_acquire)(thiz);
@@ -442,10 +443,13 @@ bool listed(bool sound) {
 
 class MmapGateModule : public zygisk::ModuleBase {
 public:
-    void onLoad(zygisk::Api *api, JNIEnv *env) override { this->api = api; this->env = env; }
+    void onLoad(zygisk::Api *api, JNIEnv *env) override {
+        this->api = api;
+        this->env = env;
+    }
     void preAppSpecialize(zygisk::AppSpecializeArgs *args) override {
         if (!args || !env || !args->nice_name || args->uid % 100000 < 10000 ||
-            args->uid % 100000 > 19999 || (api && (api->getFlags() & zygisk::PROCESS_ON_DENYLIST))) {
+            args->uid % 100000 > 19999) {
             unload();
             return;
         }
@@ -459,6 +463,7 @@ public:
             sound = listed(true);
             gate = !sound && listed(false);
         }
+        if (sound || gate) LOGI("%s: sound=%d gate=%d", g_pkg, sound, gate);
         if (!sound && !gate) unload();
     }
     void postAppSpecialize(const zygisk::AppSpecializeArgs *) override {

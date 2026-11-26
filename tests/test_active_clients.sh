@@ -20,7 +20,7 @@ cat > "$T/flinger" <<'EOF'
 Output thread 0x12, name AudioOut_Primary
   2 Tracks of which 1 are active
     Type Id Active Client Session
-    1 F0 yes 2345/10123 44
+    1 F0 yes 2345/  10123 44
     2 F0 no 9999/10124 45
 Mmap thread 0x15, type 3 (MMAP_PLAYBACK)
   1 Tracks

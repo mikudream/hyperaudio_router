@@ -9,6 +9,13 @@
 - 修正 MMAP 策略值及名单变更需要重启应用的说明。
 - 本版的原生负载与 MMAP 策略需要在目标设备重新验证。
 
+### 真机验证（2026-11-26）
+
+- 音效：`createTrack flags before=0x104 after=0x100`，FAST 位已清除。
+- 低延迟：15 个线程通过内核状态回读，3 个应用线程 FIFO/15、HAL FIFO/20、audioserver FIFO/16；移出名单后 `owned` 归零。
+- MMAP：低延迟名单应用出现带扬声器设备的 `AudioMmapOut`/`MMAP_PLAYBACK`；移出名单后不再建立新的 MMAP 输出线程。
+- 名单：三款原有游戏名单保留，属性代际迁移与 `config_publish=ok` 正常。
+
 ## 1.01 — 首个公开版本（2026-11-04）
 
 首个公开版本，面向 HyperOS / Android 17（REDMI K90 Pro Max / myron）验证。
